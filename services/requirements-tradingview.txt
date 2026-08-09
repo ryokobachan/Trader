@@ -1,0 +1,1 @@
+tradingview-websocket==0.6
