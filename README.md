@@ -1,16 +1,22 @@
+<p align="center">
+  <img src="public/unicorn-logo.png" alt="Unicorn logo" width="144">
+</p>
+
 # Unicorn
 
 Unicorn is an open-source, TradingView-inspired workspace for U.S. stock charts, company research, watchlists, technical indicators, and sample strategy portfolios.
 
 > Unicorn is a research prototype. It does not execute orders or provide investment advice. Strategy metrics are illustrative unless a backtest provider is connected.
 
-The screenshots below use Unicorn's deterministic mock profile and contain no downloaded provider dataset.
+The chart and symbol-detail screenshots below were captured with Unicorn's optional real-data profile and show time-sensitive, provider-derived values. The strategy screenshot uses Unicorn's deterministic sample catalog. No raw provider response payloads or downloaded datasets are bundled with the repository.
 
 ## Screens
 
 ### Chart workspace
 
 ![Unicorn chart workspace](public/screenshots/unicorn-chart.png)
+
+_Captured with Yahoo quote data and TradingView websocket bars. Prices and timestamps reflect the observations displayed in the UI._
 
 - candlestick, line, and area charts with 1m–1M timeframes
 - configurable 2–10,000 candle history; default 1,000
@@ -22,6 +28,8 @@ The screenshots below use Unicorn's deterministic mock profile and contain no do
 
 ![Unicorn symbol details](public/screenshots/unicorn-details.png)
 
+_Captured from provider-derived AAPL company data. Values and observation times are shown in the interface._
+
 - financial statements, valuation, profitability, balance sheet, cash flow, and earnings
 - Benzinga-compatible analyst ratings and target-price history
 - technical metrics calculated from the selected OHLCV series
@@ -30,6 +38,8 @@ The screenshots below use Unicorn's deterministic mock profile and contain no do
 ### Strategies
 
 ![Unicorn strategy list](public/screenshots/unicorn-strategies.png)
+
+_The built-in strategy catalog is deterministic sample data, not a verified backtest result._
 
 - sortable sample strategy table with return, drawdown, recovery factor, Sharpe ratio, audit state, and win rate
 - portfolio overview, holdings, transactions, profitability, and symbol contribution

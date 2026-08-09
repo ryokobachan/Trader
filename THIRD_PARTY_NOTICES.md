@@ -23,8 +23,11 @@ trademark disclaimer are documented in
 
 The Unicorn brand artwork in `public/unicorn-logo.png` was supplied by the
 project owner for this repository. It is not Apple emoji artwork. The README
-screenshots are captured from Unicorn's deterministic mock profile and do not
-bundle provider response payloads.
+chart and symbol-detail screenshots were captured with Unicorn's optional
+real-data profile and visually reproduce time-sensitive, provider-derived
+values. The strategy screenshot uses Unicorn's deterministic sample catalog.
+No raw provider response payloads or machine-readable provider datasets are
+bundled with the repository.
 
 ## Optional market-data adapters
 
