@@ -60,7 +60,7 @@ export type Instrument = Readonly<{
   currency: "USD";
   sector?: string;
   industry?: string;
-  /** Reviewed bundled path or deployment-allowed HTTPS company-logo URL. */
+  /** Deployment-allowed HTTPS company-logo URL. */
   logoPath?: string;
   provenance: DataProvenance;
 }>;

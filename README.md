@@ -182,25 +182,26 @@ api/                 public config and external data-provider adapters
 extensions/          trusted developer-installed frontend modules
 strategies/          sample strategy definitions, metrics, holdings, seed trades
 src/app/             UI, internal HTTP routes, and Core contracts
-src/db/              D1 schema and binding helpers
+src/db/              D1 schema, migrations, and Drizzle configuration
 src/worker/          Cloudflare/Vinext worker entry
 src/tooling/         build-only internal tooling
-src/db/migrations/   versioned D1 migrations
-public/              brand, company-logo fixtures, README screenshots
+public/              brand artwork and README screenshots
 tests/               contract, security-boundary, SSR, and UI-structure tests
 ```
 
-The small service-owned root folders must stay in their conventional locations:
+One small service-owned root folder stays in its conventional location:
 
 | Folder | Why it stays |
 |---|---|
-| `.github/` | GitHub Actions CI; GitHub only discovers workflows here |
 | `.openai/` | Sites hosting and the D1 `DB` binding |
 
-`.vinext/`, `.wrangler/`, `dist/`, `node_modules/`, and
+`.vinext/`, `.wrangler/`, `var/`, `dist/`, `node_modules/`, and
 `tsconfig.tsbuildinfo` are ignored local outputs, not repository source.
-`.wrangler/state/v3/d1` contains local watchlists and strategy transactions, so
-never delete `.wrangler/` wholesale merely to clean build artifacts.
+Local D1 state lives under ignored `var/cloudflare/`; deleting it resets local
+watchlists, strategy preferences, and transactions without deleting the schema.
+Mutable runtime data never belongs under `src/`, where it could be bundled or
+committed. `.openai/hosting.json` remains at the root because Sites discovers
+the hosted D1 binding there.
 
 ## Quality checks
 

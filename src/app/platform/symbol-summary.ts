@@ -4,7 +4,7 @@ import type { SyntheticLatestClose } from "./provider-contracts";
 export type SymbolSummaryStock = Readonly<{
   ticker: string;
   name: string;
-  logoPath: string;
+  logoPath?: string;
   logoFallback: string;
   market: string;
   sector: string;

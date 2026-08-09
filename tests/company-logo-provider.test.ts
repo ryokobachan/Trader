@@ -26,8 +26,7 @@ test("builds keyless company-logo URLs for arbitrary normalized US stock symbols
   assert.equal(companyLogoPathForUSStock("AAPL?token=secret"), undefined);
 });
 
-test("allows only reviewed local logo assets and exact HTTPS CDN paths", () => {
-  assert.equal(safeCompanyLogoSource("/company-logos/apple.svg"), "/company-logos/apple.svg");
+test("allows only exact reviewed HTTPS CDN paths", () => {
   assert.equal(
     safeCompanyLogoSource("https://financialmodelingprep.com/image-stock/NBIS.png"),
     "https://financialmodelingprep.com/image-stock/NBIS.png",
@@ -39,6 +38,7 @@ test("allows only reviewed local logo assets and exact HTTPS CDN paths", () => {
     "https://user:pass@financialmodelingprep.com/image-stock/AAPL.png",
     "https://financialmodelingprep.com/image-stock/AAPL.png?apikey=placeholder",
     "https://financialmodelingprep.com/stable/profile?symbol=AAPL",
+    "/company-logos/apple.svg",
     "/company-logos/../secret.svg",
     "data:image/svg+xml,<svg/>",
     "javascript:alert(1)",
@@ -52,14 +52,14 @@ test("renders a valid company logo without also drawing its monogram fallback", 
     stock: {
       ticker: "AAPL",
       name: "Apple Inc.",
-      logoPath: "/company-logos/apple.svg",
+      logoPath: "https://financialmodelingprep.com/image-stock/AAPL.png",
       logoFallback: "AA",
     },
     eager: true,
   }));
 
   assert.match(html, /<img\b/);
-  assert.match(html, /src="\/company-logos\/apple\.svg"/);
+  assert.match(html, /src="https:\/\/financialmodelingprep\.com\/image-stock\/AAPL\.png"/);
   assert.doesNotMatch(html, /company-logo-fallback/);
   assert.doesNotMatch(html, />AA</);
 });

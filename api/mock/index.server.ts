@@ -5,6 +5,7 @@ import {
   type ProviderRegistration,
   type Quote,
 } from "@/app/platform/provider-contracts";
+import { companyLogoPathForUSStock } from "@/app/platform/company-logo";
 
 const FIXTURE_AS_OF = "2026-08-08T13:32:00.000Z";
 const FIXTURE_INGESTED_AT = "2026-08-08T13:32:05.000Z";
@@ -22,7 +23,7 @@ const instrumentFixtures: readonly Instrument[] = [
     currency: "USD",
     sector: "Technology",
     industry: "Consumer Electronics",
-    logoPath: "/company-logos/apple.svg",
+    logoPath: companyLogoPathForUSStock("AAPL"),
     provenance: {
       providerId: "mock",
       sourceId: "fixture:instrument:AAPL",
@@ -42,7 +43,7 @@ const instrumentFixtures: readonly Instrument[] = [
     currency: "USD",
     sector: "Technology",
     industry: "Semiconductors",
-    logoPath: "/company-logos/nvidia.svg",
+    logoPath: companyLogoPathForUSStock("NVDA"),
     provenance: {
       providerId: "mock",
       sourceId: "fixture:instrument:NVDA",
@@ -62,7 +63,7 @@ const instrumentFixtures: readonly Instrument[] = [
     currency: "USD",
     sector: "Technology",
     industry: "Software—Infrastructure",
-    logoPath: "/company-logos/microsoft.svg",
+    logoPath: companyLogoPathForUSStock("MSFT"),
     provenance: {
       providerId: "mock",
       sourceId: "fixture:instrument:MSFT",
@@ -82,7 +83,7 @@ const instrumentFixtures: readonly Instrument[] = [
     currency: "USD",
     sector: "Consumer Cyclical",
     industry: "Auto Manufacturers",
-    logoPath: "/company-logos/tesla.svg",
+    logoPath: companyLogoPathForUSStock("TSLA"),
     provenance: {
       providerId: "mock",
       sourceId: "fixture:instrument:TSLA",

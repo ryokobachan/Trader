@@ -42,6 +42,7 @@ yarn-error.log*
 next-env.d.ts
 *.tsbuildinfo
 /dist/
+# Cloudflare/Vinext transient files and local D1 runtime state
 /.wrangler/
 /outputs/
 /work/

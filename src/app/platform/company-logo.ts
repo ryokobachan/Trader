@@ -9,7 +9,6 @@
  */
 export const COMPANY_LOGO_POLICY = Object.freeze({
   remoteOrigins: Object.freeze(["https://financialmodelingprep.com"]),
-  localAssetPattern: /^\/company-logos\/[a-z0-9][a-z0-9-]*\.(?:png|svg|webp)$/,
   remoteAssetPattern: /^\/image-stock\/[A-Z][A-Z0-9-]{0,14}\.png$/,
 });
 
@@ -30,13 +29,11 @@ export function companyLogoPathForUSStock(symbol: string): string | undefined {
 
 /**
  * Treat logo paths as untrusted provider data at the final browser boundary.
- * Only reviewed bundled files and exact HTTPS origin/path combinations pass.
+ * Only exact reviewed HTTPS origin/path combinations pass.
  */
 export function safeCompanyLogoSource(value: string | undefined): string | null {
   const candidate = value?.trim();
   if (!candidate) return null;
-  if (COMPANY_LOGO_POLICY.localAssetPattern.test(candidate)) return candidate;
-
   try {
     const url = new URL(candidate);
     if (

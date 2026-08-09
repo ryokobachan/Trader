@@ -63,6 +63,7 @@ import type {
   SymbolDetailTabId,
 } from "./platform/unicorn-config";
 import { CompanyLogo } from "./components/CompanyLogo";
+import { companyLogoPathForUSStock } from "./platform/company-logo";
 import type { SymbolSummaryStock } from "./platform/symbol-summary";
 import {
   DEFAULT_SYMBOL_SUMMARY_DENSITY,
@@ -273,7 +274,7 @@ const STOCKS: Stock[] = [
   {
     ticker: "AAPL",
     name: "Apple Inc.",
-    logoPath: "/company-logos/apple.svg",
+    logoPath: companyLogoPathForUSStock("AAPL"),
     logoFallback: "A",
     market: "NASDAQ",
     sector: "Technology",
@@ -304,7 +305,7 @@ const STOCKS: Stock[] = [
   {
     ticker: "NVDA",
     name: "NVIDIA Corp.",
-    logoPath: "/company-logos/nvidia.svg",
+    logoPath: companyLogoPathForUSStock("NVDA"),
     logoFallback: "N",
     market: "NASDAQ",
     sector: "Semiconductors",
@@ -335,7 +336,7 @@ const STOCKS: Stock[] = [
   {
     ticker: "MSFT",
     name: "Microsoft Corp.",
-    logoPath: "/company-logos/microsoft.svg",
+    logoPath: companyLogoPathForUSStock("MSFT"),
     logoFallback: "MS",
     market: "NASDAQ",
     sector: "Software",
@@ -366,7 +367,7 @@ const STOCKS: Stock[] = [
   {
     ticker: "TSLA",
     name: "Tesla Inc.",
-    logoPath: "/company-logos/tesla.svg",
+    logoPath: companyLogoPathForUSStock("TSLA"),
     logoFallback: "T",
     market: "NASDAQ",
     sector: "Automotive",

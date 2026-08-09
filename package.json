@@ -30,7 +30,7 @@
     "test": "npm run build && npm run test:contracts && node --test tests/rendered-html.test.mjs",
     "test:contracts": "tsx --test tests/*-registry.test.ts tests/*-provider.test.ts tests/dev-with-midas-env.test.mjs tests/dev-with-yahoo.test.mjs tests/dev-with-tradingview.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate --config=src/db/drizzle.config.ts"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

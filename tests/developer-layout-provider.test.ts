@@ -34,13 +34,14 @@ test("keeps developer-owned APIs and strategies at the root and Core under src",
     "src/app/page.tsx",
     "src/app/api/v1/symbols/[symbol]/workspace/route.ts",
     "src/db/schema.ts",
+    "src/db/drizzle.config.ts",
     "src/db/migrations/0000_lumpy_silver_samurai.sql",
     "src/worker/index.ts",
   ]) {
     assert.equal(await exists(path), true, `${path} must exist`);
   }
 
-  for (const obsoleteRoot of ["app", "config", "db", "drizzle", "worker", "services", "scripts"]) {
+  for (const obsoleteRoot of ["app", "config", "db", "drizzle", "drizzle.config.ts", "worker", "services", "scripts", ".github", "public/company-logos"]) {
     assert.equal(await exists(obsoleteRoot), false, `${obsoleteRoot}/ must stay consolidated`);
   }
   assert.equal(await exists("src/app/plugins"), false, "developer UI registrations belong in extensions/");

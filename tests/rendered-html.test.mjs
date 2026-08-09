@@ -60,7 +60,7 @@ test("server-renders the Unicorn stock analysis mock", async () => {
   assert.match(html, /aria-label="Open AAPL details"/);
   assert.doesNotMatch(html, /aria-label="AAPL 銘柄詳細"/);
   assert.doesNotMatch(html, /> AAPL 詳細<\/button>/);
-  assert.match(html, /\/company-logos\/apple\.svg/);
+  assert.match(html, /financialmodelingprep\.com\/image-stock\/AAPL\.png/);
   assert.doesNotMatch(html, /company-logo-fallback/);
   assert.match(html, /data-module-id="core\.identity_quote"/);
   assert.match(html, /data-module-id="core\.key_statistics"/);
@@ -74,11 +74,6 @@ test("server-renders the Unicorn stock analysis mock", async () => {
   assert.doesNotMatch(html, /aria-label="右サイドパネル"/);
   assert.doesNotMatch(html, /codex-preview/);
   assert.doesNotMatch(html, /Your site is taking shape/);
-});
-
-test("bundles the reviewed company logo fixtures", async () => {
-  const logos = ["apple", "nvidia", "microsoft", "tesla"];
-  await Promise.all(logos.map((logo) => access(new URL(`../public/company-logos/${logo}.svg`, import.meta.url))));
 });
 
 test("uses the supplied Unicorn logo for the favicon and shell metadata", async () => {

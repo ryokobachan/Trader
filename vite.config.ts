@@ -49,8 +49,8 @@ export default defineConfig(async () => {
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= "false";
   process.env.X_LOCAL_OBSERVABILITY ??= "false";
-  process.env.WRANGLER_LOG_PATH ??= ".wrangler/logs";
-  process.env.MINIFLARE_REGISTRY_PATH ??= ".wrangler/registry";
+  process.env.WRANGLER_LOG_PATH ??= "var/cloudflare/logs";
+  process.env.MINIFLARE_REGISTRY_PATH ??= "var/cloudflare/registry";
 
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
   const { cloudflare } = await import("@cloudflare/vite-plugin");
@@ -63,6 +63,8 @@ export default defineConfig(async () => {
       vinext(),
       sites(),
       cloudflare({
+        // Runtime state belongs in ignored var/, never beside source or migrations.
+        persistState: { path: "var/cloudflare" },
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
         config: localBindingConfig,
       }),

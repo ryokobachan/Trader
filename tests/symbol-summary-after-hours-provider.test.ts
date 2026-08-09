@@ -20,7 +20,7 @@ import type { SyntheticLatestClose } from "../src/app/platform/provider-contract
 const stock: SymbolSummaryStock = {
   ticker: "AAPL",
   name: "Apple Inc.",
-  logoPath: "/company-logos/apple.svg",
+  logoPath: "https://financialmodelingprep.com/image-stock/AAPL.png",
   logoFallback: "AA",
   market: "NASDAQ",
   sector: "Technology",
