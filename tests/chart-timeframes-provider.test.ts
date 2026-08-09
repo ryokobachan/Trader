@@ -5,15 +5,15 @@ import test from "node:test";
 import {
   CHART_INTERVAL_OPTIONS,
   chartIntervalLabel,
-} from "../app/features/chart-timeframes/timeframes";
+} from "../src/app/features/chart-timeframes/timeframes";
 import {
   DEFAULT_CHART_CANDLE_COUNT,
   MAX_CHART_CANDLE_COUNT,
   MIN_CHART_CANDLE_COUNT,
   parseChartCandleCount,
-} from "../app/features/chart-timeframes/candle-count";
-import { aggregateMarketBars } from "../app/platform/market-bar-aggregation";
-import type { MarketBar } from "../app/platform/provider-contracts";
+} from "../src/app/features/chart-timeframes/candle-count";
+import { aggregateMarketBars } from "../src/app/platform/market-bar-aggregation";
+import type { MarketBar } from "../src/app/platform/provider-contracts";
 
 test("maps every visible chart timeframe to a canonical market interval", () => {
   assert.deepEqual(
@@ -33,7 +33,7 @@ test("maps every visible chart timeframe to a canonical market interval", () => 
 });
 
 test("defaults to 1,000 candles and uses the saved preference for every bars request", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   assert.equal(DEFAULT_CHART_CANDLE_COUNT, 1_000);
   assert.equal(MIN_CHART_CANDLE_COUNT, 2);
   assert.equal(MAX_CHART_CANDLE_COUNT, 10_000);
@@ -57,7 +57,7 @@ test("validates chart candle preferences against the market-bars contract", () =
 });
 
 test("puts workspace navigation above chart controls and uses Command-F search", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const workspaceNavigation = pageSource.indexOf('<nav className="workspace-view-tabs"');
   const chartToolbar = pageSource.indexOf('<header className="global-toolbar"');
   assert.ok(workspaceNavigation >= 0 && chartToolbar > workspaceNavigation);

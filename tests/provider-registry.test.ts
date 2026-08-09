@@ -4,14 +4,14 @@ import test from "node:test";
 import {
   PROVIDER_SCHEMA_VERSION,
   type ProviderRegistration,
-} from "../app/platform/provider-contracts";
+} from "../src/app/platform/provider-contracts";
 import {
   defineProviderRegistry,
   ProviderRegistryError,
   type ProviderRegistryErrorCode,
-} from "../app/platform/provider-registry";
-import { mockProviderRegistration } from "../app/plugins/providers/mock.server";
-import { createProviderRuntime } from "../app/plugins/providers/index.server";
+} from "../src/app/platform/provider-registry";
+import { mockProviderRegistration } from "../api/mock/index.server";
+import { createProviderRuntime } from "../api/index.server";
 
 function expectRegistryError(
   action: () => unknown,
@@ -81,6 +81,32 @@ test("selects profile and earnings providers independently from normalized funda
   assert.equal(runtime.selectedProviderIds.profile, "fmp");
   assert.equal(runtime.selectedProviderIds.earnings, "fmp");
   assert.ok(runtime.fundamentals);
+});
+
+test("keeps a single configured company-data role available without requiring the other two", () => {
+  const common = {
+    UNICORN_INSTRUMENT_PROVIDER: "mock",
+    UNICORN_MARKET_PROVIDER: "mock",
+    UNICORN_USAGE_MODE: "personal",
+    UNICORN_ENABLE_YAHOO_COMPAT: "true",
+  } as const;
+  const profileOnly = createProviderRuntime({
+    ...common,
+    UNICORN_PROFILE_PROVIDER: "yahoo",
+  });
+  assert.equal(profileOnly.selectedProviderIds.profile, "yahoo");
+  assert.equal(profileOnly.selectedProviderIds.fundamentals, undefined);
+  assert.equal(profileOnly.selectedProviderIds.earnings, undefined);
+  assert.ok(profileOnly.fundamentals);
+
+  const earningsOnly = createProviderRuntime({
+    ...common,
+    UNICORN_EARNINGS_PROVIDER: "yahoo",
+  });
+  assert.equal(earningsOnly.selectedProviderIds.profile, undefined);
+  assert.equal(earningsOnly.selectedProviderIds.fundamentals, undefined);
+  assert.equal(earningsOnly.selectedProviderIds.earnings, "yahoo");
+  assert.ok(earningsOnly.fundamentals);
 });
 
 test("rejects duplicate provider IDs", () => {

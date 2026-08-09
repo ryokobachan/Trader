@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   chartLocaleTag,
   formatChartDate,
-} from "../app/features/chart-localization";
+} from "../src/app/features/chart-localization";
 
 test("maps Unicorn locale to an explicit Lightweight Charts locale", () => {
   assert.equal(chartLocaleTag("en"), "en-US");
@@ -20,8 +20,8 @@ test("formats chart date-only values in the selected locale without shifting the
 
 test("every feature-owned Lightweight Charts instance receives the selected locale", async () => {
   const sources = await Promise.all([
-    readFile(new URL("../app/features/stock-detail/StockDetailCharts.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/features/chart-indicators/SubIndicatorPanes.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/features/stock-detail/StockDetailCharts.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/features/chart-indicators/SubIndicatorPanes.tsx", import.meta.url), "utf8"),
   ]);
   for (const source of sources) {
     const chartCalls = source.match(/createChart\(/g) ?? [];
@@ -31,7 +31,7 @@ test("every feature-owned Lightweight Charts instance receives the selected loca
 });
 
 test("the main price and strategy charts also receive the selected locale", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const chartCalls = source.match(/createChart\(/g) ?? [];
   const localizedCalls = source.match(/localization:\s*\{\s*locale:\s*chartLocaleTag\(locale\)\s*\}/g) ?? [];
 
@@ -44,7 +44,7 @@ test("the main price and strategy charts also receive the selected locale", asyn
 
 test("English indicator readouts do not use the Japanese compact-number locale", async () => {
   const source = await readFile(
-    new URL("../app/features/chart-indicators/SubIndicatorPanes.tsx", import.meta.url),
+    new URL("../src/app/features/chart-indicators/SubIndicatorPanes.tsx", import.meta.url),
     "utf8",
   );
   assert.match(source, /const localeTag = chartLocaleTag\(locale\)/);

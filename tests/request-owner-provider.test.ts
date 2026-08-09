@@ -2,17 +2,17 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { GET as getStrategyTransactions } from "../app/api/v1/strategy-portfolios/[strategyId]/transactions/route";
-import { GET as getStrategyPreferences } from "../app/api/v1/strategy-preferences/route";
-import { POST as getAfterHours } from "../app/api/v1/watchlists/after-hours/route";
-import { POST as getWatchlistQuotes } from "../app/api/v1/watchlists/quotes/route";
-import { GET as getWatchlists } from "../app/api/v1/watchlists/route";
+import { GET as getStrategyTransactions } from "../src/app/api/v1/strategy-portfolios/[strategyId]/transactions/route";
+import { GET as getStrategyPreferences } from "../src/app/api/v1/strategy-preferences/route";
+import { POST as getAfterHours } from "../src/app/api/v1/watchlists/after-hours/route";
+import { POST as getWatchlistQuotes } from "../src/app/api/v1/watchlists/quotes/route";
+import { GET as getWatchlists } from "../src/app/api/v1/watchlists/route";
 import {
   RequestOwnerError,
   requestOwnerId,
-} from "../app/platform/request-owner.server";
-import { DEFAULT_LOCAL_OWNER_ID } from "../app/platform/watchlist-contracts";
-import { installD1Binding } from "../db";
+} from "../src/app/platform/request-owner.server";
+import { DEFAULT_LOCAL_OWNER_ID } from "../src/app/platform/watchlist-contracts";
+import { installD1Binding } from "../src/db";
 
 const AUTHENTICATED_USER_ID_HEADER = "oai-authenticated-user-id";
 
@@ -78,16 +78,16 @@ test("watchlist provider proxy routes also reject anonymous public requests befo
 
 test("every persisted route resolves ownership and watchlist provider proxies enforce the same identity gate", () => {
   const routeFiles = [
-    "app/api/v1/watchlists/route.ts",
-    "app/api/v1/watchlists/[watchlistId]/route.ts",
-    "app/api/v1/watchlists/[watchlistId]/items/route.ts",
-    "app/api/v1/watchlists/[watchlistId]/items/[itemId]/route.ts",
-    "app/api/v1/watchlists/[watchlistId]/items/reorder/route.ts",
-    "app/api/v1/watchlists/quotes/route.ts",
-    "app/api/v1/watchlists/after-hours/route.ts",
-    "app/api/v1/strategy-preferences/route.ts",
-    "app/api/v1/strategy-preferences/[strategyId]/route.ts",
-    "app/api/v1/strategy-portfolios/[strategyId]/transactions/route.ts",
+    "src/app/api/v1/watchlists/route.ts",
+    "src/app/api/v1/watchlists/[watchlistId]/route.ts",
+    "src/app/api/v1/watchlists/[watchlistId]/items/route.ts",
+    "src/app/api/v1/watchlists/[watchlistId]/items/[itemId]/route.ts",
+    "src/app/api/v1/watchlists/[watchlistId]/items/reorder/route.ts",
+    "src/app/api/v1/watchlists/quotes/route.ts",
+    "src/app/api/v1/watchlists/after-hours/route.ts",
+    "src/app/api/v1/strategy-preferences/route.ts",
+    "src/app/api/v1/strategy-preferences/[strategyId]/route.ts",
+    "src/app/api/v1/strategy-portfolios/[strategyId]/transactions/route.ts",
   ];
   for (const routeFile of routeFiles) {
     assert.match(

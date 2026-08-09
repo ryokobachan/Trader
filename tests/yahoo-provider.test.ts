@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { Instrument, MarketBars } from "../app/platform/provider-contracts";
+import type { Instrument, MarketBars } from "../src/app/platform/provider-contracts";
 import {
   YahooProviderError,
   yahooProviderRegistration,
-} from "../app/plugins/providers/yahoo.server";
+} from "../api/yahoo/index.server";
 
 const ENABLED_ENV = {
   UNICORN_USAGE_MODE: "personal",

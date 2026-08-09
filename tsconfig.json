@@ -20,8 +20,13 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"],
+      "@api/*": ["./api/*"],
+      "@strategies/*": ["./strategies/*"],
+      "@extensions": ["./extensions/index.ts"],
+      "@extensions/*": ["./extensions/*"]
     }
   },
   "include": [

@@ -19,7 +19,7 @@ its mention does not imply affiliation or endorsement.
 
 The local prototype logo fixtures, source versions, fallback policy, and
 trademark disclaimer are documented in
-[`public/company-logos/README.md`](public/company-logos/README.md).
+[`docs/assets/company-logos.md`](docs/assets/company-logos.md).
 
 The Unicorn brand artwork in `public/unicorn-logo.png` was supplied by the
 project owner for this repository. It is not Apple emoji artwork. The README
@@ -48,6 +48,6 @@ affiliation with or endorsement by TradingView.
 ## Dependency licenses
 
 JavaScript dependency versions are pinned by `package-lock.json`; the optional
-Python chart dependency is pinned by `services/requirements-tradingview.txt`.
+Python chart dependency is pinned by `api/tradingview-websocket/requirements.txt`.
 Contributors must preserve upstream license notices and review newly added
 packages before distributing a build.

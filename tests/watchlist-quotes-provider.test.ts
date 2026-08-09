@@ -2,18 +2,18 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { POST } from "../app/api/v1/watchlists/quotes/route";
+import { POST } from "../src/app/api/v1/watchlists/quotes/route";
 import type {
   Instrument,
   InstrumentProvider,
   MarketDataProvider,
   Quote,
   WatchlistQuotesResponse,
-} from "../app/platform/provider-contracts";
+} from "../src/app/platform/provider-contracts";
 import {
   isUsableCurrentQuote,
   loadWatchlistQuotes,
-} from "../app/platform/watchlist-quotes.server";
+} from "../src/app/platform/watchlist-quotes.server";
 
 const AS_OF = "2026-08-09T10:00:00.000Z";
 
@@ -144,7 +144,7 @@ test("watchlist quotes API rejects invalid and oversized batches", async () => {
 });
 
 test("watchlist UI polls quote and after-hours batches without rendering placeholder zero", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
   assert.match(pageSource, /\/api\/v1\/watchlists\/quotes/);
   assert.match(pageSource, /watchlistQuoteStock\(item, next\[item\.symbol\]\)/);

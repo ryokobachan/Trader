@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   buildYahooDevelopmentEnvironment,
   yahooDevelopmentCommand,
-} from "../scripts/dev-with-yahoo.mjs";
+} from "../src/tooling/scripts/dev-with-yahoo.mjs";
 
 test("builds a forced keyless Yahoo and Benzinga profile without Midas or FMP settings", () => {
   const environment = buildYahooDevelopmentEnvironment({
@@ -22,7 +22,6 @@ test("builds a forced keyless Yahoo and Benzinga profile without Midas or FMP se
     UNICORN_NEWS_PROVIDER: "fmp",
     UNICORN_FUNDAMENTALS_PROVIDER: "fmp",
     UNICORN_EARNINGS_PROVIDER: "fmp",
-    UNICORN_FUNDAMENTALS_PROVIDERS: "fmp,sec-companyfacts",
     UNICORN_ANALYST_PROVIDER: "fmp",
   });
 
@@ -36,7 +35,6 @@ test("builds a forced keyless Yahoo and Benzinga profile without Midas or FMP se
   assert.equal(environment.UNICORN_EARNINGS_PROVIDER, "yahoo");
   assert.equal(environment.UNICORN_ANALYST_PROVIDER, "benzinga");
   assert.equal(environment.UNICORN_NEWS_PROVIDER, "yahoo");
-  assert.equal(environment.UNICORN_FUNDAMENTALS_PROVIDERS, undefined);
   assert.equal(environment.FMP_API_KEY, undefined);
   assert.equal(environment.FMP_BASE_URL, undefined);
   assert.equal(environment.MIDAS_ENV_FILE, undefined);
@@ -59,7 +57,7 @@ test("constructs the npm command without a shell on Unix and Windows", () => {
 });
 
 test("importing and building the profile emits no secret values", () => {
-  const launcherUrl = new URL("../scripts/dev-with-yahoo.mjs", import.meta.url).href;
+  const launcherUrl = new URL("../src/tooling/scripts/dev-with-yahoo.mjs", import.meta.url).href;
   const evaluation = `
     import { buildYahooDevelopmentEnvironment } from ${JSON.stringify(launcherUrl)};
     buildYahooDevelopmentEnvironment({

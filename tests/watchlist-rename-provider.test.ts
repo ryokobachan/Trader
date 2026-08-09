@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { translate } from "../app/platform/i18n";
+import { translate } from "../src/app/platform/i18n";
 
-const pageSource = readFileSync("app/page.tsx", "utf8");
-const routeSource = readFileSync("app/api/v1/watchlists/[watchlistId]/route.ts", "utf8");
-const storeSource = readFileSync("app/platform/watchlists.server.ts", "utf8");
+const pageSource = readFileSync("src/app/page.tsx", "utf8");
+const routeSource = readFileSync("src/app/api/v1/watchlists/[watchlistId]/route.ts", "utf8");
+const storeSource = readFileSync("src/app/platform/watchlists.server.ts", "utf8");
 
 test("watchlist rename is exposed as a localized, controlled dialog", () => {
   assert.match(pageSource, /t\("watchlist\.rename"\)/);

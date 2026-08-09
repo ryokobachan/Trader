@@ -3,20 +3,20 @@ import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
-import { GET } from "../app/api/v1/strategy-portfolios/[strategyId]/transactions/route";
+import { GET } from "../src/app/api/v1/strategy-portfolios/[strategyId]/transactions/route";
 import {
   INITIAL_STRATEGY_PORTFOLIO_TRANSACTIONS,
   StrategyPortfolioTransactionInputError,
   normalizeStrategyId,
   normalizeStrategyPortfolioTransactionInput,
-} from "../app/platform/strategy-portfolio-contracts";
-import { installD1Binding } from "../db";
+} from "../src/app/platform/strategy-portfolio-contracts";
+import { installD1Binding } from "../src/db";
 
 function migrations(): string {
-  return readdirSync("drizzle")
+  return readdirSync("src/db/migrations")
     .filter((name) => name.endsWith(".sql"))
     .sort()
-    .map((name) => readFileSync(`drizzle/${name}`, "utf8"))
+    .map((name) => readFileSync(`src/db/migrations/${name}`, "utf8"))
     .join("\n")
     .replaceAll("--> statement-breakpoint", "");
 }
@@ -117,6 +117,22 @@ test("migration scopes transaction ids by owner and strategy and uses the ordere
   assert.throws(
     () => insert.run("owner-1", "strategy-a", "transaction-1"),
     /UNIQUE constraint failed/,
+  );
+  assert.throws(
+    () => db.exec(`INSERT INTO strategy_portfolio_transactions
+      (owner_id, strategy_id, transaction_id, date, symbol, side, shares, price, fee,
+       created_at, updated_at)
+      VALUES ('owner-1', 'strategy-a', 'invalid-side', '2026-08-09', 'AAPL',
+        'short', 10, 231.41, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`),
+    /CHECK constraint failed/,
+  );
+  assert.throws(
+    () => db.exec(`INSERT INTO strategy_portfolio_transactions
+      (owner_id, strategy_id, transaction_id, date, symbol, side, shares, price, fee,
+       created_at, updated_at)
+      VALUES ('owner-1', 'strategy-a', 'invalid-amount', '2026-08-09', 'AAPL',
+        'buy', 0, -1, -1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`),
+    /CHECK constraint failed/,
   );
 
   const plan = db

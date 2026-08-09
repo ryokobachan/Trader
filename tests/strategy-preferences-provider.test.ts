@@ -3,20 +3,20 @@ import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
-import { DELETE, PATCH } from "../app/api/v1/strategy-preferences/[strategyId]/route";
-import { GET } from "../app/api/v1/strategy-preferences/route";
-import { SAMPLE_STRATEGY_DEFINITIONS } from "../app/features/strategy/sample-strategies";
+import { DELETE, PATCH } from "../src/app/api/v1/strategy-preferences/[strategyId]/route";
+import { GET } from "../src/app/api/v1/strategy-preferences/route";
+import { SAMPLE_STRATEGY_DEFINITIONS } from "../strategies/catalog";
 import {
   StrategyPreferenceInputError,
   normalizeStrategyPreferenceId,
   normalizeStrategyPreferenceInput,
   type StrategyPreference,
-} from "../app/platform/strategy-preference-contracts";
+} from "../src/app/platform/strategy-preference-contracts";
 import {
   listStrategyPreferences,
   updateStrategyPreference,
-} from "../app/platform/strategy-preferences.server";
-import { installD1Binding } from "../db";
+} from "../src/app/platform/strategy-preferences.server";
+import { installD1Binding } from "../src/db";
 
 type SqlValue = string | number | null;
 
@@ -94,10 +94,10 @@ function request(method: "PATCH" | "DELETE", strategyId: string, body?: unknown)
 }
 
 function migrations(): string {
-  return readdirSync("drizzle")
+  return readdirSync("src/db/migrations")
     .filter((name) => name.endsWith(".sql"))
     .sort()
-    .map((name) => readFileSync(`drizzle/${name}`, "utf8"))
+    .map((name) => readFileSync(`src/db/migrations/${name}`, "utf8"))
     .join("\n")
     .replaceAll("--> statement-breakpoint", "");
 }

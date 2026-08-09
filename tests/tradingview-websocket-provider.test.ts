@@ -6,15 +6,15 @@ import {
   type Instrument,
   type MarketBarInterval,
   type MarketBarRange,
-} from "../app/platform/provider-contracts";
-import { createProviderRuntime } from "../app/plugins/providers/index.server";
+} from "../src/app/platform/provider-contracts";
+import { createProviderRuntime } from "../api/index.server";
 import {
   createTradingViewSidecarProvider,
   TradingViewSidecarError,
   tradingViewCandleCount,
   tradingViewWebsocketProviderRegistration,
   type TradingViewSidecarFetch,
-} from "../app/plugins/providers/tradingview-websocket.server";
+} from "../api/tradingview-websocket/index.server";
 
 const INSTRUMENT = {
   instrumentId: "us:XNAS:AAPL",

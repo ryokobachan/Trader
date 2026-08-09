@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { PROVIDER_ENVIRONMENT_KEYS } from "../api/environment.ts";
 
 import {
   findAvailableLoopbackPort,
   isTradingViewSidecarHealth,
   selectedDevelopmentProfile,
   tradingViewDevelopmentProfile,
-} from "../scripts/dev-with-tradingview.mjs";
+} from "../src/tooling/scripts/dev-with-tradingview.mjs";
 
 test("forces chart bars through the authenticated local TradingView sidecar", () => {
   const environment = tradingViewDevelopmentProfile({
@@ -40,8 +41,7 @@ test("allocates an available loopback port and rejects unrelated health pages", 
   }), true);
 });
 
-test("forwards the chart provider and sidecar credentials into local Worker bindings", async () => {
-  const source = await readFile(new URL("../vite.config.ts", import.meta.url), "utf8");
+test("forwards the chart provider and sidecar credentials into local Worker bindings", () => {
   for (const binding of [
     "UNICORN_BARS_PROVIDER",
     "UNICORN_TRADINGVIEW_SIDECAR_URL",
@@ -49,12 +49,12 @@ test("forwards the chart provider and sidecar credentials into local Worker bind
     "UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS",
     "UNICORN_TRADINGVIEW_MAX_CANDLES",
   ]) {
-    assert.match(source, new RegExp(`\\"${binding}\\"`));
+    assert.ok(PROVIDER_ENVIRONMENT_KEYS.includes(binding));
   }
 });
 
 test("sidecar contract permits 10,000 candles and reports requested/returned counts", async () => {
-  const source = await readFile(new URL("../services/tradingview_sidecar.py", import.meta.url), "utf8");
+  const source = await readFile(new URL("../api/tradingview-websocket/sidecar.py", import.meta.url), "utf8");
   assert.match(source, /MAX_CANDLE_COUNT = 10_000/);
   assert.match(source, /"requestedCount": count/);
   assert.match(source, /"returnedCount": len\(items\)/);

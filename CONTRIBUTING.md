@@ -7,7 +7,8 @@ Thanks for helping improve Unicorn.
 1. Create a focused branch.
 2. Install dependencies with `npm install`.
 3. Run the mock app with `npm run dev -- --port 3001`.
-4. Keep provider-specific payloads behind canonical contracts in `app/platform`.
+4. Keep provider-specific payloads in `api/` and normalize them through the
+   canonical contracts in `src/app/platform`.
 5. Add or update tests for every behavior change.
 
 Before opening a pull request, run:

@@ -10,7 +10,7 @@ import {
   localizeIndicatorAnchor,
   localizeIndicatorSection,
   localizeIndicatorSource,
-} from "../app/features/indicators/indicator-i18n";
+} from "../src/app/features/indicators/indicator-i18n";
 
 const rsi = {
   id: "rsi14",
@@ -56,7 +56,7 @@ test("indicator feature copy supports Japanese without changing persisted values
 });
 
 test("indicator surfaces localize display copy while retaining Japanese state identifiers", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const start = source.indexOf("function IndicatorsPanel");
   const end = source.indexOf("function StrategyHome", start);
   assert.notEqual(start, -1);

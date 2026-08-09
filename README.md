@@ -73,7 +73,7 @@ npm run dev -- --port 3001
 Keyless personal-development profile:
 
 ```bash
-python3 -m pip install -r services/requirements-tradingview.txt
+python3 -m pip install -r api/tradingview-websocket/requirements.txt
 npm run dev:yahoo
 ```
 
@@ -105,20 +105,65 @@ Persistent APIs use the Sites-provided `oai-authenticated-user-id` when present.
 
 ## Developer customization
 
-Unicorn keeps product Core separate from deployment-owned extensions.
+For existing data and strategy customization, developers use three root folders:
+
+- [`api/`](api/README.md) contains `config.json` and external data-source implementations. A value such as `"bars": "yahoo"` maps through the reviewed registry to `api/yahoo/`.
+- [`extensions/`](extensions/README.md) contains trusted frontend module registrations. It is separate from API adapters so server credentials cannot leak into the browser bundle.
+- [`strategies/`](strategies/README.md) contains the built-in strategy catalog, performance-card definitions, sample holdings, and the first-run sample transaction seed.
+
+Everything that normally should not be customized is grouped under `src/`.
+
+Use `npm run dev -- --port 3001` to test the JSON provider defaults. The
+`dev:yahoo` and `dev:midas` commands are explicit real-data profiles and take
+precedence over those defaults; `npm run config:check` reports the effective
+selection without exposing credentials.
+
+- array order is display order;
+- remove an ID to hide that item;
+- add a registered ID to show it;
+- provider IDs in the JSON are build-time defaults;
+- environment variables override provider defaults for each deployment;
+- API keys, tokens, endpoints, formulas, and executable code never belong in this shared JSON.
+
+Treat the whole file as public: it is bundled for the UI as well as read by the server. The runtime validator accepts only registered provider, module, tab, and metric IDs, so credentials and arbitrary URLs are rejected. Put secrets in `.env.local` or hosted secret bindings only.
+
+The master file controls symbol-summary modules, symbol-detail tabs and scalar metric lists, strategy-detail performance cards, and default provider IDs. Earnings charts/tables remain fixed structured blocks inside the financial tab. Its schema and UI IDs are validated during startup/build; provider IDs and capabilities fail closed when the server runtime initializes. Invalid settings never silently switch to mock data.
+
+| Change an existing item | Edit |
+|---|---|
+| Symbol overview content and order | `ui.symbolSummary.modules` |
+| Symbol detail tabs | `ui.symbolDetail.tabs` |
+| Financial groups and metrics | `ui.symbolDetail.fundamentalGroups` |
+| Analyst, market, and technical metrics | `ui.symbolDetail.*Metrics` |
+| Strategy detail performance cards | `ui.strategyDetail.summaryMetrics` |
+| Search / current quote / chart / company-data API defaults | `providers.instrument`, `market`, `bars`, `profile`, `fundamentals`, `earnings`, `analyst`, `news` |
+
+Unicorn keeps product Core separate from deployment-owned extensions. JSON selects from reviewed registries; adding genuinely new behavior still uses a small code entry point.
 
 | Customize | Main entry point |
 |---|---|
-| Brand and logo | `app/platform/brand.ts`, `public/` |
-| Provider selection | `.env.example`, `app/plugins/providers/` |
-| Canonical provider DTOs | `app/platform/provider-contracts.ts` |
-| Symbol summary modules and order | `app/unicorn.config.ts`, `app/plugins/ui-modules/` |
-| Indicators | `app/features/chart-indicators/`, `app/features/indicators/` |
-| English/Japanese copy | `app/platform/i18n.tsx`, feature `*-i18n.ts` files |
-| Sample strategy catalog | `app/features/strategy/sample-strategies.ts` |
-| Transactional schema | `db/schema.ts`, `drizzle/` |
+| Brand and logo | `src/app/platform/brand.ts`, `public/` |
+| Select existing provider APIs | `api/config.json` |
+| Yahoo chart/search/fundamental fields | `api/yahoo/` |
+| Add a provider implementation | `api/<provider-id>/`, `api/index.server.ts`, `api/provider-roles.ts` |
+| Sample strategy definitions | `strategies/catalog.ts` |
+| Strategy performance cards | `strategies/metrics.ts` |
+| Sample holdings / first-run transactions | `strategies/sample-portfolio.ts`, `strategies/sample-transactions.ts` |
+| Canonical provider DTOs | `src/app/platform/provider-contracts.ts` |
+| Add a new symbol-summary module | `extensions/`, then select its ID in `api/config.json` |
+| Symbol-detail metric IDs and calculations | `api/stock-detail/ids.ts`, `api/stock-detail/metrics.ts` |
+| Indicators | `src/app/features/chart-indicators/`, `src/app/features/indicators/` |
+| English/Japanese copy | `src/app/platform/i18n.tsx`, feature `*-i18n.ts` files, `strategies/i18n.ts` |
+| Transactional schema | `src/db/schema.ts`, `src/db/migrations/` |
 
-Providers return canonical data with provenance instead of exposing vendor response shapes to UI components. UI modules are trusted build-time registrations; configuration cannot load arbitrary remote JavaScript.
+Provider credentials remain server-side in `.env.local` or hosted secrets. Providers return canonical data with provenance instead of exposing vendor response shapes to UI components. UI modules are trusted build-time registrations; configuration cannot load arbitrary remote JavaScript.
+
+An API adapter cannot create a new screen by itself. Existing normalized fields
+can be selected entirely from `api/config.json`, while a new domain such as an
+options chain needs both `api/<provider>/` for data and `extensions/<feature>/`
+for presentation. The current extension host supports the symbol summary;
+brand-new detail tabs still require one reviewed Core connection. See
+[`extensions/README.md`](extensions/README.md) for the exact boundary.
 
 Technical contracts:
 
@@ -133,19 +178,35 @@ Technical contracts:
 ## Project structure
 
 ```text
-app/                 UI, internal APIs, Core contracts, provider adapters
-db/                  D1 schema and binding helpers
-drizzle/             versioned D1 migrations
+api/                 public config and external data-provider adapters
+extensions/          trusted developer-installed frontend modules
+strategies/          sample strategy definitions, metrics, holdings, seed trades
+src/app/             UI, internal HTTP routes, and Core contracts
+src/db/              D1 schema and binding helpers
+src/worker/          Cloudflare/Vinext worker entry
+src/tooling/         build-only internal tooling
+src/db/migrations/   versioned D1 migrations
 public/              brand, company-logo fixtures, README screenshots
-services/            optional Python chart sidecar
 tests/               contract, security-boundary, SSR, and UI-structure tests
-worker/              Cloudflare/Vinext worker entry
 ```
+
+The small service-owned root folders must stay in their conventional locations:
+
+| Folder | Why it stays |
+|---|---|
+| `.github/` | GitHub Actions CI; GitHub only discovers workflows here |
+| `.openai/` | Sites hosting and the D1 `DB` binding |
+
+`.vinext/`, `.wrangler/`, `dist/`, `node_modules/`, and
+`tsconfig.tsbuildinfo` are ignored local outputs, not repository source.
+`.wrangler/state/v3/d1` contains local watchlists and strategy transactions, so
+never delete `.wrangler/` wholesale merely to clean build artifacts.
 
 ## Quality checks
 
 ```bash
 npm run lint
+npm run config:check
 npm test
 npx tsc --noEmit
 npm audit --omit=dev

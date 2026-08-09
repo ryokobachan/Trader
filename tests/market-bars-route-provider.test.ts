@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { GET } from "../app/api/v1/symbols/[symbol]/bars/route";
-import type { MarketBarInterval, MarketBarsResponse } from "../app/platform/provider-contracts";
+import { GET } from "../src/app/api/v1/symbols/[symbol]/bars/route";
+import type { MarketBarInterval, MarketBarsResponse } from "../src/app/platform/provider-contracts";
 
 function context(symbol = "AAPL") {
   return { params: Promise.resolve({ symbol }) };

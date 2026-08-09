@@ -1,10 +1,22 @@
 # Data Storage Boundaries
 
 - Version: 1.0-draft
+- Status: D1 application storage implemented; catalog, analytical stores, cache, and backtest artifacts proposed
 - Goal: keep transactional application data separate from market, fundamental, cache, and run artifacts
 - Project overview: [README](../../README.md)
 
-## 1. Physical boundaries
+## 1. Current implementation
+
+The current application persists watchlists, strategy display preferences, and
+sample-strategy portfolio transactions in the Cloudflare D1 `DB` binding.
+Browser display preferences remain in local storage. Provider responses, chart
+bars, fundamentals, and backtest artifacts are not persisted by Unicorn.
+
+The remaining stores below are a future reference architecture. Their URI names
+are intentionally not present in `.env.example` until corresponding adapters
+exist.
+
+## 2. Proposed physical boundaries
 
 ```mermaid
 flowchart LR
@@ -21,7 +33,7 @@ flowchart LR
 
 No chart OHLCV, SEC raw payload, or equity-curve blob is stored in the App OLTP database.
 
-## 2. Store responsibilities
+## 3. Proposed store responsibilities
 
 ### App OLTP DB — `APP_DATABASE_URL`
 
@@ -101,7 +113,7 @@ Raw provider payload and normalized facts remain distinct and linked by hash. Am
 - never the system of record
 - safe to flush; loss may delay jobs but cannot lose committed watchlists or strategies
 
-## 3. Local directory layout
+## 4. Proposed local directory layout
 
 ```text
 var/
@@ -117,12 +129,9 @@ var/
 
 `var/` is runtime data and must be gitignored. Test fixtures live separately under `fixtures/` and contain synthetic, redistributable data only.
 
-The current core skeleton binds Cloudflare D1 as the App OLTP database through
-the logical `DB` binding. Its first persistence slice contains ordered
-watchlists, stable instrument references, strategy sample preferences,
-strategy portfolio transactions, and mutation audit events. The
-checked-in Drizzle migration is the deployment source of truth; local previews
-also initialize the same tables idempotently so a fresh checkout is usable.
+The checked-in Drizzle migrations are the current deployment source of truth;
+local previews also initialize the same D1 tables idempotently so a fresh
+checkout is usable.
 
 The MVP owner adapter uses the stable Sites `oai-authenticated-user-id` for
 hosted requests and permits the single `local-workspace` fallback only for an
@@ -130,7 +139,7 @@ anonymous loopback request. Every table and query is owner-scoped. Market bars,
 fundamentals, provider payloads, and strategy result artifacts are not written to D1.
 R2 remains disabled until an artifact workflow is implemented.
 
-## 4. Transaction workflow examples
+## 5. Transaction workflow examples
 
 ### Add to watchlist
 
@@ -170,7 +179,7 @@ R2 remains disabled until an artifact workflow is implemented.
 4. App DB transaction changes run status and records artifact URI／hash.
 5. Partial artifacts from failed runs are quarantined and never published as completed.
 
-## 5. Backup, retention, and deletion
+## 6. Backup, retention, and deletion
 
 | Store | Backup／retention |
 |---|---|
@@ -183,7 +192,7 @@ R2 remains disabled until an artifact workflow is implemented.
 
 Workspace deletion removes or cryptographically expires user-owned transaction data and private artifacts. Shared market data is reference-counted／policy-managed and is not deleted merely because one workspace is removed.
 
-## 6. Customizable versus Core-owned
+## 7. Customizable versus Core-owned
 
 Developer-customizable:
 
@@ -203,7 +212,7 @@ Core-owned and invariant:
 
 An adapter must pass storage conformance tests before it can be registered.
 
-## 7. Storage conformance tests
+## 8. Storage conformance tests
 
 - App action remains committed when market Provider is unavailable
 - market／fundamental correction does not mutate prior content hashes

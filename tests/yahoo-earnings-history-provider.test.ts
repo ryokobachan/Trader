@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { Instrument } from "../app/platform/provider-contracts";
+import type { Instrument } from "../src/app/platform/provider-contracts";
 import {
   createYahooEarningsHistoryClient,
   YahooEarningsHistoryError,
-} from "../app/plugins/providers/yahoo-earnings-history.server";
+} from "../api/yahoo/earnings.server";
 
 type FetchInput = Parameters<typeof globalThis.fetch>[0];
 type FetchInit = Parameters<typeof globalThis.fetch>[1];

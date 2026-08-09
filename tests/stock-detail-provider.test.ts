@@ -6,13 +6,13 @@ import {
   buildStockDetailTechnicalMetrics,
   buildStockDetailViewModel,
   formatStockDetailProviderChain,
-} from "../app/features/stock-detail/detail-view-model";
+} from "../api/stock-detail/metrics";
 import {
   SYMBOL_WORKSPACE_SCHEMA_VERSION,
   type DataProvenance,
   type MarketBar,
   type SymbolWorkspace,
-} from "../app/platform/provider-contracts";
+} from "../src/app/platform/provider-contracts";
 
 const provenance = (providerId: string, sourceId: string): DataProvenance => ({
   providerId,
@@ -166,6 +166,16 @@ test("renders only present workspace fields with Yahoo and Benzinga provenance",
       "1株簿価",
     ],
   );
+  assert.deepEqual(
+    model.fundamentals.metrics.slice(0, 5).map((item) => item.id),
+    [
+      "fundamentals.revenue",
+      "fundamentals.revenueGrowth",
+      "fundamentals.grossProfit",
+      "fundamentals.ebitda",
+      "fundamentals.eps",
+    ],
+  );
   assert.ok(model.fundamentals.metrics.every((item) => item.note?.includes("Provider最新値")));
   assert.equal(
     model.fundamentals.metrics.find((item) => item.label === "1株簿価")?.note,
@@ -232,7 +242,7 @@ test("keeps primary and fallback provider order visible", () => {
 });
 
 test("keeps legacy pseudo metrics and broker fixtures out of the detail screen", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const start = source.indexOf("function StockDetailPage(");
   const end = source.indexOf("function IndicatorsPanel(", start);
   assert.ok(start >= 0 && end > start);
@@ -244,8 +254,8 @@ test("keeps legacy pseudo metrics and broker fixtures out of the detail screen",
 });
 
 test("connects visual earnings and Benzinga target history to the detail screen", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  const chartSource = await readFile(new URL("../app/features/stock-detail/StockDetailCharts.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+  const chartSource = await readFile(new URL("../src/app/features/stock-detail/StockDetailCharts.tsx", import.meta.url), "utf8");
 
   assert.match(pageSource, /EarningsActualEstimateChart/);
   assert.match(pageSource, /AnalystTargetHistoryChart/);
@@ -259,7 +269,7 @@ test("connects visual earnings and Benzinga target history to the detail screen"
 });
 
 test("keeps stock detail concise with merged financials and real category tabs", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const detailStart = pageSource.indexOf("function StockDetailPage(");
   const detailEnd = pageSource.indexOf("function IndicatorsPanel(", detailStart);
   const detailSource = pageSource.slice(detailStart, detailEnd);

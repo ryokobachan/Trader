@@ -8,8 +8,8 @@ import {
   latestIndicatorValues,
   type ComputedIndicator,
   type IndicatorCalculationSpec,
-} from "../app/features/chart-indicators/indicator-calculations";
-import type { MarketBar } from "../app/platform/provider-contracts";
+} from "../src/app/features/chart-indicators/indicator-calculations";
+import type { MarketBar } from "../src/app/platform/provider-contracts";
 
 const bars: readonly MarketBar[] = Array.from({ length: 120 }, (_, index) => {
   const close = 84 + index * 0.17 + Math.sin(index / 4) * 2.1;

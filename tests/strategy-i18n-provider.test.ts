@@ -11,7 +11,7 @@ import {
   strategyDurationLabel,
   strategyTechnicalRatingLabel,
   strategyTranslate,
-} from "../app/features/strategy/strategy-i18n";
+} from "../strategies/i18n";
 
 test("strategy feature defaults to readable English and supports Japanese", () => {
   const english = createStrategyTranslator("en");
@@ -48,7 +48,7 @@ test("strategy dictionaries keep parameter placeholders when data is absent", ()
 });
 
 test("StrategyHome uses the locale while preserving API and state identifiers", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const start = pageSource.indexOf("function StrategyHome(");
   const end = pageSource.indexOf("function WatchlistPanel(", start);
   assert.ok(start >= 0 && end > start);

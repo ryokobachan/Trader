@@ -6,7 +6,7 @@ import {
   DEFAULT_SAMPLE_STRATEGY_ID,
   SAMPLE_STRATEGY_DEFINITIONS,
   sampleStrategiesForLocale,
-} from "../app/features/strategy/sample-strategies";
+} from "../strategies/catalog";
 
 test("ships a clear, conservative built-in strategy sample catalog", () => {
   const strategies = sampleStrategiesForLocale("en");
@@ -70,9 +70,9 @@ test("applies durable presentation overrides and soft-delete tombstones", () => 
 });
 
 test("keeps sample strategy definitions outside the page composition root", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const fixtureSource = await readFile(
-    new URL("../app/features/strategy/sample-strategies.ts", import.meta.url),
+    new URL("../strategies/catalog.ts", import.meta.url),
     "utf8",
   );
 

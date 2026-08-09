@@ -3,16 +3,16 @@ import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
-import { translate } from "../app/platform/i18n";
+import { translate } from "../src/app/platform/i18n";
 import {
   WatchlistStoreError,
   deleteWatchlist,
-} from "../app/platform/watchlists.server";
-import { installD1Binding } from "../db";
+} from "../src/app/platform/watchlists.server";
+import { installD1Binding } from "../src/db";
 
-const pageSource = readFileSync("app/page.tsx", "utf8");
-const routeSource = readFileSync("app/api/v1/watchlists/[watchlistId]/route.ts", "utf8");
-const storeSource = readFileSync("app/platform/watchlists.server.ts", "utf8");
+const pageSource = readFileSync("src/app/page.tsx", "utf8");
+const routeSource = readFileSync("src/app/api/v1/watchlists/[watchlistId]/route.ts", "utf8");
+const storeSource = readFileSync("src/app/platform/watchlists.server.ts", "utf8");
 
 test("watchlist deletion is localized, confirmed, and unavailable for the last list", () => {
   assert.match(pageSource, /t\("watchlist\.delete"\)/);
@@ -137,10 +137,10 @@ class BarrierD1Database {
 }
 
 function migrations(): string {
-  return readdirSync("drizzle")
+  return readdirSync("src/db/migrations")
     .filter((name) => name.endsWith(".sql"))
     .sort()
-    .map((name) => readFileSync(`drizzle/${name}`, "utf8"))
+    .map((name) => readFileSync(`src/db/migrations/${name}`, "utf8"))
     .join("\n")
     .replaceAll("--> statement-breakpoint", "");
 }

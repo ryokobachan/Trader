@@ -3,11 +3,11 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { CompanyLogo } from "../app/components/CompanyLogo";
+import { CompanyLogo } from "../src/app/components/CompanyLogo";
 import {
   companyLogoPathForUSStock,
   safeCompanyLogoSource,
-} from "../app/platform/company-logo";
+} from "../src/app/platform/company-logo";
 
 test("builds keyless company-logo URLs for arbitrary normalized US stock symbols", () => {
   assert.equal(

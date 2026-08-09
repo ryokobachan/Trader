@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { isEventInsideDismissibleLayer } from "../app/hooks/useDismissibleLayer";
+import { isEventInsideDismissibleLayer } from "../src/app/hooks/useDismissibleLayer";
 
 type FakeBoundary = EventTarget & { contains: (target: Node | null) => boolean };
 
@@ -36,7 +36,7 @@ test("recognizes an event outside every boundary", () => {
 });
 
 test("hook covers pointer, focus and Escape dismissal with Escape focus restoration", async () => {
-  const source = await readFile(new URL("../app/hooks/useDismissibleLayer.ts", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/app/hooks/useDismissibleLayer.ts", import.meta.url), "utf8");
 
   assert.match(source, /addEventListener\("pointerdown"/);
   assert.match(source, /addEventListener\("focusin"/);
@@ -49,9 +49,9 @@ test("hook covers pointer, focus and Escape dismissal with Escape focus restorat
 });
 
 test("every non-modal app menu uses the shared dismissible-layer behavior", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const summarySource = await readFile(
-    new URL("../app/features/symbol-summary/SymbolSummaryHost.tsx", import.meta.url),
+    new URL("../src/app/features/symbol-summary/SymbolSummaryHost.tsx", import.meta.url),
     "utf8",
   );
 

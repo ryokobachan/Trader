@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { Instrument, ProviderRequestContext } from "../app/platform/provider-contracts";
+import type { Instrument, ProviderRequestContext } from "../src/app/platform/provider-contracts";
 import {
   createFmpProvider,
   FmpProviderError,
   fmpProviderRegistration,
   type FmpFetch,
-} from "../app/plugins/providers/fmp.server";
+} from "../api/fmp/index.server";
 
 const SECRET = "fmp key?with&reserved=characters";
 const NOW = new Date("2026-08-09T12:00:00.000Z");

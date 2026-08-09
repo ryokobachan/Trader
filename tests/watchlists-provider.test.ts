@@ -10,7 +10,7 @@ import {
   normalizeReorderItemIds,
   normalizeWatchlistItemInput,
   normalizeWatchlistName,
-} from "../app/platform/watchlist-contracts";
+} from "../src/app/platform/watchlist-contracts";
 
 test("normalizes durable watchlist commands without accepting unsafe symbols or logo URLs", () => {
   assert.equal(DEFAULT_WATCHLIST_NAME, "Main Watchlist");
@@ -56,10 +56,10 @@ test("generated D1 migration keeps transaction data relational and separate from
   const hosting = JSON.parse(readFileSync(".openai/hosting.json", "utf8")) as { d1: string | null };
   assert.equal(hosting.d1, "DB");
 
-  const migration = readdirSync("drizzle")
+  const migration = readdirSync("src/db/migrations")
     .filter((name) => name.endsWith(".sql"))
     .sort()
-    .map((name) => readFileSync(`drizzle/${name}`, "utf8"))
+    .map((name) => readFileSync(`src/db/migrations/${name}`, "utf8"))
     .join("\n")
     .replaceAll("--> statement-breakpoint", "");
   const db = new DatabaseSync(":memory:");
@@ -90,6 +90,19 @@ test("generated D1 migration keeps transaction data relational and separate from
     VALUES ('item-1', 'list-1', 'owner-1', 'us_xnas_aapl', 'AAPL', 0,
       CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
   `);
+  assert.throws(
+    () => db.exec(`INSERT INTO watchlists
+      (id, owner_id, name, sort_order, is_default, version, created_at, updated_at)
+      VALUES ('list-empty', 'owner-2', '', 0, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`),
+    /CHECK constraint failed/,
+  );
+  assert.throws(
+    () => db.exec(`INSERT INTO watchlists
+      (id, owner_id, name, sort_order, is_default, version, created_at, updated_at)
+      VALUES ('list-default', 'owner-2', 'Invalid default', 0, 2, 1,
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`),
+    /CHECK constraint failed/,
+  );
   assert.throws(
     () => db.exec(`INSERT INTO watchlist_items
       (id, watchlist_id, owner_id, instrument_id, symbol, position, created_at, updated_at)

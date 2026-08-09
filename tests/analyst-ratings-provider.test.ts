@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { GET } from "../app/api/v1/symbols/[symbol]/analyst-ratings/route";
+import { GET } from "../src/app/api/v1/symbols/[symbol]/analyst-ratings/route";
 
 type ErrorBody = { error: { code: string } };
 

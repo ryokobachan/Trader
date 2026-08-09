@@ -3,9 +3,9 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { CORE_SYMBOL_SUMMARY_MODULES } from "../app/features/symbol-summary/core-modules";
-import { SymbolSummaryHost } from "../app/features/symbol-summary/SymbolSummaryHost";
-import { I18nProvider, type Locale } from "../app/platform/i18n";
+import { CORE_SYMBOL_SUMMARY_MODULES } from "../src/app/features/symbol-summary/core-modules";
+import { SymbolSummaryHost } from "../src/app/features/symbol-summary/SymbolSummaryHost";
+import { I18nProvider, type Locale } from "../src/app/platform/i18n";
 import {
   compareSummaryPrices,
   formatSummaryAfterHoursPrice,
@@ -14,8 +14,8 @@ import {
   type SymbolSummaryModuleProps,
   type SymbolSummaryStock,
   validSummaryAfterHoursClose,
-} from "../app/platform/symbol-summary";
-import type { SyntheticLatestClose } from "../app/platform/provider-contracts";
+} from "../src/app/platform/symbol-summary";
+import type { SyntheticLatestClose } from "../src/app/platform/provider-contracts";
 
 const stock: SymbolSummaryStock = {
   ticker: "AAPL",

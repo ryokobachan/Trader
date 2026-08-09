@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { Instrument, ProviderRequestContext } from "../app/platform/provider-contracts";
+import type { Instrument, ProviderRequestContext } from "../src/app/platform/provider-contracts";
 import {
   benzingaProviderRegistration,
   BenzingaProviderError,
   createBenzingaProvider,
   type BenzingaFetch,
-} from "../app/plugins/providers/benzinga.server";
+} from "../api/benzinga/analyst.server";
 
 const NOW = new Date("2026-08-09T12:00:00.000Z");
 const SECRET = "benzinga token?with&reserved=characters";

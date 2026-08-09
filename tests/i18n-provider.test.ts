@@ -15,7 +15,7 @@ import {
   useI18n,
   writeStoredLocale,
   type Locale,
-} from "../app/platform/i18n";
+} from "../src/app/platform/i18n";
 
 function LocaleProbe() {
   const { locale, t } = useI18n();
@@ -51,7 +51,7 @@ test("English is the runtime-validated default and SSR language", async () => {
   assert.match(html, /data-locale="en"/);
   assert.match(html, /Current language: English/);
 
-  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const layout = await readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8");
   assert.match(layout, /<html lang=\{DEFAULT_LOCALE\}>/);
   assert.match(layout, /<I18nProvider>\{children\}<\/I18nProvider>/);
 });
@@ -84,7 +84,7 @@ test("translations interpolate parameters and fall back to English then the key"
 });
 
 test("provider restores storage after hydration, persists switches, and updates document language", async () => {
-  const source = await readFile(new URL("../app/platform/i18n.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/app/platform/i18n.tsx", import.meta.url), "utf8");
   assert.match(source, /readStoredLocale\(window\.localStorage/);
   assert.match(source, /writeStoredLocale\(window\.localStorage, locale\)/);
   assert.match(source, /document\.documentElement\.lang = locale/);
@@ -96,7 +96,7 @@ test("provider restores storage after hydration, persists switches, and updates 
 });
 
 test("workspace settings use a controlled locale draft and persist it on Apply", async () => {
-  const page = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const page = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
   assert.match(page, /const \{ locale, setLocale, t, supportedLocales \} = useI18n\(\)/);
   assert.match(page, /const \[localeDraft, setLocaleDraft\] = useState<Locale>\(locale\)/);

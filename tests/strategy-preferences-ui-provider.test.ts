@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function strategyHomeSource() {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const start = pageSource.indexOf("function StrategyHome(");
   const end = pageSource.indexOf("function WatchlistPanel(", start);
   assert.ok(start >= 0 && end > start);

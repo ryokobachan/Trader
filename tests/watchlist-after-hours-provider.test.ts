@@ -3,15 +3,15 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import test from "node:test";
 
-import { POST } from "../app/api/v1/watchlists/after-hours/route";
-import type { WatchlistAfterHoursResponse } from "../app/platform/provider-contracts";
+import { POST } from "../src/app/api/v1/watchlists/after-hours/route";
+import type { WatchlistAfterHoursResponse } from "../src/app/platform/provider-contracts";
 import {
   createTradingViewSidecarProvider,
   DEFAULT_TRADINGVIEW_SYNTHETIC_EXCHANGES,
   TradingViewSidecarError,
   tradingViewSyntheticExchanges,
   type TradingViewSidecarFetch,
-} from "../app/plugins/providers/tradingview-websocket.server";
+} from "../api/tradingview-websocket/index.server";
 
 const SIDECAR_PAYLOAD = {
   schemaVersion: "unicorn.tradingview-sidecar.v1",
@@ -246,7 +246,7 @@ test("watchlist API rejects invalid or oversized batches before contacting a pro
 });
 
 test("sidecar resolves a watchlist over one websocket with ordered exchange fallback", async () => {
-  const source = await readFile(new URL("../services/tradingview_sidecar.py", import.meta.url), "utf8");
+  const source = await readFile(new URL("../api/tradingview-websocket/sidecar.py", import.meta.url), "utf8");
 
   assert.match(source, /DEFAULT_LATEST_CLOSE_EXCHANGES = \("BINANCE", "BITGET", "KUCOIN", "MEXC"\)/);
   assert.match(source, /session_symbols: dict\[str, tuple\[str, int\]\]/);
@@ -263,8 +263,8 @@ test("sidecar resolves a watchlist over one websocket with ordered exchange fall
 });
 
 test("watchlist UI renders a derived USDT perpetual close column with a dash fallback", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
-  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../src/app/globals.css", import.meta.url), "utf8");
 
   assert.match(pageSource, /t\("watchlist\.afterHours"\)/);
   assert.match(pageSource, /t\("watchlist\.afterHoursTooltip", \{ symbol: item\.ticker \}\)/);
@@ -280,7 +280,7 @@ test("watchlist UI renders a derived USDT perpetual close column with a dash fal
 });
 
 test("watchlist rows expose an accessible context menu backed by the durable delete endpoint", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
   assert.match(pageSource, /onContextMenu=\{\(event\) =>/);
   assert.match(pageSource, /event\.key !== "ContextMenu"/);

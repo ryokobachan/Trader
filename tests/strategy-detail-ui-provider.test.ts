@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+import { unicornConfig } from "../src/app/unicorn.config";
+
+const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
 function sourceBetween(startMarker: string, endMarker: string) {
   const start = pageSource.indexOf(startMarker);
@@ -84,10 +86,16 @@ test("strategy analysis content lives in Overview without a separate Analysis ta
     '<section className="portfolio-summary-cards"',
     "</section>",
   );
-  for (const key of ["portfolio.value", "portfolio.maxDrawdown"]) {
-    assert.match(summaryCards, new RegExp(`<span>\\{st\\("${key.replace(".", "\\.")}"\\)\\}</span>`));
-  }
-  for (const metric of ["Beta", "Sharpe", "Sortino"]) {
-    assert.match(summaryCards, new RegExp(`<span>${metric}</span>`));
-  }
+  assert.match(summaryCards, /unicornConfig\.ui\.strategyDetail\.summaryMetrics\.map/);
+  assert.match(summaryCards, /data-metric-id=\{id\}/);
+  assert.deepEqual(unicornConfig.ui.strategyDetail.summaryMetrics, [
+    "portfolio.value",
+    "portfolio.unrealizedGain",
+    "portfolio.totalGain",
+    "portfolio.annualReturn",
+    "risk.beta",
+    "risk.sharpe",
+    "risk.sortino",
+    "risk.maxDrawdown",
+  ]);
 });

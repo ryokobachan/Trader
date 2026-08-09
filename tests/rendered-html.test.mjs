@@ -82,13 +82,10 @@ test("bundles the reviewed company logo fixtures", async () => {
 });
 
 test("uses the supplied Unicorn logo for the favicon and shell metadata", async () => {
-  const favicon = await readFile(new URL("../public/favicon.svg", import.meta.url), "utf8");
-  const brand = await readFile(new URL("../app/platform/brand.ts", import.meta.url), "utf8");
-  const layout = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const brand = await readFile(new URL("../src/app/platform/brand.ts", import.meta.url), "utf8");
+  const layout = await readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8");
   await access(new URL("../public/unicorn-logo.png", import.meta.url));
   await access(new URL("../public/favicon.png", import.meta.url));
-  assert.match(favicon, /href="\/favicon\.png"/);
-  assert.doesNotMatch(favicon, /🦄/u);
   assert.match(brand, /logoPath:\s*"\/unicorn-logo\.png"/);
   assert.match(brand, /faviconPath:\s*"\/favicon\.png"/);
   assert.match(layout, /openGraph/);
@@ -96,18 +93,18 @@ test("uses the supplied Unicorn logo for the favicon and shell metadata", async 
 });
 
 test("disables embedded chart logos and keeps a separate attribution notice", async () => {
-  const source = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const source = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   assert.equal(source.match(/attributionLogo:\s*false/g)?.length, 3);
   assert.doesNotMatch(source, /#tv-attr-logo/);
   await access(new URL("../THIRD_PARTY_NOTICES.md", import.meta.url));
 });
 
 test("defines the chart summary through a versioned module registry", async () => {
-  const registrySource = await readFile(new URL("../app/platform/ui-module-registry.ts", import.meta.url), "utf8");
-  const modulesSource = await readFile(new URL("../app/features/symbol-summary/core-modules.tsx", import.meta.url), "utf8");
-  const hostSource = await readFile(new URL("../app/features/symbol-summary/SymbolSummaryHost.tsx", import.meta.url), "utf8");
-  const compositionSource = await readFile(new URL("../app/plugins/ui-modules/index.ts", import.meta.url), "utf8");
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const registrySource = await readFile(new URL("../src/app/platform/ui-module-registry.ts", import.meta.url), "utf8");
+  const modulesSource = await readFile(new URL("../src/app/features/symbol-summary/core-modules.tsx", import.meta.url), "utf8");
+  const hostSource = await readFile(new URL("../src/app/features/symbol-summary/SymbolSummaryHost.tsx", import.meta.url), "utf8");
+  const compositionSource = await readFile(new URL("../extensions/index.ts", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
   assert.match(registrySource, /unicorn\.ui-module\.v1/);
   assert.match(registrySource, /chart\.symbol-summary/);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveInstrumentSearchView } from "../app/features/instrument-search/search-state";
+import { resolveInstrumentSearchView } from "../src/app/features/instrument-search/search-state";
 
 test("shows loading while an empty-query candidate search begins", () => {
   assert.equal(resolveInstrumentSearchView("idle", 0), "loading");

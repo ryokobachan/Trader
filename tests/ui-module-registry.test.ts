@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CORE_SYMBOL_SUMMARY_MODULES } from "../app/features/symbol-summary/core-modules";
+import { CORE_SYMBOL_SUMMARY_MODULES } from "../src/app/features/symbol-summary/core-modules";
 import {
   DEFAULT_SYMBOL_SUMMARY_MODULES,
   EXAMPLE_MARKET_CONTEXT_MODULE,
   UNICORN_UI_MODULE_REGISTRY,
-} from "../app/plugins/ui-modules";
-import type { SymbolSummaryModuleProps } from "../app/platform/symbol-summary";
+} from "../extensions";
+import type { SymbolSummaryModuleProps } from "../src/app/platform/symbol-summary";
 import {
   defineUiModuleRegistry,
   UI_MODULE_SCHEMA_VERSION,
@@ -15,7 +15,7 @@ import {
   type UiModuleManifestV1,
   type UiModuleRegistration,
   type UiModuleRegistryErrorCode,
-} from "../app/platform/ui-module-registry";
+} from "../src/app/platform/ui-module-registry";
 
 type TestModuleProps = { readonly value?: string };
 

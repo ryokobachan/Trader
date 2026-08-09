@@ -8,13 +8,13 @@ import {
   SubIndicatorPanes,
   type SubIndicatorId,
   type SubIndicatorSpec,
-} from "../app/features/chart-indicators/SubIndicatorPanes";
-import { I18nProvider, type Locale } from "../app/platform/i18n";
+} from "../src/app/features/chart-indicators/SubIndicatorPanes";
+import { I18nProvider, type Locale } from "../src/app/platform/i18n";
 import {
   computeWilderRsiSeries,
   latestWilderRsiValue,
-} from "../app/features/chart-indicators/indicator-calculations";
-import type { MarketBar } from "../app/platform/provider-contracts";
+} from "../src/app/features/chart-indicators/indicator-calculations";
+import type { MarketBar } from "../src/app/platform/provider-contracts";
 
 const marketBars: readonly MarketBar[] = Array.from({ length: 180 }, (_, index) => {
   const close = 100 + index * 0.12 + Math.sin(index / 3) * 2.4 + Math.cos(index / 11);

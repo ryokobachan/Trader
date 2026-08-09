@@ -7,9 +7,9 @@ import {
   analystTargetChangeTone,
   analystTargetRightOffsetPixels,
   buildActualStockPricePoints,
-} from "../app/features/stock-detail/StockDetailCharts";
-import { translate } from "../app/platform/i18n";
-import type { AnalystRatingEvent, MarketBar } from "../app/platform/provider-contracts";
+} from "../src/app/features/stock-detail/StockDetailCharts";
+import { translate } from "../src/app/platform/i18n";
+import type { AnalystRatingEvent, MarketBar } from "../src/app/platform/provider-contracts";
 
 function bar(time: string, close: number): MarketBar {
   return {
@@ -60,7 +60,7 @@ test("uses the last observed bar when timestamps collide", () => {
 
 test("renders actual closes as their own chart series and crosshair readout", async () => {
   const source = await readFile(
-    new URL("../app/features/stock-detail/StockDetailCharts.tsx", import.meta.url),
+    new URL("../src/app/features/stock-detail/StockDetailCharts.tsx", import.meta.url),
     "utf8",
   );
 
@@ -84,7 +84,7 @@ test("localizes analyst and earnings chart copy in English and Japanese", async 
   );
 
   const source = await readFile(
-    new URL("../app/features/stock-detail/StockDetailCharts.tsx", import.meta.url),
+    new URL("../src/app/features/stock-detail/StockDetailCharts.tsx", import.meta.url),
     "utf8",
   );
   assert.equal((source.match(/const \{ locale, t \} = useI18n\(\)/g) ?? []).length, 2);
@@ -100,7 +100,7 @@ test("reserves a responsive but bounded future area on the analyst chart", async
   assert.equal(analystTargetRightOffsetPixels(2_000), 128);
 
   const source = await readFile(
-    new URL("../app/features/stock-detail/StockDetailCharts.tsx", import.meta.url),
+    new URL("../src/app/features/stock-detail/StockDetailCharts.tsx", import.meta.url),
     "utf8",
   );
   assert.match(source, /rightOffsetPixels:\s*analystTargetRightOffsetPixels/);
@@ -145,7 +145,7 @@ test("classifies rating and target changes for semantic list colors", () => {
 });
 
 test("wires semantic change tones into the visible analyst history table", async () => {
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
   assert.match(pageSource, /analyst-change-\$\{analystRatingChangeTone\(event\)\}/);
   assert.match(pageSource, /analyst-target-cell analyst-change-\$\{analystTargetChangeTone\(event\)\}/);

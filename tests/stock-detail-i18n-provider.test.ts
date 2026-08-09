@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { translate } from "../app/platform/i18n";
+import { translate } from "../src/app/platform/i18n";
 
 test("stock detail has complete English-default and Japanese navigation copy", () => {
   assert.equal(translate("en", "detail.tab.financials"), "Financials & earnings");
@@ -25,7 +25,7 @@ test("stock detail translates normalized metric presentation without translating
   assert.equal(translate("en", "detail.note.providerUsdPerShare"), "Latest provider value · USD / share");
   assert.equal(translate("ja", "detail.note.providerUsdPerShare"), "Provider最新値 · USD / 株");
 
-  const pageSource = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const start = pageSource.indexOf("type TranslateMessage =");
   const end = pageSource.indexOf("function IndicatorsPanel(", start);
   assert.ok(start >= 0 && end > start);

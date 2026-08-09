@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mergeStrategyPreferenceSnapshots } from "../app/features/strategy/strategy-preference-state";
-import type { StrategyPreference } from "../app/platform/strategy-preference-contracts";
+import { mergeStrategyPreferenceSnapshots } from "../src/app/features/strategy/strategy-preference-state";
+import type { StrategyPreference } from "../src/app/platform/strategy-preference-contracts";
 
 function preference(
   strategyId: string,

@@ -8,7 +8,7 @@ import {
   mergeMidasEnv,
   MIDAS_ENV_ALLOWLIST,
   parseMidasEnv,
-} from "../scripts/dev-with-midas-env.mjs";
+} from "../src/tooling/scripts/dev-with-midas-env.mjs";
 
 test("parses basic, quoted, and exported allowlisted values", () => {
   const parsed = parseMidasEnv(`
@@ -16,7 +16,6 @@ test("parses basic, quoted, and exported allowlisted values", () => {
     FMP_API_KEY=plain-secret
     FMP_BASE_URL="https://example.test/stable?mode=dev#fragment"
     export FMP_TIMEOUT_SECONDS='25'
-    SEC_EDGAR_USER_AGENT="Unicorn Research\\ncontact@example.test"
     BENZINGA_API_TOKEN=benzinga-token
     BENZINGA_API_KEY=legacy-benzinga-key
     BENZINGA_TIMEOUT_SECONDS=15
@@ -30,7 +29,6 @@ test("parses basic, quoted, and exported allowlisted values", () => {
     FMP_API_KEY: "plain-secret",
     FMP_BASE_URL: "https://example.test/stable?mode=dev#fragment",
     FMP_TIMEOUT_SECONDS: "25",
-    SEC_EDGAR_USER_AGENT: "Unicorn Research\ncontact@example.test",
     BENZINGA_API_TOKEN: "benzinga-token",
     BENZINGA_API_KEY: "legacy-benzinga-key",
     BENZINGA_TIMEOUT_SECONDS: "15",
@@ -47,7 +45,7 @@ test("handles comments and ignores malformed allowlisted assignments", () => {
     FMP_API_KEY=value-before-comment # local note
     FMP_BASE_URL=https://example.test/path#literal-fragment
     FMP_TIMEOUT_SECONDS="unterminated
-    SEC_EDGAR_USER_AGENT="valid" unexpected-suffix
+    BENZINGA_API_TOKEN="valid" unexpected-suffix
   `);
 
   assert.deepEqual(parsed, {
@@ -69,7 +67,6 @@ test("merges only allowlisted values, preserves existing values, and applies Uni
       FMP_API_KEY: "midas-fmp-key",
       FMP_BASE_URL: "https://example.test/stable",
       FMP_TIMEOUT_SECONDS: "20",
-      SEC_EDGAR_USER_AGENT: "Unicorn contact@example.test",
       BENZINGA_API_TOKEN: "midas-benzinga-token",
       API_SERVER_KEY: "blocked-api-key",
     },
@@ -80,7 +77,6 @@ test("merges only allowlisted values, preserves existing values, and applies Uni
   assert.equal(merged.FMP_API_KEY, "existing-fmp-key");
   assert.equal(merged.FMP_BASE_URL, "https://example.test/stable");
   assert.equal(merged.FMP_TIMEOUT_SECONDS, "20");
-  assert.equal(merged.SEC_EDGAR_USER_AGENT, "Unicorn contact@example.test");
   assert.equal(merged.BENZINGA_API_TOKEN, "midas-benzinga-token");
   assert.equal(merged.API_SERVER_KEY, undefined);
   assert.equal(merged.UNICORN_USAGE_MODE, "team");
@@ -95,7 +91,7 @@ test("merges only allowlisted values, preserves existing values, and applies Uni
 });
 
 test("importing and using helpers emits no secret values", () => {
-  const launcherUrl = new URL("../scripts/dev-with-midas-env.mjs", import.meta.url).href;
+  const launcherUrl = new URL("../src/tooling/scripts/dev-with-midas-env.mjs", import.meta.url).href;
   const secret = "secret-that-must-not-be-printed";
   const evaluation = `
     import { parseMidasEnv, mergeMidasEnv } from ${JSON.stringify(launcherUrl)};
@@ -113,7 +109,7 @@ test("importing and using helpers emits no secret values", () => {
 });
 
 test("launcher reports an unreadable source without exposing its path", () => {
-  const launcherPath = fileURLToPath(new URL("../scripts/dev-with-midas-env.mjs", import.meta.url));
+  const launcherPath = fileURLToPath(new URL("../src/tooling/scripts/dev-with-midas-env.mjs", import.meta.url));
   const secretPath = `/tmp/midas-private-${process.pid}-do-not-print.env`;
   const result = spawnSync(process.execPath, [launcherPath], {
     env: { ...process.env, MIDAS_ENV_FILE: secretPath },

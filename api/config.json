@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "unicorn.config.v1",
+  "universe": {
+    "policyId": "us_equity_v1"
+  },
+  "providers": {
+    "instrument": "mock",
+    "market": "mock",
+    "bars": null,
+    "profile": null,
+    "fundamentals": null,
+    "earnings": null,
+    "analyst": null,
+    "news": null
+  },
+  "ui": {
+    "symbolSummary": {
+      "density": "compact",
+      "modules": [
+        "core.identity_quote@1.0.0",
+        "core.price_range@1.0.0",
+        "core.key_statistics@1.0.0",
+        "core.earnings@1.0.0",
+        "core.financials@1.0.0",
+        "core.performance@1.0.0",
+        "core.technical_rating@1.0.0",
+        "core.analyst_consensus@1.0.0",
+        "core.company_profile@1.0.0"
+      ]
+    },
+    "symbolDetail": {
+      "tabs": ["financials", "analyst", "technicals"],
+      "fundamentalGroups": [
+        {
+          "id": "income_statement",
+          "metrics": [
+            "fundamentals.revenue",
+            "fundamentals.revenueGrowth",
+            "fundamentals.grossProfit",
+            "fundamentals.operatingIncome",
+            "fundamentals.ebitda",
+            "fundamentals.netIncome",
+            "fundamentals.eps",
+            "fundamentals.epsGrowth"
+          ]
+        },
+        {
+          "id": "valuation",
+          "metrics": [
+            "fundamentals.enterpriseValue",
+            "fundamentals.trailingPe",
+            "fundamentals.forwardPe",
+            "fundamentals.pegRatio",
+            "fundamentals.priceToBook",
+            "fundamentals.priceToSales",
+            "fundamentals.priceToFreeCashFlow",
+            "fundamentals.enterpriseValueToRevenue",
+            "fundamentals.enterpriseValueToEbitda",
+            "fundamentals.earningsYield"
+          ]
+        },
+        {
+          "id": "profitability",
+          "metrics": [
+            "fundamentals.roe",
+            "fundamentals.roa",
+            "fundamentals.roic",
+            "fundamentals.grossMargin",
+            "fundamentals.operatingMargin",
+            "fundamentals.ebitdaMargin",
+            "fundamentals.netMargin",
+            "fundamentals.freeCashFlowMargin",
+            "fundamentals.assetTurnover",
+            "fundamentals.interestCoverage"
+          ]
+        },
+        {
+          "id": "balance_sheet",
+          "metrics": [
+            "fundamentals.cashAndShortTermInvestments",
+            "fundamentals.totalAssets",
+            "fundamentals.totalDebt",
+            "fundamentals.netDebt",
+            "fundamentals.shareholdersEquity",
+            "fundamentals.debtToEquity",
+            "fundamentals.currentRatio",
+            "fundamentals.quickRatio",
+            "fundamentals.cashRatio"
+          ]
+        },
+        {
+          "id": "cash_flow",
+          "metrics": [
+            "fundamentals.operatingCashFlow",
+            "fundamentals.capitalExpenditure",
+            "fundamentals.freeCashFlow",
+            "fundamentals.freeCashFlowYield",
+            "fundamentals.dividendYield",
+            "fundamentals.dividendPerShare",
+            "fundamentals.payoutRatio"
+          ]
+        },
+        {
+          "id": "per_share",
+          "metrics": [
+            "fundamentals.revenuePerShare",
+            "fundamentals.bookValuePerShare",
+            "fundamentals.operatingCashFlowPerShare",
+            "fundamentals.freeCashFlowPerShare"
+          ]
+        }
+      ],
+      "marketMetrics": [
+        "market.currentPrice",
+        "market.previousClose",
+        "market.open",
+        "market.high",
+        "market.low",
+        "market.volume",
+        "market.marketCap",
+        "market.delaySeconds"
+      ],
+      "analystMetrics": [
+        "analyst.targetConsensus",
+        "analyst.targetMedian",
+        "analyst.targetLow",
+        "analyst.targetHigh",
+        "analyst.analystCount",
+        "analyst.strongBuy",
+        "analyst.buy",
+        "analyst.hold",
+        "analyst.sell",
+        "analyst.strongSell",
+        "analyst.forwardEps",
+        "analyst.forwardRevenue",
+        "analyst.targetUpside"
+      ],
+      "technicalMetrics": [
+        "technical.periodRange",
+        "technical.periodReturn",
+        "technical.vwap",
+        "technical.sma20",
+        "technical.averageVolume20",
+        "technical.ema50",
+        "technical.rsi14",
+        "technical.atr14",
+        "technical.realizedVolatility30"
+      ]
+    },
+    "strategyDetail": {
+      "summaryMetrics": [
+        "portfolio.value",
+        "portfolio.unrealizedGain",
+        "portfolio.totalGain",
+        "portfolio.annualReturn",
+        "risk.beta",
+        "risk.sharpe",
+        "risk.sortino",
+        "risk.maxDrawdown"
+      ]
+    }
+  }
+}

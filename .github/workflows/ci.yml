@@ -23,4 +23,4 @@ jobs:
       - run: npm test
       - run: npx tsc --noEmit
       - run: npm audit --omit=dev --audit-level=high
-      - run: python3 -m py_compile services/tradingview_sidecar.py
+      - run: python3 -m py_compile api/tradingview-websocket/sidecar.py
