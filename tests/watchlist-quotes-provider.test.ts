@@ -201,6 +201,8 @@ test("watchlist UI refreshes visible quotes and resumes immediately after tab or
   assert.match(pageSource, /watchlistQuoteStock\(item, next\[item\.symbol\]\)/);
   assert.match(pageSource, /WATCHLIST_QUOTE_REFRESH_MS = 15_000/);
   assert.match(pageSource, /WATCHLIST_AFTER_HOURS_REFRESH_MS = 60_000/);
+  assert.match(pageSource, /WATCHLIST_SESSION_STATE_REFRESH_MS = 60_000/);
+  assert.match(pageSource, /scheduleSessionStateRefresh\(\)/);
   assert.match(pageSource, /window\.setTimeout\(\(\) => \{\s*refreshTimer = undefined;\s*refresh\(\);\s*\}, WATCHLIST_QUOTE_REFRESH_MS\)/);
   assert.match(pageSource, /requestInFlight/);
   assert.match(pageSource, /window\.addEventListener\("focus", refreshNow\)/);

@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import test from "node:test";
 
 import { POST } from "../src/app/api/v1/watchlists/after-hours/route";
+import { shouldUseAfterHoursPrices } from "../src/app/features/watchlist/after-hours-stream";
 import type { WatchlistAfterHoursResponse } from "../src/app/platform/provider-contracts";
 import {
   createTradingViewSidecarProvider,
@@ -64,6 +65,37 @@ const OKLO_PAYLOAD = {
   ],
   ingestedAt: "2026-08-09T01:30:01Z",
 } as const;
+
+test("disables after-hours prices while the shared U.S. regular session is open", () => {
+  assert.equal(shouldUseAfterHoursPrices([]), false);
+  assert.equal(shouldUseAfterHoursPrices([undefined]), false);
+  assert.equal(shouldUseAfterHoursPrices(["regular"]), false);
+  assert.equal(shouldUseAfterHoursPrices(["closed", "regular"]), false);
+  assert.equal(shouldUseAfterHoursPrices(["pre_market"]), true);
+  assert.equal(shouldUseAfterHoursPrices(["after_hours", "closed"]), true);
+  assert.equal(shouldUseAfterHoursPrices(["closed"]), true);
+
+  assert.equal(
+    shouldUseAfterHoursPrices(["after_hours"], new Date("2026-08-10T13:30:00.000Z")),
+    false,
+    "the nominal 09:30 New York open wins over a stale prior session",
+  );
+  assert.equal(
+    shouldUseAfterHoursPrices(["regular"], new Date("2026-08-10T20:00:00.000Z")),
+    true,
+    "the nominal 16:00 New York close wins over a stale regular quote",
+  );
+  assert.equal(
+    shouldUseAfterHoursPrices([undefined], new Date("2026-08-10T12:00:00.000Z")),
+    true,
+    "pre-market can use the fallback even when the direct quote is missing",
+  );
+  assert.equal(
+    shouldUseAfterHoursPrices([undefined], new Date("2026-08-09T16:00:00.000Z")),
+    true,
+    "weekends remain outside the regular session",
+  );
+});
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -270,6 +302,13 @@ test("watchlist UI renders a derived USDT perpetual close column with a dash fal
   assert.match(pageSource, /t\("watchlist\.afterHoursTooltip", \{ symbol: item\.ticker \}\)/);
   assert.match(pageSource, /\/api\/v1\/watchlists\/after-hours/);
   assert.match(pageSource, /afterHours\[item\.ticker\]/);
+  assert.match(pageSource, /shouldUseAfterHoursPrices\(/);
+  assert.match(pageSource, /afterHoursTickerKey = afterHoursEnabled \? afterHoursTickers\.join/);
+  assert.match(pageSource, /WATCHLIST_SESSION_STATE_REFRESH_MS = 60_000/);
+  assert.match(pageSource, /marketSessionClock === null \? undefined : new Date\(marketSessionClock\)/);
+  assert.match(pageSource, /window\.setInterval\(updateMarketSessionClock, WATCHLIST_SESSION_STATE_REFRESH_MS\)/);
+  assert.match(pageSource, /afterHoursEnabled \? afterHours\[item\.ticker\]\?\.close : undefined/);
+  assert.match(pageSource, /afterHours=\{afterHoursEnabled \? afterHoursBySymbol\[stock\.ticker\] : undefined\}/);
   assert.match(pageSource, /: "-"/);
   assert.match(pageSource, /className="watch-price">\{formatWatchlistPrice\(item\)\}/);
   assert.match(pageSource, /formatSummaryAfterHoursPrice\(afterHoursClose\)/);

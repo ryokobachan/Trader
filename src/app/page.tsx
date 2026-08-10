@@ -212,6 +212,7 @@ import {
 import {
   isNewerAfterHoursClose,
   parseWatchlistAfterHoursStreamMessage,
+  shouldUseAfterHoursPrices,
 } from "./features/watchlist/after-hours-stream";
 import type {
   Watchlist,
@@ -235,6 +236,7 @@ import type {
 
 type Stock = SymbolSummaryStock & {
   currency: "$" | "¥";
+  marketState?: Quote["marketState"];
   open: number;
   seed: number;
 };
@@ -268,6 +270,7 @@ type IndicatorLineStyle = "solid" | "dashed" | "dotted";
 const CHART_RANGE: MarketBarRange = "5y";
 const WATCHLIST_QUOTE_REFRESH_MS = 15_000;
 const WATCHLIST_AFTER_HOURS_REFRESH_MS = 60_000;
+const WATCHLIST_SESSION_STATE_REFRESH_MS = 60_000;
 
 const ENGLISH_INTERVAL_LABELS: Readonly<Record<MarketBarInterval, string>> = {
   "1m": "1m",
@@ -730,6 +733,7 @@ function workspaceStock(workspace: SymbolWorkspace): Stock {
     logoPath: profile?.logoUrl ?? stock.logoPath,
     sector: profile?.sector ?? workspace.instrument.sector ?? "—",
     price: workspace.quote.price,
+    marketState: workspace.quote.marketState,
     change: workspace.quote.changePercent,
     changeValue: workspace.quote.change,
     open: workspace.quote.open,
@@ -764,6 +768,7 @@ function watchlistQuoteStock(item: WatchlistQuoteItem, current?: Stock): Stock |
     market: item.instrument.exchange,
     sector: item.instrument.sector ?? base.sector,
     price: item.quote.price,
+    marketState: item.quote.marketState,
     change: item.quote.changePercent,
     changeValue: item.quote.change,
     open: item.quote.open,
@@ -779,6 +784,7 @@ function watchlistStreamQuoteStock(quote: Quote, current?: Stock): Stock | null 
   return {
     ...current,
     price: quote.price,
+    marketState: quote.marketState,
     change: quote.changePercent,
     changeValue: quote.change,
     open: quote.open,
@@ -3166,6 +3172,7 @@ function WatchlistPanel({
   onDelete,
   persistenceStatus,
   afterHours,
+  afterHoursEnabled,
 }: {
   selectedTicker: string;
   onSelect: (ticker: string) => void;
@@ -3180,6 +3187,7 @@ function WatchlistPanel({
   onDelete: (ticker: string) => void | Promise<void>;
   persistenceStatus: "loading" | "ready" | "saving" | "error";
   afterHours: Readonly<Record<string, SyntheticLatestClose>>;
+  afterHoursEnabled: boolean;
 }) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<"lists" | "more" | null>(null);
@@ -3253,7 +3261,7 @@ function WatchlistPanel({
       </div>
       <div className="watchlist-rows">
         {sortedStocks.map((item) => {
-          const afterHoursClose = afterHours[item.ticker]?.close;
+          const afterHoursClose = afterHoursEnabled ? afterHours[item.ticker]?.close : undefined;
           const hasCurrentPrice = Number.isFinite(item.price) && item.price > 0;
           const hasAfterHoursPrice = typeof afterHoursClose === "number" && Number.isFinite(afterHoursClose) && afterHoursClose > 0;
           const afterHoursTone = !hasAfterHoursPrice
@@ -3292,7 +3300,7 @@ function WatchlistPanel({
               <span className={item.price > 0 ? (item.change >= 0 ? "positive" : "negative-text") : "muted-value"}>
                 {item.price > 0 && Number.isFinite(item.price) ? `${item.change >= 0 ? "+" : ""}${item.change.toFixed(2)}%` : "-"}
               </span>
-              <span className={`watch-after-hours ${afterHoursTone}`} title={t("watchlist.afterHoursTooltip", { symbol: item.ticker })}>
+              <span className={`watch-after-hours ${afterHoursTone}`} title={afterHoursEnabled ? t("watchlist.afterHoursTooltip", { symbol: item.ticker }) : undefined}>
                 {hasAfterHoursPrice ? formatSummaryAfterHoursPrice(afterHoursClose) : "-"}
               </span>
             </button>
@@ -3376,6 +3384,7 @@ export default function Home() {
   const [activeWatchlistId, setActiveWatchlistId] = useState("");
   const [watchlistStatus, setWatchlistStatus] = useState<"loading" | "ready" | "saving" | "error">("loading");
   const [afterHoursBySymbol, setAfterHoursBySymbol] = useState<Readonly<Record<string, SyntheticLatestClose>>>({});
+  const [marketSessionClock, setMarketSessionClock] = useState<number | null>(null);
   const [newWatchlistName, setNewWatchlistName] = useState("");
   const [renameWatchlistName, setRenameWatchlistName] = useState("");
   const [managedWatchlistId, setManagedWatchlistId] = useState("");
@@ -3427,9 +3436,13 @@ export default function Home() {
     : watchlists === null ? ["AAPL", "NVDA", "MSFT", "TSLA"] : [];
   const watchedStocks = watchedTickers.map((ticker) => stockModels[ticker]).filter((item): item is Stock => Boolean(item));
   const watchedTickerKey = watchedTickers.join("\u0000");
-  const afterHoursTickerKey = Array.from(new Set([...watchedTickers, selectedTicker]))
-    .slice(0, WATCHLIST_AFTER_HOURS_MAX_SYMBOLS)
-    .join("\u0000");
+  const afterHoursTickers = Array.from(new Set([...watchedTickers, selectedTicker]))
+    .slice(0, WATCHLIST_AFTER_HOURS_MAX_SYMBOLS);
+  const afterHoursEnabled = shouldUseAfterHoursPrices(
+    afterHoursTickers.map((ticker) => stockModels[ticker]?.marketState),
+    marketSessionClock === null ? undefined : new Date(marketSessionClock),
+  );
+  const afterHoursTickerKey = afterHoursEnabled ? afterHoursTickers.join("\u0000") : "";
   const searchView = resolveInstrumentSearchView(searchStatus, searchResults.length);
   const watched = watchedTickers.includes(selectedTicker);
   const dataStatus: MarketDataStatus = workspaceStatus === "error" || barsStatus === "error"
@@ -4046,6 +4059,22 @@ export default function Home() {
   }, [activeWatchlistId, managedWatchlist, selectWatchlist, showToast, t, watchlists]);
 
   useEffect(() => {
+    const updateMarketSessionClock = () => setMarketSessionClock(Date.now());
+    const handleVisibilityChange = () => {
+      if (!document.hidden) updateMarketSessionClock();
+    };
+    updateMarketSessionClock();
+    const timer = window.setInterval(updateMarketSessionClock, WATCHLIST_SESSION_STATE_REFRESH_MS);
+    window.addEventListener("focus", updateMarketSessionClock);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", updateMarketSessionClock);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     void fetch("/api/v1/watchlists", { signal: controller.signal })
       .then(async (response) => {
@@ -4085,6 +4114,7 @@ export default function Home() {
     let disposed = false;
     let requestInFlight = false;
     let refreshTimer: number | undefined;
+    let sessionStateTimer: number | undefined;
     let reconnectTimer: number | undefined;
     let streamReadyTimer: number | undefined;
     let flushTimer: number | undefined;
@@ -4172,6 +4202,15 @@ export default function Home() {
         });
     }
 
+    const scheduleSessionStateRefresh = () => {
+      if (disposed || document.hidden || sessionStateTimer !== undefined) return;
+      sessionStateTimer = window.setTimeout(() => {
+        sessionStateTimer = undefined;
+        refresh();
+        scheduleSessionStateRefresh();
+      }, WATCHLIST_SESSION_STATE_REFRESH_MS);
+    };
+
     const disconnectStream = () => {
       streamConnected = false;
       if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
@@ -4224,13 +4263,16 @@ export default function Home() {
       refreshTimer = undefined;
       if (!streamConnected || resolvedSymbols.size < symbols.length) refresh();
       connectStream();
+      scheduleSessionStateRefresh();
     };
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
         if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+        if (sessionStateTimer !== undefined) window.clearTimeout(sessionStateTimer);
         if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
         refreshTimer = undefined;
+        sessionStateTimer = undefined;
         reconnectTimer = undefined;
         disconnectStream();
         return;
@@ -4240,6 +4282,7 @@ export default function Home() {
 
     refresh();
     connectStream();
+    scheduleSessionStateRefresh();
     window.addEventListener("focus", refreshNow);
     window.addEventListener("online", refreshNow);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -4247,6 +4290,7 @@ export default function Home() {
       disposed = true;
       controller.abort();
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+      if (sessionStateTimer !== undefined) window.clearTimeout(sessionStateTimer);
       if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
       if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
       if (flushTimer !== undefined) window.clearTimeout(flushTimer);
@@ -4266,6 +4310,12 @@ export default function Home() {
       return;
     }
     const symbolSet = new Set(symbols);
+    queueMicrotask(() => setAfterHoursBySymbol((current) => {
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([symbol]) => symbolSet.has(symbol)),
+      );
+      return Object.keys(next).length === Object.keys(current).length ? current : next;
+    }));
     const controller = new AbortController();
     let disposed = false;
     let requestInFlight = false;
@@ -4913,6 +4963,7 @@ export default function Home() {
                 onDelete={removeWatchlistItem}
                 persistenceStatus={watchlistStatus}
                 afterHours={afterHoursBySymbol}
+                afterHoursEnabled={afterHoursEnabled}
               />
               <div
                 className="watchlist-split-resizer"
@@ -4930,7 +4981,7 @@ export default function Home() {
                 <SymbolSummaryHost
                   stock={stock}
                   intelligence={stockIntelligence}
-                  afterHours={afterHoursBySymbol[stock.ticker]}
+                  afterHours={afterHoursEnabled ? afterHoursBySymbol[stock.ticker] : undefined}
                   watched={watched}
                   onToggleWatched={() => toggleWatched(stock.ticker)}
                   onOpenDetails={openStockDetails}
