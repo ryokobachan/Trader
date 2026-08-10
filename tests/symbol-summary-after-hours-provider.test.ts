@@ -117,7 +117,8 @@ test("compares the selected symbol current and after-hours prices with semantic 
 
 test("formats the summary after-hours value without a currency prefix", () => {
   assert.equal(formatSummaryAfterHoursPrice(312.28), "312.28");
-  assert.equal(formatSummaryAfterHoursPrice(1.23456), "1.2346");
+  assert.equal(formatSummaryAfterHoursPrice(313.3), "313.30");
+  assert.equal(formatSummaryAfterHoursPrice(1.23456), "1.23");
   assert.equal(formatSummaryAfterHoursPrice(null), "-");
   assert.equal(formatSummaryCurrentPrice(stock), "200.00");
 });
@@ -134,6 +135,7 @@ test("fixed identity module renders after-hours value and exposes it to generic 
   const html = renderSummary("en", moduleProps, []);
 
   assert.match(html, />After hours</);
+  assert.match(html, /class="summary-after-hours-value"><strong class="positive">201\.25<\/strong><small>USD<\/small>/);
   assert.match(html, /class="positive">201\.25</);
   assert.match(html, />USD</);
   assert.doesNotMatch(html, />USDT</);
@@ -148,6 +150,7 @@ test("technical ratings use the same diverging green and red track as performanc
   assert.match(html, /summary-technical-meter summary-performance-track/);
   assert.match(html, /data-tone="positive"/);
   assert.doesNotMatch(html, /<meter/);
+  assert.doesNotMatch(html, />Daily<\/small>/);
 });
 
 test("symbol summary SSR defaults to English and localizes provider enum values", () => {

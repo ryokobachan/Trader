@@ -61,6 +61,30 @@ function payload(interval: MarketBarInterval, range: MarketBarRange, requestedCo
   };
 }
 
+function realtimePayload() {
+  return {
+    schemaVersion: "unicorn.tradingview-realtime-quotes.v1",
+    state: "connected",
+    items: [{
+      symbol: "AAPL",
+      sourceSymbol: "NASDAQ:AAPL",
+      price: 315,
+      previousClose: 312,
+      change: 3,
+      changePercent: (3 / 312) * 100,
+      open: 312,
+      high: 316,
+      low: 311,
+      volume: 120,
+      currency: "USD",
+      session: "regular",
+      updatedAt: "2026-08-08T13:58:00Z",
+      stale: false,
+    }],
+    ingestedAt: "2026-08-08T13:59:00Z",
+  };
+}
+
 test("publishes a market-data-only TradingView websocket provider manifest", () => {
   assert.equal(tradingViewWebsocketProviderRegistration.manifest.id, "tradingview-websocket");
   assert.deepEqual(tradingViewWebsocketProviderRegistration.manifest.capabilities, [
@@ -84,13 +108,19 @@ test("keeps adapter defaults available while allowing the chart's 10,000-bar req
   assert.equal(tradingViewCandleCount("5y", "1mo"), 61);
 });
 
-test("normalizes bars and quote while keeping the sidecar token out of URLs and provenance", async () => {
+test("normalizes bars and direct USD quote while keeping the sidecar token out of URLs and provenance", async () => {
   const secret = "local-sidecar-secret";
   const requests: URL[] = [];
+  const requestBodies: unknown[] = [];
   const fetch: TradingViewSidecarFetch = async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     requests.push(url);
     assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${secret}`);
+    if (url.pathname === "/v1/realtime-quotes") {
+      assert.equal(init?.method, "POST");
+      requestBodies.push(JSON.parse(String(init?.body)));
+      return json(realtimePayload());
+    }
     const interval = url.searchParams.get("interval") as MarketBarInterval;
     const range = url.searchParams.get("range") as MarketBarRange;
     const requestedCount = Number(url.searchParams.get("count"));
@@ -122,15 +152,20 @@ test("normalizes bars and quote while keeping the sidecar token out of URLs and 
   assert.equal(deepHistory?.requestedCount, 10_000);
   assert.equal(deepHistory?.returnedCount, 2);
 
-  const quote = await adapter.market.getQuote(INSTRUMENT);
+  const quote = await adapter.market.getQuote(INSTRUMENT, { requestId: "quote-test" });
   assert.equal(quote?.price, 315);
   assert.equal(quote?.previousClose, 312);
   assert.equal(quote?.change, 3);
   assert.equal(quote?.marketState, "closed");
+  assert.equal(quote?.currency, "USD");
+  assert.equal(quote?.provenance.sourceId, "tradingview-websocket:NASDAQ:AAPL:realtime-quote");
   assert.equal(requests[0]?.searchParams.get("exchange"), "NASDAQ");
   assert.equal(requests[0]?.searchParams.get("count"), "420");
   assert.equal(requests[1]?.searchParams.get("count"), "10000");
-  assert.equal(requests[2]?.searchParams.get("count"), "3");
+  assert.equal(requests[2]?.pathname, "/v1/realtime-quotes");
+  assert.equal(requests[2]?.search, "");
+  assert.deepEqual(requestBodies, [{ items: [{ symbol: "AAPL", mic: "XNAS" }] }]);
+  assert.ok(!JSON.stringify(requestBodies).includes("USDT.P"));
   assert.ok(requests.every((url) => !url.toString().includes(secret)));
 });
 
@@ -151,6 +186,12 @@ test("rejects unsafe sidecar locations and malformed response data without leaki
   assert.throws(
     () => createTradingViewSidecarProvider({
       UNICORN_TRADINGVIEW_SIDECAR_URL: "http://public.example.test:8765",
+    }),
+    (error: unknown) => error instanceof TradingViewSidecarError && error.code === "configuration",
+  );
+  assert.throws(
+    () => createTradingViewSidecarProvider({
+      UNICORN_TRADINGVIEW_SIDECAR_URL: "https://sidecar.example.test",
     }),
     (error: unknown) => error instanceof TradingViewSidecarError && error.code === "configuration",
   );

@@ -7,9 +7,11 @@ export const MAX_MARKET_BAR_COUNT = 10_000 as const;
 export const SYMBOL_WORKSPACE_SCHEMA_VERSION = "unicorn.symbol-workspace.v1" as const;
 export const ANALYST_RATING_HISTORY_SCHEMA_VERSION = "unicorn.analyst-rating-history.v1" as const;
 export const WATCHLIST_AFTER_HOURS_SCHEMA_VERSION = "unicorn.watchlist-after-hours.v1" as const;
+export const WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION = "unicorn.watchlist-after-hours-stream.v1" as const;
 export const WATCHLIST_AFTER_HOURS_MAX_SYMBOLS = 50 as const;
 export const WATCHLIST_QUOTES_SCHEMA_VERSION = "unicorn.watchlist-quotes.v1" as const;
 export const WATCHLIST_QUOTES_MAX_SYMBOLS = 50 as const;
+export const WATCHLIST_QUOTE_STREAM_SCHEMA_VERSION = "unicorn.watchlist-quote-stream.v1" as const;
 
 export const PROVIDER_CAPABILITIES = [
   "instrument.search",
@@ -130,7 +132,7 @@ export type MarketBars = Readonly<{
   provenance: DataProvenance;
 }>;
 
-/** Latest one-minute close for the configured ticker-derived reference market. */
+/** Latest price for the configured ticker-derived perpetual reference market. */
 export type SyntheticLatestClose = Readonly<{
   /** Canonical U.S.-equity ticker supplied by the watchlist. */
   symbol: string;
@@ -326,6 +328,7 @@ export type InstrumentSearchRequest = Readonly<{
 export type ProviderRequestContext = Readonly<{
   requestId: string;
   asOf?: string;
+  signal?: AbortSignal;
 }>;
 
 export interface InstrumentProvider {
@@ -344,6 +347,14 @@ export interface MarketDataProvider {
     instrument: Instrument,
     context: ProviderRequestContext,
   ): Promise<Quote | null>;
+  getQuotes?(
+    instruments: readonly Instrument[],
+    context: ProviderRequestContext,
+  ): Promise<readonly Quote[]>;
+  getQuoteStream?(
+    instruments: readonly Instrument[],
+    context: ProviderRequestContext,
+  ): Promise<ReadableStream<Quote>>;
   getBars?(
     instrument: Instrument,
     request: MarketBarsRequest,
@@ -356,6 +367,10 @@ export interface SyntheticMarketDataProvider {
     symbols: readonly string[],
     context: ProviderRequestContext,
   ): Promise<readonly SyntheticLatestClose[]>;
+  getLatestCloseStream?(
+    symbols: readonly string[],
+    context: ProviderRequestContext,
+  ): Promise<ReadableStream<SyntheticLatestClose>>;
 }
 
 export interface FundamentalsProvider {
@@ -470,6 +485,12 @@ export type WatchlistAfterHoursResponse = Readonly<{
   asOf: string;
 }>;
 
+export type WatchlistAfterHoursStreamMessage = Readonly<{
+  schemaVersion: typeof WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION;
+  type: "quote";
+  item: SyntheticLatestClose;
+}>;
+
 export type WatchlistQuoteItem = Readonly<{
   symbol: string;
   /** Null when the requested ticker is not a supported active U.S. equity. */
@@ -486,6 +507,13 @@ export type WatchlistQuotesResponse = Readonly<{
     market: string;
   }>;
   asOf: string;
+}>;
+
+export type WatchlistQuoteStreamMessage = Readonly<{
+  schemaVersion: typeof WATCHLIST_QUOTE_STREAM_SCHEMA_VERSION;
+  type: "quote";
+  symbol: string;
+  quote: Quote;
 }>;
 
 export type SymbolWorkspace = Readonly<{

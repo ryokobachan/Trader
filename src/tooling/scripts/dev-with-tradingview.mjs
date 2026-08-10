@@ -10,6 +10,7 @@ const SIDECAR_PATH = path.join(PROJECT_ROOT, "api", "tradingview-websocket", "si
 export function tradingViewDevelopmentProfile(baseEnvironment, token, port = 8791) {
   return {
     ...baseEnvironment,
+    UNICORN_MARKET_PROVIDER: "tradingview-websocket",
     UNICORN_BARS_PROVIDER: "tradingview-websocket",
     UNICORN_TRADINGVIEW_SIDECAR_URL: `http://127.0.0.1:${port}`,
     UNICORN_TRADINGVIEW_SIDECAR_TOKEN: token,

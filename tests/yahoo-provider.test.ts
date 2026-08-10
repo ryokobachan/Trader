@@ -33,6 +33,20 @@ const AAPL: Instrument = {
   },
 };
 
+const MSFT: Instrument = {
+  ...AAPL,
+  instrumentId: "us:XNAS:MSFT",
+  symbol: "MSFT",
+  name: "Microsoft Corporation",
+};
+
+const NBIS: Instrument = {
+  ...AAPL,
+  instrumentId: "us:XNAS:NBIS",
+  symbol: "NBIS",
+  name: "Nebius Group N.V.",
+};
+
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -138,6 +152,39 @@ function chartPayload() {
         },
       }],
     },
+  };
+}
+
+function sparkResponse(
+  symbol: string,
+  previousClose: number,
+  closes: readonly number[],
+  overrides: Readonly<Record<string, unknown>> = {},
+) {
+  return {
+    symbol,
+    response: [{
+      meta: {
+        symbol,
+        currency: "USD",
+        exchangeName: "NMS",
+        instrumentType: "EQUITY",
+        chartPreviousClose: previousClose,
+        regularMarketDayHigh: Math.max(...closes),
+        regularMarketDayLow: Math.min(...closes),
+        regularMarketVolume: 1_000_000,
+        exchangeDataDelayedBy: 0,
+        dataGranularity: "1m",
+        currentTradingPeriod: {
+          pre: { start: 1_775_746_800, end: 1_775_766_600 },
+          regular: { start: 1_775_766_600, end: 1_775_790_000 },
+          post: { start: 1_775_790_000, end: 1_775_804_400 },
+        },
+        ...overrides,
+      },
+      timestamp: closes.map((_, index) => 1_775_766_600 + index * 60),
+      indicators: { quote: [{ close: closes }] },
+    }],
   };
 }
 
@@ -410,7 +457,7 @@ test("builds a quote from validated Chart metadata and the latest complete bar",
     const url = new URL(String(input));
     assert.equal(url.pathname, "/v8/finance/chart/AAPL");
     assert.equal(url.searchParams.get("range"), "1d");
-    assert.equal(url.searchParams.get("interval"), "5m");
+    assert.equal(url.searchParams.get("interval"), "1m");
     assert.equal(url.searchParams.get("includePrePost"), "true");
     return jsonResponse(chartPayload());
   });
@@ -431,6 +478,68 @@ test("builds a quote from validated Chart metadata and the latest complete bar",
   assert.equal(quote?.marketState, "regular");
   assert.equal(quote?.delaySeconds, 0);
   assert.equal(quote?.provenance.providerId, "yahoo");
+});
+
+test("batches Spark quotes in one request, preserves input order, and drops invalid rows", async (t) => {
+  const fetchMock = t.mock.method(globalThis, "fetch", async (input: FetchInput, init?: FetchInit) => {
+    const url = new URL(String(input));
+    assert.equal(url.pathname, "/v7/finance/spark");
+    assert.equal(url.searchParams.get("symbols"), "MSFT,NBIS,AAPL");
+    assert.equal(url.searchParams.get("range"), "1d");
+    assert.equal(url.searchParams.get("interval"), "1m");
+    assert.equal(url.searchParams.get("indicators"), "close");
+    assert.equal(url.searchParams.get("includePrePost"), "true");
+    const headers = new Headers(init?.headers);
+    assert.equal(
+      headers.get("user-agent"),
+      "Mozilla/5.0 UnicornWorkspace/1.0 (live price refresh)",
+    );
+    return jsonResponse({
+      spark: {
+        error: null,
+        result: [
+          sparkResponse("AAPL", 225, [226, 229.5]),
+          sparkResponse("NBIS", 60, [61, 62], { instrumentType: "CRYPTOCURRENCY" }),
+          sparkResponse("MSFT", 500, [498, 501]),
+        ],
+      },
+    });
+  });
+  const adapter = yahooProviderRegistration.create(ENABLED_ENV);
+  assert.ok(adapter.market?.getQuotes);
+
+  const quotes = await adapter.market.getQuotes(
+    [MSFT, NBIS, AAPL],
+    {
+      requestId: "spark-quotes-test",
+      asOf: new Date(1_775_766_660 * 1_000).toISOString(),
+    },
+  );
+
+  assert.equal(fetchMock.mock.callCount(), 1);
+  assert.deepEqual(quotes.map((quote) => quote.instrumentId), [MSFT.instrumentId, AAPL.instrumentId]);
+  assert.deepEqual(quotes.map((quote) => quote.price), [501, 229.5]);
+  assert.equal(quotes[0]?.open, 498);
+  assert.equal(quotes[0]?.marketState, "regular");
+  assert.equal(quotes[0]?.provenance.sourceId, "yahoo-spark:MSFT:quote");
+  assert.equal(quotes[0]?.provenance.sourceUrl, "https://query1.finance.yahoo.com/v7/finance/spark");
+  assert.equal(quotes[0]?.provenance.sourceUrl?.includes("AAPL"), false);
+});
+
+test("does not call Spark when no valid symbols are provided", async (t) => {
+  const fetchMock = t.mock.method(globalThis, "fetch", async () => {
+    throw new Error("unexpected request");
+  });
+  const adapter = yahooProviderRegistration.create(ENABLED_ENV);
+  assert.ok(adapter.market?.getQuotes);
+
+  const quotes = await adapter.market.getQuotes(
+    [{ ...AAPL, symbol: "../../" }],
+    { requestId: "empty-spark-quotes-test" },
+  );
+
+  assert.deepEqual(quotes, []);
+  assert.equal(fetchMock.mock.callCount(), 0);
 });
 
 test("returns raw Chart bars and drops rows with null OHLC values", async (t) => {
@@ -853,5 +962,147 @@ test("applies sanitized timeout errors to the anonymous profile handshake", asyn
     (error: unknown) => error instanceof YahooProviderError
       && error.code === "request_timeout"
       && !error.message.includes("cookie"),
+  );
+});
+
+test("falls back to the authenticated yfinance sidecar for profile and earnings", async (t) => {
+  const sidecarToken = "sidecar-contract-secret";
+  let nativeCredentialRequests = 0;
+  const sidecarPaths: string[] = [];
+  const fetchMock = t.mock.method(globalThis, "fetch", async (input: FetchInput, init?: FetchInit) => {
+    const url = new URL(String(input));
+    const headers = new Headers(init?.headers);
+    if (url.hostname === "fc.yahoo.com") {
+      nativeCredentialRequests += 1;
+      return new Response("", {
+        status: 404,
+        headers: { "set-cookie": `A3=rate-limited-${nativeCredentialRequests}; Path=/` },
+      });
+    }
+    if (url.pathname === "/v1/test/getcrumb") {
+      return new Response("Too Many Requests", { status: 429 });
+    }
+    assert.equal(url.hostname, "127.0.0.1");
+    assert.equal(headers.get("authorization"), `Bearer ${sidecarToken}`);
+    assert.equal(url.toString().includes(sidecarToken), false);
+    assert.equal(url.searchParams.get("symbol"), "AAPL");
+    sidecarPaths.push(url.pathname);
+    if (url.pathname === "/v1/yahoo/profile") {
+      assert.equal(url.searchParams.has("limit"), false);
+      return jsonResponse({
+        schemaVersion: "unicorn.yahoo-sidecar.v1",
+        symbol: "AAPL",
+        profile: {
+          description: "Apple designs and sells consumer technology products.",
+          website: "https://www.apple.com",
+          sector: "Technology",
+          industry: "Consumer Electronics",
+          country: "United States",
+          city: "Cupertino",
+          employees: 150_000,
+          beta: 1.12,
+          marketCap: 4_500_000_000_000,
+        },
+        asOf: "2026-08-10T01:00:00Z",
+        ingestedAt: "2026-08-10T01:00:01Z",
+      });
+    }
+    assert.equal(url.pathname, "/v1/yahoo/earnings");
+    assert.equal(url.searchParams.get("limit"), "24");
+    return jsonResponse({
+      schemaVersion: "unicorn.yahoo-sidecar.v1",
+      symbol: "AAPL",
+      earnings: [
+        { reportDate: "2026-10-29", epsEstimate: 1.98, revenueEstimate: 113_256_580_210 },
+        {
+          reportDate: "2026-07-30",
+          epsActual: 2.02,
+          epsEstimate: 1.89,
+          revenueActual: 109_417_000_000,
+        },
+      ],
+      asOf: "2026-10-29",
+      ingestedAt: "2026-08-10T01:00:02Z",
+    });
+  });
+  const adapter = yahooProviderRegistration.create({
+    ...ENABLED_ENV,
+    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: sidecarToken,
+  });
+  assert.ok(adapter.fundamentals);
+
+  const profile = await adapter.fundamentals.getProfile(AAPL, { requestId: "sidecar-profile" });
+  const earnings = await adapter.fundamentals.getEarnings(AAPL, { requestId: "sidecar-earnings" });
+
+  assert.equal(profile?.description, "Apple designs and sells consumer technology products.");
+  assert.equal(profile?.sector, "Technology");
+  assert.equal(profile?.employees, 150_000);
+  assert.equal(profile?.provenance.sourceId, "yahoo-yfinance-sidecar:AAPL:profile");
+  assert.deepEqual(earnings.map((event) => ({
+    reportDate: event.reportDate,
+    epsActual: event.epsActual,
+    epsEstimate: event.epsEstimate,
+    revenueActual: event.revenueActual,
+    revenueEstimate: event.revenueEstimate,
+  })), [
+    {
+      reportDate: "2026-10-29",
+      epsActual: undefined,
+      epsEstimate: 1.98,
+      revenueActual: undefined,
+      revenueEstimate: 113_256_580_210,
+    },
+    {
+      reportDate: "2026-07-30",
+      epsActual: 2.02,
+      epsEstimate: 1.89,
+      revenueActual: 109_417_000_000,
+      revenueEstimate: undefined,
+    },
+  ]);
+  assert.deepEqual(sidecarPaths, ["/v1/yahoo/profile", "/v1/yahoo/earnings"]);
+  assert.equal(nativeCredentialRequests, 2);
+  assert.equal(fetchMock.mock.callCount(), 6);
+});
+
+test("rejects unexpected yfinance sidecar fields without exposing its token", async (t) => {
+  const sidecarToken = "never-in-an-error";
+  t.mock.method(globalThis, "fetch", async (input: FetchInput) => {
+    const url = new URL(String(input));
+    if (url.hostname === "fc.yahoo.com") {
+      return new Response("", {
+        status: 404,
+        headers: { "set-cookie": "A3=anonymous; Path=/" },
+      });
+    }
+    if (url.pathname === "/v1/test/getcrumb") {
+      return new Response("Too Many Requests", { status: 429 });
+    }
+    return jsonResponse({
+      schemaVersion: "unicorn.yahoo-sidecar.v1",
+      symbol: "AAPL",
+      profile: {
+        description: "Apple profile",
+        rawPayload: { token: sidecarToken },
+      },
+      asOf: "2026-08-10T01:00:00Z",
+      ingestedAt: "2026-08-10T01:00:01Z",
+    });
+  });
+  const adapter = yahooProviderRegistration.create({
+    ...ENABLED_ENV,
+    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: sidecarToken,
+  });
+
+  await assert.rejects(
+    adapter.fundamentals!.getProfile(AAPL, { requestId: "invalid-sidecar-profile" }),
+    (error: unknown) => {
+      assert.ok(error instanceof YahooProviderError);
+      assert.equal(error.code, "invalid_response");
+      assert.equal(error.message.includes(sidecarToken), false);
+      return true;
+    },
   );
 });

@@ -64,7 +64,7 @@ test("server-renders the Unicorn stock analysis mock", async () => {
   assert.doesNotMatch(html, /company-logo-fallback/);
   assert.match(html, /data-module-id="core\.identity_quote"/);
   assert.match(html, /data-module-id="core\.key_statistics"/);
-  assert.match(html, /Lightweight Charts by TradingView/);
+  assert.doesNotMatch(html, /Lightweight Charts by TradingView/);
   assert.doesNotMatch(html, /TradingView-style summary/);
   assert.match(html, /⌘ F/);
   assert.doesNotMatch(html, /PROVIDER DATA|LOADING DATA|FIXTURE DATA/);
@@ -80,18 +80,27 @@ test("uses the supplied Unicorn logo for the favicon and shell metadata", async 
   const brand = await readFile(new URL("../src/app/platform/brand.ts", import.meta.url), "utf8");
   const layout = await readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8");
   await access(new URL("../public/unicorn-logo.png", import.meta.url));
+  await access(new URL("../public/favicon.ico", import.meta.url));
+  await access(new URL("../public/favicon-unicorn-v2.ico", import.meta.url));
+  await access(new URL("../public/favicon-unicorn-v2.png", import.meta.url));
   await access(new URL("../public/favicon.png", import.meta.url));
   assert.match(brand, /logoPath:\s*"\/unicorn-logo\.png"/);
-  assert.match(brand, /faviconPath:\s*"\/favicon\.png"/);
+  assert.match(brand, /faviconPath:\s*"\/favicon-unicorn-v2\.png"/);
+  assert.match(brand, /faviconIcoPath:\s*"\/favicon-unicorn-v2\.ico"/);
+  assert.match(brand, /appleTouchIconPath:\s*"\/favicon\.png"/);
+  assert.match(layout, /image\/x-icon/);
   assert.match(layout, /openGraph/);
   assert.match(layout, /twitter/);
 });
 
-test("disables embedded chart logos and keeps a separate attribution notice", async () => {
+test("keeps unsolicited TradingView UI out of the chart and settings", async () => {
   const source = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   assert.equal(source.match(/attributionLogo:\s*false/g)?.length, 3);
+  assert.doesNotMatch(source, /attributionLogo:\s*true/);
   assert.doesNotMatch(source, /#tv-attr-logo/);
-  await access(new URL("../THIRD_PARTY_NOTICES.md", import.meta.url));
+  assert.doesNotMatch(source, />Lightweight Charts by TradingView</);
+  assert.doesNotMatch(source, /settings\.chartAttribution/);
+  assert.doesNotMatch(source, /href="https:\/\/www\.tradingview\.com\/"/);
 });
 
 test("defines the chart summary through a versioned module registry", async () => {

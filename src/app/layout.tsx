@@ -7,8 +7,12 @@ export const metadata: Metadata = {
   title: UNICORN_BRAND.metadataTitle,
   description: UNICORN_BRAND.description,
   icons: {
-    icon: [{ url: UNICORN_BRAND.faviconPath, type: "image/png", sizes: "180x180" }],
-    apple: [{ url: UNICORN_BRAND.faviconPath, type: "image/png", sizes: "180x180" }],
+    icon: [
+      { url: UNICORN_BRAND.faviconPath, type: "image/png", sizes: "32x32" },
+      { url: UNICORN_BRAND.faviconIcoPath, type: "image/x-icon" },
+    ],
+    shortcut: UNICORN_BRAND.faviconIcoPath,
+    apple: [{ url: UNICORN_BRAND.appleTouchIconPath, type: "image/png", sizes: "180x180" }],
   },
   openGraph: {
     title: UNICORN_BRAND.metadataTitle,

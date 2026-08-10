@@ -11,6 +11,7 @@ import {
   type FundamentalGroupId,
   type FundamentalMetricId,
   type MarketMetricId,
+  type ProfileMetricId,
   type SymbolDetailTabId,
   type TechnicalMetricId,
 } from "@api/stock-detail/ids";
@@ -28,6 +29,7 @@ export {
   type FundamentalGroupId,
   type FundamentalMetricId,
   type MarketMetricId,
+  type ProfileMetricId,
   type StockDetailMetricId,
   type SymbolDetailTabId,
   type TechnicalMetricId,
@@ -52,6 +54,7 @@ export type UnicornConfig = Readonly<{
     }>;
     symbolDetail: Readonly<{
       tabs: readonly SymbolDetailTabId[];
+      profileMetrics: readonly ProfileMetricId[];
       fundamentalGroups: readonly Readonly<{
         id: FundamentalGroupId;
         metrics: readonly FundamentalMetricId[];
@@ -182,7 +185,7 @@ export function defineUnicornConfig(value: unknown): UnicornConfig {
     throw new UnicornConfigError("ui.symbolSummary.density", "must be compact or normal");
   }
   const rawDetail = record(ui.symbolDetail, "ui.symbolDetail");
-  exactKeys(rawDetail, ["tabs", "fundamentalGroups", "marketMetrics", "analystMetrics", "technicalMetrics"], "ui.symbolDetail");
+  exactKeys(rawDetail, ["tabs", "profileMetrics", "fundamentalGroups", "marketMetrics", "analystMetrics", "technicalMetrics"], "ui.symbolDetail");
   const rawGroups = rawDetail.fundamentalGroups;
   if (!Array.isArray(rawGroups)) {
     throw new UnicornConfigError("ui.symbolDetail.fundamentalGroups", "must be an array");
@@ -206,6 +209,7 @@ export function defineUnicornConfig(value: unknown): UnicornConfig {
     return Object.freeze({ id, metrics: groupMetrics });
   }));
 
+  const profileIds = STOCK_DETAIL_METRIC_IDS.filter((id): id is ProfileMetricId => id.startsWith("profile."));
   const marketIds = STOCK_DETAIL_METRIC_IDS.filter((id): id is MarketMetricId => id.startsWith("market."));
   const analystIds = STOCK_DETAIL_METRIC_IDS.filter((id): id is AnalystMetricId => id.startsWith("analyst."));
   const technicalIds = STOCK_DETAIL_METRIC_IDS.filter((id): id is TechnicalMetricId => id.startsWith("technical."));
@@ -224,6 +228,7 @@ export function defineUnicornConfig(value: unknown): UnicornConfig {
       }),
       symbolDetail: Object.freeze({
         tabs: orderedIds(rawDetail.tabs, SYMBOL_DETAIL_TAB_IDS, "ui.symbolDetail.tabs", false),
+        profileMetrics: orderedIds(rawDetail.profileMetrics, profileIds, "ui.symbolDetail.profileMetrics"),
         fundamentalGroups,
         marketMetrics: orderedIds(rawDetail.marketMetrics, marketIds, "ui.symbolDetail.marketMetrics"),
         analystMetrics: orderedIds(rawDetail.analystMetrics, analystIds, "ui.symbolDetail.analystMetrics"),

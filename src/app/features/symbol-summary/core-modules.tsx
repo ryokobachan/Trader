@@ -241,8 +241,10 @@ function IdentityQuoteModule({
       </div>
       <div className="summary-after-hours" data-tone={afterHoursTone}>
         <span>{t("summary.afterHours")}</span>
-        <strong className={afterHoursTone}>{formatSummaryAfterHoursPrice(afterHoursClose)}</strong>
-        <small>{afterHoursClose === null ? "" : currencyCode}</small>
+        <span className="summary-after-hours-value">
+          <strong className={afterHoursTone}>{formatSummaryAfterHoursPrice(afterHoursClose)}</strong>
+          {afterHoursClose !== null && <small>{currencyCode}</small>}
+        </span>
       </div>
       <div className="summary-market-status">
         <i />{localizedMarketStatus(intelligence.marketStatus, t)}<span>{intelligence.dataFreshness}</span>
@@ -404,7 +406,7 @@ function TechnicalRatingModule({ intelligence }: SymbolSummaryModuleProps) {
           );
         })}
       </div>
-      <div className="summary-technical-footer"><span>RSI 14</span><strong>{intelligence.technical.rsi}</strong><small>{t("summary.daily")}</small></div>
+      <div className="summary-technical-footer"><span>RSI 14</span><strong>{intelligence.technical.rsi}</strong></div>
     </section>
   );
 }

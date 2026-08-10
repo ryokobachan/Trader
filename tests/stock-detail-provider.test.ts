@@ -7,6 +7,7 @@ import {
   buildStockDetailViewModel,
   formatStockDetailProviderChain,
 } from "../api/stock-detail/metrics";
+import { latestWilderRsiValue } from "../src/app/features/chart-indicators/indicator-calculations";
 import {
   SYMBOL_WORKSPACE_SCHEMA_VERSION,
   type DataProvenance,
@@ -146,6 +147,17 @@ test("renders only present workspace fields with Yahoo and Benzinga provenance",
   assert.equal(model.technicals.source.label, "Yahoo Finance");
   assert.equal(model.profile.description, "Consumer technology company.");
   assert.deepEqual(
+    model.profile.metrics.map((item) => item.id),
+    [
+      "profile.exchange",
+      "profile.assetType",
+      "profile.sector",
+      "profile.location",
+      "profile.website",
+      "profile.beta",
+    ],
+  );
+  assert.deepEqual(
     model.fundamentals.metrics.map((item) => item.label),
     [
       "売上高",
@@ -230,6 +242,25 @@ test("calculates technical metrics only when OHLCV history is sufficient", () =>
   );
 });
 
+test("uses the chart's canonical Wilder RSI for stock detail", () => {
+  const bars: readonly MarketBar[] = Array.from({ length: 120 }, (_, index) => {
+    const close = 100 + index * 0.05 + Math.sin(index / 3) * 3 + Math.cos(index / 11);
+    return {
+      time: new Date(Date.UTC(2025, 0, index + 1)).toISOString(),
+      open: close - 0.4,
+      high: close + 1,
+      low: close - 1,
+      close,
+      volume: 1_000_000 + index * 2_000,
+    };
+  });
+  const metrics = buildStockDetailTechnicalMetrics(bars);
+  const detailRsi = metrics.find((metric) => metric.id === "technical.rsi14");
+  const canonical = latestWilderRsiValue(bars, { length: 14, source: "終値" });
+
+  assert.equal(detailRsi?.value, canonical?.toFixed(1));
+});
+
 test("keeps primary and fallback provider order visible", () => {
   assert.equal(
     formatStockDetailProviderChain("yahoo>fmp"),
@@ -295,4 +326,25 @@ test("keeps stock detail concise with merged financials and real category tabs",
   assert.doesNotMatch(detailSource, /aria-expanded=\{profileExpanded\}/);
   assert.match(pageSource, /earnings-comparison-grid/);
   assert.doesNotMatch(workspaceTabsSource, /> 詳細<\/button>/);
+});
+
+test("renders the configured company profile first in the financials tab", async () => {
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+  const profileStart = pageSource.indexOf("function CompanyProfileSection(");
+  const profileEnd = pageSource.indexOf("function FundamentalMetricSections(", profileStart);
+  const profileSource = pageSource.slice(profileStart, profileEnd);
+  const financialsStart = pageSource.indexOf('activeSection === "financials"');
+  const financialsEnd = pageSource.indexOf('activeSection === "analyst"', financialsStart);
+  const financialsSource = pageSource.slice(financialsStart, financialsEnd);
+
+  assert.ok(profileStart >= 0 && profileEnd > profileStart);
+  assert.match(profileSource, /profile\.description/);
+  assert.match(profileSource, /unicornConfig\.ui\.symbolDetail\.profileMetrics/);
+  assert.match(profileSource, /stock-detail-profile-card/);
+  assert.match(profileSource, /className=\{descriptionIsExpandable && !expanded \? "clamped" : "expanded"\}/);
+  assert.match(profileSource, /aria-expanded=\{expanded\}/);
+  assert.match(profileSource, /StockDetailEmptyState/);
+  assert.match(profileSource, /DetailSourceChip source=\{profile\.source\}/);
+  assert.ok(financialsSource.indexOf("<CompanyProfileSection") < financialsSource.indexOf("<FundamentalMetricSections"));
+  assert.match(financialsSource, /profile=\{detail\.profile\}/);
 });

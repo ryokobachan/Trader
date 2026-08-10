@@ -12,6 +12,8 @@ export const UNICORN_BRAND = {
   metadataTitle: "Unicorn — Stock Analysis Workspace",
   description:
     "A customizable stock-analysis workspace for charts, fundamentals, analyst ratings, and strategies.",
-  faviconPath: "/favicon.png",
+  faviconPath: "/favicon-unicorn-v2.png",
+  faviconIcoPath: "/favicon-unicorn-v2.ico",
+  appleTouchIconPath: "/favicon.png",
   shareOrigin: "https://unicorn.local",
 } as const;

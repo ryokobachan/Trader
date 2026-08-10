@@ -3,6 +3,7 @@ import {
   type CompanyNewsItem,
   type CompanyProfile,
   type DataProvenance,
+  type EarningsEvent,
   type FundamentalsSnapshot,
   type Instrument,
   type MarketBar,
@@ -35,6 +36,12 @@ const MAX_SEARCH_RESULTS = 50;
 const POPULAR_SEARCH_CACHE_TTL_MS = 30_000;
 const CRUMB_CACHE_TTL_MS = 30 * 60_000;
 const QUOTE_SUMMARY_CACHE_TTL_MS = 30_000;
+const YAHOO_SPARK_URL = "https://query1.finance.yahoo.com/v7/finance/spark";
+const YAHOO_SPARK_MAX_SYMBOLS = 50;
+const YAHOO_SPARK_USER_AGENT = "Mozilla/5.0 UnicornWorkspace/1.0 (live price refresh)";
+const YAHOO_SIDECAR_SCHEMA_VERSION = "unicorn.yahoo-sidecar.v1";
+const YAHOO_SIDECAR_DEFAULT_TIMEOUT_MS = 25_000;
+const YAHOO_SIDECAR_EARNINGS_LIMIT = 24;
 const manifest = {
   schemaVersion: PROVIDER_SCHEMA_VERSION,
   id: "yahoo",
@@ -231,6 +238,36 @@ function timeoutMilliseconds(env: ProviderEnvironment): number {
   return Math.min(15_000, Math.max(10, Math.trunc(configured)));
 }
 
+function yahooSidecarTimeoutMilliseconds(env: ProviderEnvironment): number {
+  const configured = Number(env.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS);
+  if (!Number.isFinite(configured)) return YAHOO_SIDECAR_DEFAULT_TIMEOUT_MS;
+  return Math.min(65_000, Math.max(2_000, Math.trunc(configured)));
+}
+
+function yahooSidecarBaseUrl(env: ProviderEnvironment): URL | null {
+  const configured = env.UNICORN_TRADINGVIEW_SIDECAR_URL?.trim();
+  if (!configured) return null;
+  try {
+    const url = new URL(configured);
+    const loopback = url.hostname === "localhost"
+      || url.hostname === "127.0.0.1"
+      || url.hostname === "[::1]"
+      || url.hostname === "::1";
+    if (
+      (url.protocol !== "https:" && url.protocol !== "http:")
+      || url.username
+      || url.password
+      || url.search
+      || url.hash
+      || (url.protocol === "http:" && !loopback)
+    ) return null;
+    url.pathname = `${url.pathname.replace(/\/+$/, "")}/`;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchResponse(
   fetchImplementation: FetchImplementation,
   url: URL,
@@ -324,6 +361,205 @@ function safeHttpUrl(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+function exactKeys(record: JsonRecord, allowed: readonly string[]): boolean {
+  const names = Object.keys(record);
+  return names.length === allowed.length && names.every((name) => allowed.includes(name));
+}
+
+function isoTimestamp(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const milliseconds = Date.parse(value);
+  return Number.isFinite(milliseconds) ? new Date(milliseconds).toISOString() : null;
+}
+
+function dateOnly(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const milliseconds = Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(milliseconds) && new Date(milliseconds).toISOString().slice(0, 10) === value
+    ? value
+    : null;
+}
+
+function strictOptionalText(
+  record: JsonRecord,
+  key: string,
+  maximumLength: number,
+): string | undefined {
+  const value = record[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !value.trim() || value.length > maximumLength) {
+    throw new YahooProviderError("invalid_response", "Yahoo sidecar returned invalid profile data.");
+  }
+  return value.trim();
+}
+
+function strictOptionalNumber(record: JsonRecord, key: string): number | undefined {
+  const value = record[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new YahooProviderError("invalid_response", "Yahoo sidecar returned invalid numeric data.");
+  }
+  return value;
+}
+
+function yahooSidecarProfile(
+  payload: unknown,
+  instrument: Instrument,
+): CompanyProfile | null {
+  const root = asRecord(payload);
+  if (
+    !root
+    || !exactKeys(root, ["schemaVersion", "symbol", "profile", "asOf", "ingestedAt"])
+    || root.schemaVersion !== YAHOO_SIDECAR_SCHEMA_VERSION
+    || root.symbol !== instrument.symbol
+  ) {
+    throw new YahooProviderError("invalid_response", "Yahoo sidecar returned an invalid profile response.");
+  }
+  const asOf = isoTimestamp(root.asOf);
+  const ingestedAt = isoTimestamp(root.ingestedAt);
+  if (!asOf || !ingestedAt) {
+    throw new YahooProviderError("invalid_response", "Yahoo sidecar returned invalid profile timestamps.");
+  }
+  if (root.profile === null) return null;
+  const profile = asRecord(root.profile);
+  const allowedProfileKeys = [
+    "description",
+    "website",
+    "sector",
+    "industry",
+    "country",
+    "city",
+    "employees",
+    "beta",
+    "marketCap",
+    "ipoDate",
+  ] as const;
+  if (!profile || Object.keys(profile).length === 0 || Object.keys(profile).some((key) => !allowedProfileKeys.includes(key as typeof allowedProfileKeys[number]))) {
+    throw new YahooProviderError("invalid_response", "Yahoo sidecar returned invalid profile fields.");
+  }
+  const description = strictOptionalText(profile, "description", 20_000);
+  const websiteText = strictOptionalText(profile, "website", 2_048);
+  let website: string | undefined;
+  if (websiteText !== undefined) {
+    const normalizedWebsite = safeHttpUrl(websiteText);
+    if (normalizedWebsite === null) {
+      throw new YahooProviderError("invalid_response", "Yahoo sidecar returned an invalid profile website.");
+    }
+    website = normalizedWebsite;
+  }
+  const sector = strictOptionalText(profile, "sector", 200);
+  const industry = strictOptionalText(profile, "industry", 300);
+  const country = strictOptionalText(profile, "country", 200);
+  const city = strictOptionalText(profile, "city", 200);
+  const employees = strictOptionalNumber(profile, "employees");
+  const beta = strictOptionalNumber(profile, "beta");
+  const marketCap = strictOptionalNumber(profile, "marketCap");
+  const ipoDateValue = profile.ipoDate === undefined ? undefined : dateOnly(profile.ipoDate);
+  if (
+    (employees !== undefined && (!Number.isSafeInteger(employees) || employees < 0 || employees > 1_000_000_000))
+    || (beta !== undefined && Math.abs(beta) > 1_000)
+    || (marketCap !== undefined && (marketCap <= 0 || marketCap > 1e18))
+    || (profile.ipoDate !== undefined && !ipoDateValue)
+  ) {
+    throw new YahooProviderError("invalid_response", "Yahoo sidecar returned out-of-range profile data.");
+  }
+  const logoUrl = companyLogoPathForUSStock(instrument.symbol);
+  return Object.freeze({
+    instrumentId: instrument.instrumentId,
+    ...(description === undefined ? {} : { description }),
+    ...(website === undefined ? {} : { website }),
+    ...(sector === undefined ? {} : { sector }),
+    ...(industry === undefined ? {} : { industry }),
+    ...(country === undefined ? {} : { country }),
+    ...(city === undefined ? {} : { city }),
+    ...(employees === undefined ? {} : { employees }),
+    ...(logoUrl ? { logoUrl } : {}),
+    ...(beta === undefined ? {} : { beta }),
+    ...(marketCap === undefined ? {} : { marketCap }),
+    ...(ipoDateValue ? { ipoDate: ipoDateValue } : {}),
+    provenance: Object.freeze({
+      providerId: manifest.id,
+      sourceId: `yahoo-yfinance-sidecar:${instrument.symbol}:profile`,
+      asOf,
+      ingestedAt,
+      sourceUrl: `https://finance.yahoo.com/quote/${encodeURIComponent(instrument.symbol)}/profile/`,
+    }),
+  });
+}
+
+function yahooSidecarEarnings(
+  payload: unknown,
+  instrument: Instrument,
+  requestedLimit: number,
+): readonly EarningsEvent[] {
+  const root = asRecord(payload);
+  if (
+    !root
+    || !exactKeys(root, ["schemaVersion", "symbol", "earnings", "asOf", "ingestedAt"])
+    || root.schemaVersion !== YAHOO_SIDECAR_SCHEMA_VERSION
+    || root.symbol !== instrument.symbol
+    || !Array.isArray(root.earnings)
+    || root.earnings.length > requestedLimit
+    || !isoTimestamp(root.asOf)
+  ) {
+    throw new YahooProviderError("invalid_response", "Yahoo sidecar returned an invalid earnings response.");
+  }
+  const ingestedAt = isoTimestamp(root.ingestedAt);
+  if (!ingestedAt) {
+    throw new YahooProviderError("invalid_response", "Yahoo sidecar returned an invalid earnings timestamp.");
+  }
+  const seen = new Set<string>();
+  const items: EarningsEvent[] = [];
+  let previousDate = "9999-12-31";
+  for (const value of root.earnings) {
+    const row = asRecord(value);
+    if (!row || Object.keys(row).some((key) => ![
+      "reportDate",
+      "epsActual",
+      "epsEstimate",
+      "revenueActual",
+      "revenueEstimate",
+    ].includes(key))) {
+      throw new YahooProviderError("invalid_response", "Yahoo sidecar returned invalid earnings fields.");
+    }
+    const reportDate = dateOnly(row.reportDate);
+    const epsActual = strictOptionalNumber(row, "epsActual");
+    const epsEstimate = strictOptionalNumber(row, "epsEstimate");
+    const revenueActual = strictOptionalNumber(row, "revenueActual");
+    const revenueEstimate = strictOptionalNumber(row, "revenueEstimate");
+    if (
+      !reportDate
+      || seen.has(reportDate)
+      || reportDate > previousDate
+      || (epsActual === undefined
+        && epsEstimate === undefined
+        && revenueActual === undefined
+        && revenueEstimate === undefined)
+      || (revenueActual !== undefined && revenueActual < 0)
+      || (revenueEstimate !== undefined && revenueEstimate < 0)
+    ) {
+      throw new YahooProviderError("invalid_response", "Yahoo sidecar returned invalid earnings rows.");
+    }
+    seen.add(reportDate);
+    previousDate = reportDate;
+    items.push(Object.freeze({
+      reportDate,
+      ...(epsActual === undefined ? {} : { epsActual }),
+      ...(epsEstimate === undefined ? {} : { epsEstimate }),
+      ...(revenueActual === undefined ? {} : { revenueActual }),
+      ...(revenueEstimate === undefined ? {} : { revenueEstimate }),
+      provenance: Object.freeze({
+        providerId: manifest.id,
+        sourceId: `yahoo-yfinance-sidecar:${instrument.symbol}:${reportDate}`,
+        asOf: reportDate,
+        ingestedAt,
+        sourceUrl: `https://finance.yahoo.com/calendar/earnings?symbol=${encodeURIComponent(instrument.symbol)}`,
+      }),
+    }));
+  }
+  return Object.freeze(items);
 }
 
 function newsImageUrl(value: unknown): string | undefined {
@@ -784,6 +1020,16 @@ function chartUrl(
   return url;
 }
 
+function sparkUrl(symbols: readonly string[]): URL {
+  const url = new URL(YAHOO_SPARK_URL);
+  url.searchParams.set("symbols", symbols.join(","));
+  url.searchParams.set("range", "1d");
+  url.searchParams.set("interval", "1m");
+  url.searchParams.set("indicators", "close");
+  url.searchParams.set("includePrePost", "true");
+  return url;
+}
+
 function chartResult(payload: unknown): JsonRecord | null {
   const root = asRecord(payload);
   const chart = asRecord(root?.chart);
@@ -922,6 +1168,129 @@ function quoteFromChart(
   });
 }
 
+type SparkClosePoint = Readonly<{
+  time: number;
+  close: number;
+}>;
+
+function sparkClosePoints(result: JsonRecord): readonly SparkClosePoint[] {
+  const timestamps = asArray(result.timestamp);
+  const indicators = asRecord(result.indicators);
+  const quote = asRecord(asArray(indicators?.quote)[0]);
+  if (!quote) return [];
+
+  const points: SparkClosePoint[] = [];
+  for (let index = 0; index < timestamps.length; index += 1) {
+    const time = unixSeconds(timestamps[index]);
+    const close = finiteArrayValue(quote.close, index);
+    if (time === null || close === null || close <= 0) continue;
+    points.push(Object.freeze({ time, close }));
+  }
+  return Object.freeze(points);
+}
+
+function quoteFromSpark(
+  instrument: Instrument,
+  result: JsonRecord,
+  ingestedAt: string,
+  requestedAsOf?: string,
+): Quote | null {
+  const symbol = normalizedSymbol(instrument.symbol);
+  if (!symbol) return null;
+  const meta = validatedChartMeta(result, symbol);
+  const points = sparkClosePoints(result);
+  const latest = points.at(-1);
+  if (!meta || !latest) return null;
+
+  const exchange = exchangeDetails(meta.exchangeName);
+  const responseRange = text(meta.range);
+  if (
+    !exchange
+    || exchange.mic !== instrument.exchangeMic
+    || text(meta.dataGranularity) !== "1m"
+    || (responseRange && responseRange !== "1d")
+  ) return null;
+  const previousClose = finiteNumber(meta.chartPreviousClose)
+    ?? finiteNumber(meta.previousClose);
+  if (previousClose === null || previousClose <= 0) return null;
+
+  const periods = asRecord(meta.currentTradingPeriod);
+  const regular = asRecord(periods?.regular);
+  const regularStart = unixSeconds(regular?.start);
+  const regularEnd = unixSeconds(regular?.end);
+  const regularPoints = regularStart === null || regularEnd === null
+    ? points
+    : points.filter((point) => point.time >= regularStart && point.time < regularEnd);
+  const sessionPoints = regularPoints.length > 0 ? regularPoints : points;
+  const open = finiteNumber(meta.regularMarketOpen) ?? sessionPoints[0]?.close ?? null;
+  const high = finiteNumber(meta.regularMarketDayHigh)
+    ?? Math.max(...sessionPoints.map((point) => point.close));
+  const low = finiteNumber(meta.regularMarketDayLow)
+    ?? Math.min(...sessionPoints.map((point) => point.close));
+  const volume = finiteNumber(meta.regularMarketVolume) ?? 0;
+  if (
+    open === null
+    || open <= 0
+    || !Number.isFinite(high)
+    || high <= 0
+    || !Number.isFinite(low)
+    || low <= 0
+    || high < low
+    || volume < 0
+  ) return null;
+
+  const price = latest.close;
+  const latestAsOf = isoFromUnix(latest.time);
+  if (!latestAsOf) return null;
+  const change = price - previousClose;
+  const requestedAt = requestedAsOf ? Date.parse(requestedAsOf) / 1_000 : Date.now() / 1_000;
+  const stateAt = Number.isFinite(requestedAt) ? requestedAt : Date.now() / 1_000;
+  const delayedByMinutes = finiteNumber(meta.exchangeDataDelayedBy);
+  const marketCap = finiteNumber(meta.marketCap);
+  return Object.freeze({
+    instrumentId: instrument.instrumentId,
+    price,
+    change,
+    changePercent: change / previousClose * 100,
+    previousClose,
+    open,
+    high,
+    low,
+    volume,
+    ...(marketCap === null || marketCap <= 0 ? {} : { marketCap }),
+    currency: "USD",
+    marketState: marketState(meta, stateAt),
+    delaySeconds: delayedByMinutes === null ? 900 : Math.max(0, delayedByMinutes * 60),
+    provenance: Object.freeze({
+      providerId: manifest.id,
+      sourceId: `yahoo-spark:${symbol}:quote`,
+      asOf: latestAsOf,
+      ingestedAt,
+      // Do not expose the other symbols in the batch through per-quote provenance.
+      sourceUrl: YAHOO_SPARK_URL,
+    }),
+  });
+}
+
+function sparkResponsesBySymbol(payload: unknown): ReadonlyMap<string, readonly JsonRecord[]> {
+  const root = asRecord(payload);
+  const spark = asRecord(root?.spark);
+  if (!spark || spark.error) return new Map();
+
+  const responsesBySymbol = new Map<string, JsonRecord[]>();
+  for (const value of asArray(spark.result)) {
+    const row = asRecord(value);
+    const symbol = normalizedSymbol(text(row?.symbol));
+    if (!row || !symbol) continue;
+    const responses = asArray(row.response)
+      .map(asRecord)
+      .filter((response): response is JsonRecord => response !== null);
+    if (responses.length === 0) continue;
+    responsesBySymbol.set(symbol, responses);
+  }
+  return responsesBySymbol;
+}
+
 function marketBarsFromChart(
   instrument: Instrument,
   result: JsonRecord,
@@ -990,6 +1359,9 @@ export const yahooProviderRegistration: ProviderRegistration = {
     // cannot accidentally turn this compatibility adapter on by default.
     const fetchImplementation = globalThis.fetch.bind(globalThis);
     const timeoutMs = timeoutMilliseconds(env);
+    const sidecarBaseUrl = yahooSidecarBaseUrl(env);
+    const sidecarToken = env.UNICORN_TRADINGVIEW_SIDECAR_TOKEN?.trim();
+    const sidecarTimeoutMs = yahooSidecarTimeoutMilliseconds(env);
     let popularSearchCache: Readonly<{
       expiresAt: number;
       items: readonly Instrument[];
@@ -1014,6 +1386,48 @@ export const yahooProviderRegistration: ProviderRegistration = {
       sourceUrl: string;
       ingestedAt: string;
     }>>>();
+
+    async function fetchYahooSidecar(
+      path: "v1/yahoo/profile" | "v1/yahoo/earnings",
+      symbol: string,
+      limit?: number,
+    ): Promise<unknown | undefined> {
+      if (!sidecarBaseUrl) return undefined;
+      const url = new URL(path, sidecarBaseUrl);
+      url.searchParams.set("symbol", symbol);
+      if (limit !== undefined) url.searchParams.set("limit", String(limit));
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), sidecarTimeoutMs);
+      let response: Response;
+      try {
+        response = await fetchImplementation(url, {
+          headers: {
+            accept: "application/json",
+            ...(sidecarToken ? { authorization: `Bearer ${sidecarToken}` } : {}),
+          },
+          signal: controller.signal,
+        });
+      } catch {
+        if (controller.signal.aborted) {
+          throw new YahooProviderError("request_timeout", "Yahoo sidecar request timed out.");
+        }
+        throw new YahooProviderError("upstream_error", "Yahoo sidecar request failed.");
+      } finally {
+        clearTimeout(timeout);
+      }
+      if (!response.ok) {
+        throw new YahooProviderError(
+          "upstream_error",
+          "Yahoo sidecar returned an unsuccessful response.",
+          response.status,
+        );
+      }
+      try {
+        return await response.json();
+      } catch {
+        throw new YahooProviderError("invalid_response", "Yahoo sidecar returned invalid JSON.");
+      }
+    }
 
     async function yahooCredential(forceRefresh = false): Promise<Readonly<{
       cookie: string;
@@ -1101,6 +1515,59 @@ export const yahooProviderRegistration: ProviderRegistration = {
       timeoutMs: Math.max(timeoutMs, 10_000),
       requestSize: 24,
     });
+
+    async function fetchProfileWithFallback(instrument: Instrument): Promise<CompanyProfile | null> {
+      const symbol = normalizedSymbol(instrument.symbol);
+      if (!symbol) return null;
+      let nativeFailure: unknown;
+      try {
+        const item = await fetchQuoteSummary(symbol);
+        const result = quoteSummaryResult(item.payload);
+        if (result) {
+          return profileFromQuoteSummary(
+            instrument,
+            result,
+            item.sourceUrl,
+            item.ingestedAt,
+          );
+        }
+      } catch (error) {
+        nativeFailure = error;
+      }
+      const sidecarPayload = await fetchYahooSidecar("v1/yahoo/profile", symbol);
+      if (sidecarPayload !== undefined) return yahooSidecarProfile(sidecarPayload, instrument);
+      if (nativeFailure) throw nativeFailure;
+      return null;
+    }
+
+    async function fetchEarningsWithFallback(
+      instrument: Instrument,
+    ): Promise<readonly EarningsEvent[]> {
+      const symbol = normalizedSymbol(instrument.symbol);
+      if (!symbol) return [];
+      let nativeItems: readonly EarningsEvent[] = [];
+      let nativeFailure: unknown;
+      try {
+        nativeItems = await earningsHistoryClient.getEarnings(instrument);
+        if (nativeItems.length > 0) return nativeItems;
+      } catch (error) {
+        nativeFailure = error;
+      }
+      const sidecarPayload = await fetchYahooSidecar(
+        "v1/yahoo/earnings",
+        symbol,
+        YAHOO_SIDECAR_EARNINGS_LIMIT,
+      );
+      if (sidecarPayload !== undefined) {
+        return yahooSidecarEarnings(
+          sidecarPayload,
+          instrument,
+          YAHOO_SIDECAR_EARNINGS_LIMIT,
+        );
+      }
+      if (nativeFailure) throw nativeFailure;
+      return nativeItems;
+    }
 
     async function fetchQuoteSummary(symbol: string): Promise<Readonly<{
       payload: unknown;
@@ -1265,7 +1732,7 @@ export const yahooProviderRegistration: ProviderRegistration = {
         getQuote: async (instrument, context) => {
           const symbol = normalizedSymbol(instrument.symbol);
           if (!symbol) return null;
-          const url = chartUrl(symbol, "1d", "5m", true);
+          const url = chartUrl(symbol, "1d", "1m", true);
           const payload = await fetchJson(fetchImplementation, url, timeoutMs);
           const result = chartResult(payload);
           if (!result) return null;
@@ -1276,6 +1743,36 @@ export const yahooProviderRegistration: ProviderRegistration = {
             new Date().toISOString(),
             context.asOf,
           );
+        },
+        getQuotes: async (instruments, context) => {
+          const requested: Array<Readonly<{ instrument: Instrument; symbol: string }>> = [];
+          const uniqueSymbols = new Set<string>();
+          for (const instrument of instruments) {
+            const symbol = normalizedSymbol(instrument.symbol);
+            if (
+              !symbol
+              || (!uniqueSymbols.has(symbol) && uniqueSymbols.size >= YAHOO_SPARK_MAX_SYMBOLS)
+            ) continue;
+            requested.push(Object.freeze({ instrument, symbol }));
+            uniqueSymbols.add(symbol);
+          }
+          if (uniqueSymbols.size === 0) return [];
+
+          const url = sparkUrl([...uniqueSymbols]);
+          const payload = await fetchJson(fetchImplementation, url, timeoutMs, {
+            "user-agent": YAHOO_SPARK_USER_AGENT,
+          });
+          const responsesBySymbol = sparkResponsesBySymbol(payload);
+          const ingestedAt = new Date().toISOString();
+          const quotes: Quote[] = [];
+          for (const { instrument, symbol } of requested) {
+            const responses = responsesBySymbol.get(symbol) ?? [];
+            const quote = responses
+              .map((response) => quoteFromSpark(instrument, response, ingestedAt, context.asOf))
+              .find((candidate): candidate is Quote => candidate !== null);
+            if (quote) quotes.push(quote);
+          }
+          return Object.freeze(quotes);
         },
         getBars: async (instrument, request) => {
           const symbol = normalizedSymbol(instrument.symbol);
@@ -1295,21 +1792,9 @@ export const yahooProviderRegistration: ProviderRegistration = {
         },
       },
       fundamentals: {
-        getProfile: async (instrument) => {
-          const symbol = normalizedSymbol(instrument.symbol);
-          if (!symbol) return null;
-          const item = await fetchQuoteSummary(symbol);
-          const result = quoteSummaryResult(item.payload);
-          if (!result) return null;
-          return profileFromQuoteSummary(
-            instrument,
-            result,
-            item.sourceUrl,
-            item.ingestedAt,
-          );
-        },
+        getProfile: (instrument) => fetchProfileWithFallback(instrument),
         getFundamentals: (instrument, context) => fetchFundamentals(instrument, context.asOf),
-        getEarnings: (instrument) => earningsHistoryClient.getEarnings(instrument),
+        getEarnings: (instrument) => fetchEarningsWithFallback(instrument),
       },
       news: {
         getCompanyNews: async (instrument) => {

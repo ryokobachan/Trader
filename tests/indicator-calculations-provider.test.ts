@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
   CHART_INDICATOR_IDS,
   computeIndicatorSeries,
+  INDICATOR_CALCULATION_REGISTRY,
   latestIndicatorValue,
   latestIndicatorValues,
   type ComputedIndicator,
@@ -119,6 +121,111 @@ test("price source is part of the shared calculation contract", () => {
   }
 });
 
+test("VWAP honors session and calendar anchors instead of always accumulating the fetched range", () => {
+  const intraday: readonly MarketBar[] = [
+    { time: "2025-01-02T15:00:00Z", open: 9, high: 11, low: 9, close: 10, volume: 100 },
+    { time: "2025-01-02T20:00:00Z", open: 19, high: 21, low: 19, close: 20, volume: 300 },
+    { time: "2025-01-03T15:00:00Z", open: 29, high: 31, low: 29, close: 30, volume: 200 },
+    { time: "2025-01-06T15:00:00Z", open: 39, high: 41, low: 39, close: 40, volume: 100 },
+  ];
+
+  const all = values(computeIndicatorSeries(intraday, {
+    id: "vwap",
+    source: "終値",
+    anchor: "全期間",
+  }), "vwap");
+  assertNumbersClose(all, [10, 17.5, 21.666666666666668, 24.285714285714285]);
+
+  const session = values(computeIndicatorSeries(intraday, {
+    id: "vwap",
+    source: "終値",
+    anchor: "セッション",
+    timeZone: "America/New_York",
+  }), "vwap");
+  assertNumbersClose(session, [10, 17.5, 30, 40]);
+
+  const week = values(computeIndicatorSeries(intraday, {
+    id: "vwap",
+    source: "終値",
+    anchor: "週",
+    timeZone: "America/New_York",
+  }), "vwap");
+  assertNumbersClose(week, [10, 17.5, 21.666666666666668, 40]);
+});
+
+test("date-only VWAP anchors preserve the provider trading date", () => {
+  const daily: readonly MarketBar[] = [
+    { time: "2025-01-02", open: 9, high: 11, low: 9, close: 10, volume: 100 },
+    { time: "2025-01-03", open: 19, high: 21, low: 19, close: 20, volume: 100 },
+  ];
+  assertNumbersClose(
+    values(computeIndicatorSeries(daily, { id: "vwap", source: "終値", anchor: "セッション" }), "vwap"),
+    [10, 20],
+  );
+});
+
+test("ADX seeds from real DX observations rather than synthetic warmup zeroes", () => {
+  const trending: readonly MarketBar[] = Array.from({ length: 40 }, (_, index) => ({
+    time: new Date(Date.UTC(2025, 0, index + 1)).toISOString(),
+    open: 100 + index,
+    high: 102 + index,
+    low: 99 + index,
+    close: 101 + index,
+    volume: 1_000,
+  }));
+  const adx = values(computeIndicatorSeries(trending, { id: "adx14", length: 14 }), "adx");
+  assert.equal(adx.length, 13);
+  assert.ok(adx.every((value) => Math.abs(value - 100) < 1e-12));
+});
+
+test("ADX follows the TA-Lib lookback and does not count index-zero TR/DM", () => {
+  const length = 14;
+  assert.equal(
+    computeIndicatorSeries(bars.slice(0, length * 2 - 1), { id: "adx14", length }).series[0].points.length,
+    0,
+  );
+  const first = computeIndicatorSeries(bars.slice(0, length * 2), { id: "adx14", length }).series[0].points;
+  assert.equal(first.length, 1);
+  assert.equal(first[0].time, bars[length * 2 - 1].time);
+  assert.ok(Number.isFinite(first[0].value));
+});
+
+test("indicator warmup boundaries are explicit and stable", () => {
+  const expectedCounts: Readonly<Record<(typeof CHART_INDICATOR_IDS)[number], number>> = {
+    sma20: 101,
+    ema50: 71,
+    bollinger: 101,
+    vwap: 120,
+    rsi14: 106,
+    macd: 95,
+    stochastic: 105,
+    atr14: 107,
+    adx14: 93,
+    obv: 120,
+  };
+  for (const id of CHART_INDICATOR_IDS) {
+    const primary = computeIndicatorSeries(bars, { id }).series[0];
+    assert.equal(primary.points.length, expectedCounts[id], `${id} warmup boundary changed`);
+  }
+  assert.equal(computeIndicatorSeries(bars.slice(0, 27), { id: "adx14" }).series[0].points.length, 0);
+  assert.equal(computeIndicatorSeries(bars.slice(0, 28), { id: "adx14" }).series[0].points.length, 1);
+});
+
+test("the typed calculation registry is exhaustive and permanently excludes MAMA", () => {
+  assert.deepEqual(Object.keys(INDICATOR_CALCULATION_REGISTRY), [...CHART_INDICATOR_IDS]);
+  assert.equal(CHART_INDICATOR_IDS.some((id) => String(id).toLowerCase() === "mama"), false);
+  assert.equal(Object.hasOwn(INDICATOR_CALCULATION_REGISTRY, "mama"), false);
+});
+
+test("MAMA is absent from the production UI registration and settings surface", async () => {
+  const [pageSource, indicatorI18nSource] = await Promise.all([
+    readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/features/indicators/indicator-i18n.ts", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(pageSource, /\bmama\b/i);
+  assert.doesNotMatch(indicatorI18nSource, /\bmama\b/i);
+});
+
 test("latest readings are taken from the exact series supplied to renderers", () => {
   const customSpecs: Readonly<Record<(typeof CHART_INDICATOR_IDS)[number], IndicatorCalculationSpec>> = {
     sma20: { id: "sma20", length: 31, source: "HL2" },
@@ -150,6 +257,16 @@ test("latest readings are taken from the exact series supplied to renderers", ()
       computed.series.find((series) => series.key === computed.primarySeriesKey)?.points.at(-1)?.value,
     );
   }
+});
+
+test("the visible legend never fabricates a value when history is insufficient", async () => {
+  const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+  const start = pageSource.indexOf("function getIndicatorReading(");
+  const end = pageSource.indexOf("function getIndicatorDisplayName(", start);
+  assert.ok(start >= 0 && end > start);
+  const readingSource = pageSource.slice(start, end);
+  assert.doesNotMatch(readingSource, /scaledMetric|stock\.seed/);
+  assert.match(readingSource, /return ["']—["']/);
 });
 
 test("calculation parameters change their corresponding rendered series", () => {
@@ -186,10 +303,12 @@ test("all ten indicators return only finite points for 10,000 bars", () => {
     };
   });
 
+  const startedAt = performance.now();
   for (const id of CHART_INDICATOR_IDS) {
     const computed = computeIndicatorSeries(longHistory, { id });
     assert.ok(computed.series.length > 0);
     assert.ok(computed.series.every((series) => series.points.length > 0));
     assert.ok(computed.series.every((series) => series.points.every((point) => Number.isFinite(point.value))));
   }
+  assert.ok(performance.now() - startedAt < 1_000, "all ten 10,000-candle calculations should stay interactive");
 });

@@ -103,6 +103,57 @@ test("loads watchlist quotes in order while preserving missing and invalid price
   assert.equal(isUsableCurrentQuote(null), false);
 });
 
+test("uses one market batch and caches instrument identities between refreshes", async () => {
+  let identityCalls = 0;
+  let batchCalls = 0;
+  let individualQuoteCalls = 0;
+  const instruments: InstrumentProvider = {
+    searchUSStocks: async () => [],
+    getUSStockBySymbol: async (symbol) => {
+      identityCalls += 1;
+      return symbol === "MISS" ? null : instrument(symbol);
+    },
+  };
+  const market: MarketDataProvider = {
+    getQuote: async (value) => {
+      individualQuoteCalls += 1;
+      return quote(value, 999);
+    },
+    getQuotes: async (values) => {
+      batchCalls += 1;
+      return values.map((value) => quote(value, value.symbol === "ZERO" ? 0 : 312.5));
+    },
+  };
+  const runtime = {
+    instrument: instruments,
+    market,
+    selectedProviderIds: {
+      instrument: "batch-identity-fixture",
+      market: "batch-market-fixture",
+      bars: "batch-market-fixture",
+    },
+  } as const;
+
+  const first = await loadWatchlistQuotes(
+    ["AAPL", "ZERO", "MISS"],
+    runtime,
+    { requestId: "watchlist-batch-first" },
+  );
+  const second = await loadWatchlistQuotes(
+    ["AAPL", "ZERO", "MISS"],
+    runtime,
+    { requestId: "watchlist-batch-second" },
+  );
+
+  assert.equal(identityCalls, 3, "positive and negative identities should be reused by later polls");
+  assert.equal(batchCalls, 1, "adjacent refreshes should reuse the short server-side batch cache");
+  assert.equal(individualQuoteCalls, 0);
+  assert.equal(first[0]?.quote?.price, 312.5);
+  assert.equal(first[1]?.quote, null);
+  assert.equal(first[2]?.instrument, null);
+  assert.deepEqual(second.map((item) => item.quote?.price ?? null), [312.5, null, null]);
+});
+
 test("watchlist quotes API returns one ordered batch with positive prices", async () => {
   const previousInstrument = process.env.UNICORN_INSTRUMENT_PROVIDER;
   const previousMarket = process.env.UNICORN_MARKET_PROVIDER;
@@ -143,13 +194,19 @@ test("watchlist quotes API rejects invalid and oversized batches", async () => {
   }
 });
 
-test("watchlist UI polls quote and after-hours batches without rendering placeholder zero", async () => {
+test("watchlist UI refreshes visible quotes and resumes immediately after tab or network return", async () => {
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
   assert.match(pageSource, /\/api\/v1\/watchlists\/quotes/);
   assert.match(pageSource, /watchlistQuoteStock\(item, next\[item\.symbol\]\)/);
-  assert.match(pageSource, /WATCHLIST_MARKET_REFRESH_MS = 60_000/);
-  assert.match(pageSource, /window\.setTimeout\(refresh, WATCHLIST_MARKET_REFRESH_MS\)/);
+  assert.match(pageSource, /WATCHLIST_QUOTE_REFRESH_MS = 15_000/);
+  assert.match(pageSource, /WATCHLIST_AFTER_HOURS_REFRESH_MS = 60_000/);
+  assert.match(pageSource, /window\.setTimeout\(\(\) => \{\s*refreshTimer = undefined;\s*refresh\(\);\s*\}, WATCHLIST_QUOTE_REFRESH_MS\)/);
+  assert.match(pageSource, /requestInFlight/);
+  assert.match(pageSource, /window\.addEventListener\("focus", refreshNow\)/);
+  assert.match(pageSource, /window\.addEventListener\("online", refreshNow\)/);
+  assert.match(pageSource, /document\.addEventListener\("visibilitychange", handleVisibilityChange\)/);
+  assert.match(pageSource, /document\.hidden/);
   assert.match(pageSource, /!Number\.isFinite\(value\) \|\| value <= 0 \? "-"/);
   assert.doesNotMatch(pageSource, /setAfterHoursBySymbol\(\{\}\);\s*\}\);/);
 });

@@ -17,6 +17,7 @@ export type ChartIndicatorId = (typeof CHART_INDICATOR_IDS)[number];
 export type OverlayIndicatorId = Extract<ChartIndicatorId, "sma20" | "ema50" | "bollinger" | "vwap">;
 export type SubIndicatorId = Exclude<ChartIndicatorId, OverlayIndicatorId>;
 export type IndicatorPriceSource = "終値" | "始値" | "高値" | "安値" | "HL2" | "HLC3";
+export type IndicatorVwapAnchor = "セッション" | "週" | "月" | "四半期" | "年" | "全期間";
 export type IndicatorSeriesKey =
   | "sma"
   | "ema"
@@ -35,9 +36,11 @@ export type IndicatorSeriesKey =
 
 /**
  * Calculation-only settings shared by chart rendering and latest-value labels.
- * Presentation or unsupported settings such as offset, visibility, VWAP
- * anchor, color, and line style do not belong here until renderers implement
- * those behaviors.
+ * Presentation settings such as offset, visibility, color, and line style do
+ * not belong here. `source` chooses the OHLC-derived input. `anchor` controls
+ * when VWAP accumulation resets; `timeZone` defines the exchange calendar used
+ * for timestamped intraday bars. Chart timeframe only changes the input bars,
+ * never the formula itself.
  */
 export type IndicatorCalculationSpec = Readonly<{
   id: ChartIndicatorId;
@@ -48,6 +51,8 @@ export type IndicatorCalculationSpec = Readonly<{
   slow?: number;
   signal?: number;
   smoothing?: number;
+  anchor?: IndicatorVwapAnchor;
+  timeZone?: string;
 }>;
 
 export type WilderRsiOptions = Readonly<{
@@ -140,6 +145,26 @@ function wilderValues(values: readonly number[], length: number) {
   return output;
 }
 
+/**
+ * Wilder smoothing for a series whose first meaningful observation is not at
+ * index zero. ADX directional movement starts at index 1 because it requires a
+ * previous candle; keeping that boundary avoids treating a fabricated zero as
+ * one of the seed observations.
+ */
+function wilderValuesFrom(values: readonly number[], length: number, startIndex: number) {
+  const output = Array.from({ length: values.length }, () => Number.NaN);
+  const firstOutputIndex = startIndex + length - 1;
+  if (firstOutputIndex >= values.length) return output;
+  let average = values.slice(startIndex, firstOutputIndex + 1)
+    .reduce((sum, value) => sum + value, 0) / length;
+  output[firstOutputIndex] = average;
+  for (let index = firstOutputIndex + 1; index < values.length; index += 1) {
+    average = (average * (length - 1) + values[index]) / length;
+    output[index] = average;
+  }
+  return output;
+}
+
 function trueRanges(bars: readonly MarketBar[]) {
   return bars.map((bar, index) => index === 0
     ? bar.high - bar.low
@@ -226,10 +251,19 @@ function computeBollinger(bars: readonly MarketBar[], spec: IndicatorCalculation
 
 function computeVwap(bars: readonly MarketBar[], spec: IndicatorCalculationSpec): ComputedIndicator {
   const source = spec.source ?? "HLC3";
+  const anchor = spec.anchor ?? "全期間";
+  const timeZone = spec.timeZone ?? "America/New_York";
   const points: IndicatorNumericPoint[] = [];
   let cumulativeVolume = 0;
   let cumulativeValue = 0;
+  let previousAnchorKey: string | undefined;
   for (const bar of bars) {
+    const currentAnchorKey = vwapAnchorKey(bar.time, anchor, timeZone);
+    if (previousAnchorKey !== undefined && currentAnchorKey !== previousAnchorKey) {
+      cumulativeVolume = 0;
+      cumulativeValue = 0;
+    }
+    previousAnchorKey = currentAnchorKey;
     cumulativeVolume += bar.volume;
     cumulativeValue += indicatorSourceValue(bar, source) * bar.volume;
     const value = cumulativeValue / cumulativeVolume;
@@ -240,6 +274,65 @@ function computeVwap(bars: readonly MarketBar[], spec: IndicatorCalculationSpec)
     primarySeriesKey: "vwap",
     series: [{ key: "vwap", name: "VWAP", points }],
   };
+}
+
+type CalendarParts = Readonly<{ year: number; month: number; day: number }>;
+
+const calendarFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+function calendarParts(time: string, timeZone: string): CalendarParts {
+  // Date-only bars already represent an exchange trading date. Converting
+  // midnight UTC through a US timezone would incorrectly move them back a day.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(time)) {
+    const [year, month, day] = time.split("-").map(Number);
+    return { year, month, day };
+  }
+  let formatter = calendarFormatterCache.get(timeZone);
+  if (!formatter) {
+    try {
+      formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+    } catch {
+      formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "UTC",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+    }
+    calendarFormatterCache.set(timeZone, formatter);
+  }
+  const parts = Object.fromEntries(
+    formatter.formatToParts(new Date(time))
+      .filter((part) => part.type === "year" || part.type === "month" || part.type === "day")
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  return { year: parts.year, month: parts.month, day: parts.day };
+}
+
+function isoDate({ year, month, day }: CalendarParts) {
+  return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+}
+
+function mondayOfWeek(parts: CalendarParts) {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+  return date.toISOString().slice(0, 10);
+}
+
+function vwapAnchorKey(time: string, anchor: IndicatorVwapAnchor, timeZone: string) {
+  if (anchor === "全期間") return "all";
+  const parts = calendarParts(time, timeZone);
+  if (anchor === "セッション") return isoDate(parts);
+  if (anchor === "週") return mondayOfWeek(parts);
+  if (anchor === "月") return `${parts.year}-${parts.month}`;
+  if (anchor === "四半期") return `${parts.year}-Q${Math.floor((parts.month - 1) / 3) + 1}`;
+  return `${parts.year}`;
 }
 
 /**
@@ -405,23 +498,30 @@ function computeAdx(bars: readonly MarketBar[], spec: IndicatorCalculationSpec):
     const down = bars[index - 1].low - bar.low;
     return down > up && down > 0 ? down : 0;
   });
-  const atr = wilderValues(tr, length);
-  const plus = wilderValues(plusDm, length);
-  const minus = wilderValues(minusDm, length);
+  // TR and directional movement require a previous bar. TA-Lib/Wilder starts
+  // their seed with observations 1..length, never the synthetic index-0 value.
+  const atr = wilderValuesFrom(tr, length, 1);
+  const plus = wilderValuesFrom(plusDm, length, 1);
+  const minus = wilderValuesFrom(minusDm, length, 1);
   const dx = bars.map((_, index) => {
-    if (!Number.isFinite(atr[index]) || atr[index] === 0) return Number.NaN;
+    if (!Number.isFinite(atr[index])) return Number.NaN;
+    if (atr[index] === 0) return 0;
     const plusDi = 100 * plus[index] / atr[index];
     const minusDi = 100 * minus[index] / atr[index];
     const denominator = plusDi + minusDi;
     return denominator === 0 ? 0 : 100 * Math.abs(plusDi - minusDi) / denominator;
   });
-  // Preserve the pane's established Wilder seed so migrating renderers does not
-  // move the plotted line. A later formula migration can be versioned separately.
-  const adx = wilderValues(dx.map((value) => Number.isFinite(value) ? value : 0), length);
+  // ADX is the Wilder average of DX, but DX itself is unavailable until the
+  // smoothed TR/DM seed exists. Seeding with artificial zeroes materially
+  // understates the first ADX values, so average the first `length` real DX
+  // observations and then apply Wilder's recurrence.
+  const firstDxIndex = length;
+  const firstAdxIndex = firstDxIndex + length - 1;
+  const adx = wilderValuesFrom(dx, length, firstDxIndex);
   return {
     id: spec.id,
     primarySeriesKey: "adx",
-    series: [{ key: "adx", name: "ADX", points: finitePoints(bars, adx, length * 2 - 2) }],
+    series: [{ key: "adx", name: "ADX", points: finitePoints(bars, adx, firstAdxIndex) }],
     guideLines: [20, 25],
   };
 }
@@ -451,23 +551,34 @@ function computeObv(bars: readonly MarketBar[], spec: IndicatorCalculationSpec):
  * Canonical calculation entry point. Renderers and legends should consume the
  * same returned object rather than independently recomputing the latest value.
  */
+type IndicatorCalculator = (
+  bars: readonly MarketBar[],
+  spec: IndicatorCalculationSpec,
+) => ComputedIndicator;
+
+/**
+ * Single built-in calculation registry. The UI registry and persistence layer
+ * must only accept these IDs; adding a formula is an explicit typed change.
+ */
+export const INDICATOR_CALCULATION_REGISTRY: Readonly<Record<ChartIndicatorId, IndicatorCalculator>> = Object.freeze({
+  sma20: computeSma,
+  ema50: computeEma,
+  bollinger: computeBollinger,
+  vwap: computeVwap,
+  rsi14: computeRsi,
+  macd: computeMacd,
+  stochastic: computeStochastic,
+  atr14: computeAtr,
+  adx14: computeAdx,
+  obv: computeObv,
+});
+
 export function computeIndicatorSeries(
   inputBars: readonly MarketBar[],
   spec: IndicatorCalculationSpec,
 ): ComputedIndicator {
   const bars = finiteMarketBars(inputBars);
-  if (spec.id === "sma20") return computeSma(bars, spec);
-  if (spec.id === "ema50") return computeEma(bars, spec);
-  if (spec.id === "bollinger") return computeBollinger(bars, spec);
-  if (spec.id === "vwap") return computeVwap(bars, spec);
-  if (spec.id === "rsi14") return computeRsi(bars, spec);
-  if (spec.id === "macd") return computeMacd(bars, spec);
-  if (spec.id === "stochastic") return computeStochastic(bars, spec);
-  if (spec.id === "atr14") return computeAtr(bars, spec);
-  if (spec.id === "adx14") return computeAdx(bars, spec);
-  if (spec.id === "obv") return computeObv(bars, spec);
-  const unsupported: never = spec.id;
-  throw new Error(`Unsupported indicator: ${String(unsupported)}`);
+  return INDICATOR_CALCULATION_REGISTRY[spec.id](bars, spec);
 }
 
 export function latestIndicatorValues(computed: ComputedIndicator): readonly IndicatorLatestValue[] {

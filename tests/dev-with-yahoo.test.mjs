@@ -29,7 +29,7 @@ test("builds a forced keyless Yahoo and Benzinga profile without Midas or FMP se
   assert.equal(environment.UNICORN_USAGE_MODE, "personal");
   assert.equal(environment.UNICORN_ENABLE_YAHOO_COMPAT, "true");
   assert.equal(environment.UNICORN_INSTRUMENT_PROVIDER, "yahoo");
-  assert.equal(environment.UNICORN_MARKET_PROVIDER, "yahoo");
+  assert.equal(environment.UNICORN_MARKET_PROVIDER, "tradingview-websocket");
   assert.equal(environment.UNICORN_PROFILE_PROVIDER, "yahoo");
   assert.equal(environment.UNICORN_FUNDAMENTALS_PROVIDER, "yahoo");
   assert.equal(environment.UNICORN_EARNINGS_PROVIDER, "yahoo");

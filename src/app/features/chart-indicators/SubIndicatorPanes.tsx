@@ -11,6 +11,7 @@ import {
   type LineData,
   type LineWidth,
   type Time,
+  type WhitespaceData,
 } from "lightweight-charts";
 import type { MarketBar } from "../../platform/provider-contracts";
 import { useI18n } from "../../platform/i18n";
@@ -18,9 +19,15 @@ import { chartLocaleTag } from "../chart-localization";
 import { indicatorText } from "../indicators/indicator-i18n";
 import {
   computeIndicatorSeries,
+  finiteMarketBars,
   type IndicatorCalculationSpec,
   type SubIndicatorId as CanonicalSubIndicatorId,
 } from "./indicator-calculations";
+import {
+  SYNCHRONIZED_PRICE_SCALE_MIN_WIDTH,
+  createChartTimeScaleSync,
+  type ChartTimeScaleSync,
+} from "../chart-sync/chart-time-scale-sync";
 
 export type SubIndicatorId = CanonicalSubIndicatorId;
 
@@ -100,7 +107,15 @@ function compactNumber(value: number, locale: "en" | "ja", precision = 2) {
   return value.toLocaleString(localeTag, { maximumFractionDigits: precision });
 }
 
-function SubIndicatorPane({ bars, spec }: { bars: readonly MarketBar[]; spec: SubIndicatorSpec }) {
+function SubIndicatorPane({
+  bars,
+  spec,
+  timeScaleSync,
+}: {
+  bars: readonly MarketBar[];
+  spec: SubIndicatorSpec;
+  timeScaleSync: ChartTimeScaleSync;
+}) {
   const { locale } = useI18n();
   const hostRef = useRef<HTMLDivElement>(null);
   const computed = useMemo(() => computeSubIndicator(bars, spec), [bars, spec]);
@@ -123,7 +138,11 @@ function SubIndicatorPane({ bars, spec }: { bars: readonly MarketBar[]; spec: Su
         fontSize: 12,
       },
       grid: { vertLines: { color: "#151515" }, horzLines: { color: "#151515" } },
-      rightPriceScale: { borderColor: "#2b2b2b", scaleMargins: { top: 0.12, bottom: 0.12 } },
+      rightPriceScale: {
+        borderColor: "#2b2b2b",
+        minimumWidth: SYNCHRONIZED_PRICE_SCALE_MIN_WIDTH,
+        scaleMargins: { top: 0.12, bottom: 0.12 },
+      },
       timeScale: {
         borderColor: "#2b2b2b",
         rightOffset: 3,
@@ -131,10 +150,26 @@ function SubIndicatorPane({ bars, spec }: { bars: readonly MarketBar[]; spec: Su
         minBarSpacing: 3,
         timeVisible: bars.some((item) => item.time.includes("T")),
       },
-      handleScroll: true,
-      handleScale: true,
+      // The price chart is the only interactive time-scale controller. Keeping
+      // followers passive prevents a pane from drifting away from its candles.
+      handleScroll: false,
+      handleScale: false,
       localization: { locale: chartLocaleTag(locale) },
     });
+
+    // Indicator series begin after their warm-up period. Whitespace points keep
+    // every pane on the price chart's complete timeline, so logical indexes are
+    // identical even before the first computable indicator value.
+    const timeline = chart.addSeries(LineSeries, {
+      color: "rgba(0, 0, 0, 0)",
+      lineVisible: false,
+      crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+    timeline.setData(finiteMarketBars(bars).map((bar) => ({
+      time: chartTime(bar.time),
+    })) as WhitespaceData<Time>[]);
 
     computed.series.forEach((seriesDefinition, seriesIndex) => {
       if (seriesDefinition.kind === "histogram") {
@@ -154,8 +189,11 @@ function SubIndicatorPane({ bars, spec }: { bars: readonly MarketBar[]; spec: Su
         lineWidth: seriesIndex === 0 ? spec.lineWidth : 1,
         lineStyle: seriesIndex === 0 ? chartLineStyle(spec.lineStyle) : LineStyle.Solid,
         priceLineVisible: false,
-        lastValueVisible: true,
-        title: seriesDefinition.name,
+        // The canonical label and latest value are rendered once in the pane
+        // header. A second scale badge can lag during chart reflow and look
+        // inconsistent with that shared legend.
+        lastValueVisible: false,
+        title: "",
         priceFormat: { type: "price", precision: computed.precision ?? 2, minMove: computed.precision === 0 ? 1 : 0.01 },
       });
       line.setData(seriesDefinition.points as LineData<Time>[]);
@@ -172,9 +210,17 @@ function SubIndicatorPane({ bars, spec }: { bars: readonly MarketBar[]; spec: Su
         }
       }
     });
-    chart.timeScale().fitContent();
-    return () => chart.remove();
-  }, [bars, computed, locale, spec.lineStyle, spec.lineWidth]);
+    const timeScale = chart.timeScale();
+    timeScale.fitContent();
+    const unsubscribeSync = timeScaleSync.subscribe((range) => {
+      if (range === null) timeScale.fitContent();
+      else timeScale.setVisibleLogicalRange(range);
+    });
+    return () => {
+      unsubscribeSync();
+      chart.remove();
+    };
+  }, [bars, computed, locale, spec.lineStyle, spec.lineWidth, timeScaleSync]);
 
   return (
     <section className="subindicator-pane" aria-label={indicatorText(locale, "paneAria", { name: spec.label })}>
@@ -192,15 +238,19 @@ function SubIndicatorPane({ bars, spec }: { bars: readonly MarketBar[]; spec: Su
 export function SubIndicatorPanes({
   bars,
   indicators,
+  timeScaleSync,
 }: {
   bars: readonly MarketBar[];
   indicators: readonly SubIndicatorSpec[];
+  timeScaleSync?: ChartTimeScaleSync;
 }) {
   const { locale } = useI18n();
+  const localTimeScaleSync = useMemo(() => createChartTimeScaleSync(), []);
+  const resolvedTimeScaleSync = timeScaleSync ?? localTimeScaleSync;
   if (indicators.length === 0) return null;
   return (
     <div className="subindicator-panes" aria-label={indicatorText(locale, "panesAria")}>
-      {indicators.map((indicator) => <SubIndicatorPane key={indicator.id} bars={bars} spec={indicator} />)}
+      {indicators.map((indicator) => <SubIndicatorPane key={indicator.id} bars={bars} spec={indicator} timeScaleSync={resolvedTimeScaleSync} />)}
     </div>
   );
 }

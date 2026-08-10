@@ -156,6 +156,12 @@ export function createProviderRuntime(env: ProviderEnvironment): ProviderRuntime
   const newsAdapter = newsId ? resolve(newsId, ["news.company"]) : undefined;
   const market = Object.freeze({
     getQuote: marketAdapter.market.getQuote.bind(marketAdapter.market),
+    ...(marketAdapter.market.getQuotes
+      ? { getQuotes: marketAdapter.market.getQuotes.bind(marketAdapter.market) }
+      : {}),
+    ...(marketAdapter.market.getQuoteStream
+      ? { getQuoteStream: marketAdapter.market.getQuoteStream.bind(marketAdapter.market) }
+      : {}),
     getBars: barsAdapter.market.getBars.bind(barsAdapter.market),
   });
 

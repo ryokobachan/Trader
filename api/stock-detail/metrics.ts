@@ -3,6 +3,7 @@ import type {
   MarketBar,
   SymbolWorkspace,
 } from "@/app/platform/provider-contracts";
+import { latestWilderRsiValue } from "@/app/features/chart-indicators/indicator-calculations";
 import type { StockDetailMetricId } from "./ids";
 
 export type StockDetailMetric = Readonly<{
@@ -347,16 +348,10 @@ export function buildStockDetailTechnicalMetrics(
   }
 
   if (validBars.length >= 15) {
-    const recent = closes.slice(-15);
-    const changes = recent.slice(1).map((close, index) => close - recent[index]);
-    const averageGain = average(changes.map((change) => Math.max(0, change)));
-    const averageLoss = average(changes.map((change) => Math.max(0, -change)));
-    const rsi = averageGain === 0 && averageLoss === 0
-      ? 50
-      : averageLoss === 0
-        ? 100
-        : 100 - 100 / (1 + averageGain / averageLoss);
-    metrics.push(identifiedMetric("technical.rsi14", { value: rsi.toFixed(1), note: "終値・日足14期間" }));
+    const rsi = latestWilderRsiValue(validBars, { length: 14, source: "終値" });
+    if (rsi !== undefined) {
+      metrics.push(identifiedMetric("technical.rsi14", { value: rsi.toFixed(1), note: "終値・日足14期間" }));
+    }
 
     const atrWindow = validBars.slice(-15);
     const trueRanges = atrWindow.slice(1).map((bar, index) => {

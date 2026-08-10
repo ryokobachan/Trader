@@ -16,13 +16,14 @@ The chart and symbol-detail screenshots below were captured with Unicorn's optio
 
 ![Unicorn chart workspace](public/screenshots/unicorn-chart.png)
 
-_Captured with Yahoo quote data and TradingView websocket bars. Prices and timestamps reflect the observations displayed in the UI._
+_Captured with direct USD-listing quotes and bars from the TradingView websocket sidecar. Prices and timestamps reflect the observations displayed in the UI._
 
-- candlestick, line, and area charts with 1m–1M timeframes
+- candlestick, Heikin Ashi, line, and area charts with 1m–1M timeframes
 - configurable 2–10,000 candle history; default 1,000
-- overlay and separate-pane indicators such as SMA, EMA, Bollinger Bands, VWAP, RSI, MACD, Stochastic, ATR, ADX, and OBV
-- independently scrollable watchlist and symbol overview
-- live quote, change, and optional `{symbol}USDT.P` reference close
+- overlay and separate-pane indicators such as SMA, EMA, Bollinger Bands, anchored VWAP, RSI, MACD, Stochastic, ATR, ADX, and OBV
+- saved chart templates that can be created, renamed, applied, and deleted
+- resizable right panel and independently resizable watchlist/symbol-overview split
+- streaming direct-listing USD quote and change, plus the separate optional `{symbol}USDT.P` reference close
 
 ### Symbol details
 
@@ -49,19 +50,21 @@ _The built-in strategy catalog is deterministic sample data, not a verified back
 ## Basic usage
 
 1. Press `Command + F` or click the symbol selector to search U.S. stocks.
-2. Select a timeframe and chart type, then use **Indicators** to add or configure studies.
-3. Use `+` in the watchlist to add a symbol. Right-click a row to remove it.
-4. Use the watchlist **More** menu to create, rename, or delete a list. The final list is protected from deletion.
-5. Select **Details** in the symbol overview to open financials, analysts, and technicals.
-6. Open **Strategies** to inspect samples. In a strategy detail screen, use `…` to edit or delete it. The final visible strategy is protected.
-7. Open **Settings** to change the candle count or switch between English and Japanese.
+2. Select a timeframe and choose candles, Heikin Ashi, line, or area, then use **Indicators** to add or configure studies.
+3. Use **Templates** to apply a built-in setup or save, rename, and delete your own indicator setup.
+4. Use `+` in the watchlist to add a symbol. Direct-listing prices and the optional `{symbol}USDT.P` reference prices stream while the tab is visible; snapshot polling takes over if either stream is unavailable. Actual freshness depends on TradingView access and exchange entitlements. Right-click a row to remove it.
+5. Open the watchlist selector and use each list's `…` menu to rename or delete it. The final list is protected from deletion.
+6. Drag the right-panel edge or the divider between the watchlist and symbol overview to resize the workspace. Both separators also support arrow keys.
+7. Select **Details** in the symbol overview to open financials, analysts, and technicals.
+8. Open **Strategies** to inspect samples. In a strategy detail screen, use `…` to edit or delete it. The final visible strategy is protected.
+9. Use **Settings** in the top bar to change the candle count or switch between English and Japanese.
 
 ## Run locally
 
 Requirements:
 
 - Node.js 22.13 or newer
-- Python 3 for the optional TradingView websocket chart adapter
+- Python 3 for the TradingView websocket quote/chart sidecar used by the real-data profiles
 
 Deterministic mock profile:
 
@@ -79,7 +82,9 @@ npm run dev:yahoo
 
 Open <http://localhost:3001>.
 
-`dev:yahoo` uses Yahoo-compatible endpoints for U.S. stock search, quotes, company data, fundamentals, earnings, and news; the local Python sidecar supplies chart bars; and the Midas-compatible Benzinga adapter supplies analyst ratings. These are unofficial or provider-controlled data paths. Review the applicable access, display, and redistribution terms before enabling them outside personal development.
+`dev:yahoo` uses the local TradingView websocket sidecar for direct USD-listing current quotes and chart bars. Yahoo-compatible endpoints provide U.S. stock search, company data, fundamentals, earnings, and news; the same authenticated sidecar can use pinned `yfinance` as a profile/earnings fallback when Yahoo's anonymous cookie/crumb path is unavailable. The Midas-compatible Benzinga adapter supplies analyst ratings. These are unofficial or provider-controlled data paths. Review the applicable access, display, and redistribution terms before enabling them outside personal development.
+
+The browser connects only to Unicorn's same-origin SSE route; it never receives the sidecar bearer token. A hosted Sites deployment cannot reach a developer machine's loopback sidecar. Configure an externally reachable **HTTPS** sidecar URL and a server-side token for hosted use. Transport-level streaming does not itself guarantee exchange real-time entitlements.
 
 To reuse only the allow-listed FMP/Benzinga values from a local Midas environment file:
 
@@ -93,13 +98,16 @@ Secrets stay server-side. The repository contains no provider credentials or dow
 
 | Data | Default source | Storage |
 |---|---|---|
-| Search, quotes, fundamentals, earnings, news | Mock; Yahoo/FMP optional | Provider response only |
+| Search | Mock; Yahoo/FMP optional | Provider response only |
+| Direct-listing USD current quotes | Mock; local `tradingview-websocket` optional | Provider response only |
+| Company profile, fundamentals, earnings, news | Disabled by default; Yahoo/FMP optional | Provider response only |
 | Chart OHLCV | Mock; local `tradingview-websocket` optional | Not stored in D1 |
-| Analyst ratings and targets | Benzinga-compatible adapter | Provider response only |
+| Optional `{symbol}USDT.P` reference price (SSE with snapshot fallback) | Local `tradingview-websocket` | Provider response only |
+| Analyst ratings and targets | Disabled by default; Benzinga-compatible adapter optional | Provider response only |
 | Watchlists and ordered items | User actions | D1 `DB` binding |
 | Strategy name/description overrides and tombstones | User actions | D1 `DB` binding |
 | Strategy portfolio transactions | User actions | D1 `DB` binding |
-| Language, chart, and indicator preferences | User actions | Browser storage |
+| Language, chart type, indicators, templates, and panel sizes | User actions | Browser storage |
 
 Persistent APIs use the Sites-provided `oai-authenticated-user-id` when present. Anonymous persistence is allowed only on a loopback local-development origin; hosted anonymous requests fail closed.
 
@@ -133,6 +141,7 @@ The master file controls symbol-summary modules, symbol-detail tabs and scalar m
 |---|---|
 | Symbol overview content and order | `ui.symbolSummary.modules` |
 | Symbol detail tabs | `ui.symbolDetail.tabs` |
+| Company profile fields and order | `ui.symbolDetail.profileMetrics` |
 | Financial groups and metrics | `ui.symbolDetail.fundamentalGroups` |
 | Analyst, market, and technical metrics | `ui.symbolDetail.*Metrics` |
 | Strategy detail performance cards | `ui.strategyDetail.summaryMetrics` |
@@ -152,11 +161,16 @@ Unicorn keeps product Core separate from deployment-owned extensions. JSON selec
 | Canonical provider DTOs | `src/app/platform/provider-contracts.ts` |
 | Add a new symbol-summary module | `extensions/`, then select its ID in `api/config.json` |
 | Symbol-detail metric IDs and calculations | `api/stock-detail/ids.ts`, `api/stock-detail/metrics.ts` |
-| Indicators | `src/app/features/chart-indicators/`, `src/app/features/indicators/` |
+| Indicator definitions and calculations | `src/app/features/chart-indicators/indicator-calculations.ts`, `src/app/features/indicators/` |
+| Chart types and Heikin Ashi | `src/app/features/chart-types/` |
+| Saved chart templates | `src/app/features/chart-templates/` |
+| Resizable workspace layout | `src/app/features/workspace-layout/` |
 | English/Japanese copy | `src/app/platform/i18n.tsx`, feature `*-i18n.ts` files, `strategies/i18n.ts` |
 | Transactional schema | `src/db/schema.ts`, `src/db/migrations/` |
 
 Provider credentials remain server-side in `.env.local` or hosted secrets. Providers return canonical data with provenance instead of exposing vendor response shapes to UI components. UI modules are trusted build-time registrations; configuration cannot load arbitrary remote JavaScript.
+
+Indicator calculations are pure TypeScript and run against the underlying canonical OHLCV series. VWAP resets at its configured session/calendar anchor, RSI uses Wilder smoothing across every surface, and ADX uses an explicit Wilder warm-up. Selecting Heikin Ashi changes candle presentation without silently replacing research inputs with synthetic OHLC. MAMA is intentionally not registered because its known implementation differences make it unsuitable as a portable built-in. The calculation registry is the single place to add and test another indicator; TA-Lib is not bundled because its native/WASM runtime would materially increase browser and Worker deployment complexity.
 
 An API adapter cannot create a new screen by itself. Existing normalized fields
 can be selected entirely from `api/config.json`, while a new domain such as an
@@ -214,10 +228,6 @@ npm audit --omit=dev
 ```
 
 The production dependency audit is expected to report zero known vulnerabilities. Some local build-tool advisories may remain upstream; they are not included in the deployed runtime and are tracked separately from production dependencies.
-
-## Contributing and security
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and [SECURITY.md](SECURITY.md) for private vulnerability reporting. Provider-specific notices and trademark attribution are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## License
 

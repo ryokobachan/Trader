@@ -92,6 +92,14 @@ test("localizes analyst and earnings chart copy in English and Japanese", async 
   assert.match(source, /formatChartDate\(displayedReadout\.date, locale\)/);
   assert.match(source, /detail\.chart\.earnings\.metricAria/);
   assert.match(source, /detail\.chart\.earnings\.aria/);
+  assert.match(source, /minimumFractionDigits:\s*2/);
+});
+
+test("keeps US equity chart prices at two decimal places", async () => {
+  const source = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+
+  assert.match(source, /priceFormat:\s*stock\.currency === "\$"/);
+  assert.match(source, /precision:\s*2,\s*minMove:\s*0\.01/);
 });
 
 test("reserves a responsive but bounded future area on the analyst chart", async () => {
@@ -148,5 +156,8 @@ test("wires semantic change tones into the visible analyst history table", async
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
   assert.match(pageSource, /analyst-change-\$\{analystRatingChangeTone\(event\)\}/);
-  assert.match(pageSource, /analyst-target-cell analyst-change-\$\{analystTargetChangeTone\(event\)\}/);
+  assert.match(pageSource, /const targetChangeTone = analystTargetChangeTone\(event\)/);
+  assert.match(pageSource, /analyst-target-cell analyst-change-\$\{targetChangeTone\}/);
+  assert.match(pageSource, /detail\.analyst\.table\.targetPrevious/);
+  assert.match(pageSource, /detail\.analyst\.table\.targetCurrent/);
 });

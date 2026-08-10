@@ -148,7 +148,9 @@ GET  /api/v1/instruments/search
 GET  /api/v1/symbols/:symbol/workspace
 GET  /api/v1/symbols/:symbol/bars
 GET  /api/v1/symbols/:symbol/analyst-ratings
+GET  /api/v1/watchlists/quotes/stream?symbols=AAPL,NVDA
 POST /api/v1/watchlists/quotes
+GET  /api/v1/watchlists/after-hours/stream?symbols=AAPL,NVDA
 POST /api/v1/watchlists/after-hours
 ```
 

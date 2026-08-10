@@ -272,6 +272,7 @@ test("watchlist UI renders a derived USDT perpetual close column with a dash fal
   assert.match(pageSource, /afterHours\[item\.ticker\]/);
   assert.match(pageSource, /: "-"/);
   assert.match(pageSource, /className="watch-price">\{formatWatchlistPrice\(item\)\}/);
+  assert.match(pageSource, /formatSummaryAfterHoursPrice\(afterHoursClose\)/);
   assert.match(pageSource, /afterHoursClose > item\.price/);
   assert.match(pageSource, /afterHoursClose < item\.price/);
   assert.match(styles, /\.watch-after-hours\.is-higher\s*{\s*color: var\(--green\)/);

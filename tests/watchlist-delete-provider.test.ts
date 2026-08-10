@@ -18,7 +18,7 @@ test("watchlist deletion is localized, confirmed, and unavailable for the last l
   assert.match(pageSource, /t\("watchlist\.delete"\)/);
   assert.match(pageSource, /setAppDialog\("watchlist-delete"\)/);
   assert.match(pageSource, /watchlists\.length <= 1/);
-  assert.match(pageSource, /t\("watchlist\.deleteHelp", \{ name: activeWatchlist\.name \}\)/);
+  assert.match(pageSource, /t\("watchlist\.deleteHelp", \{ name: managedWatchlist\.name \}\)/);
   assert.match(pageSource, /className="danger-action"/);
 
   assert.equal(translate("en", "watchlist.delete"), "Delete watchlist");
@@ -38,10 +38,19 @@ test("watchlist deletion is localized, confirmed, and unavailable for the last l
 test("successful deletion switches to the server-selected durable watchlist", () => {
   assert.match(pageSource, /method: "DELETE"/);
   assert.match(pageSource, /payload\.nextWatchlistId/);
+  assert.match(pageSource, /deletingWatchlist\.id === activeWatchlistId/);
   assert.match(pageSource, /selectWatchlist\(nextWatchlist\.id\)/);
   assert.match(pageSource, /isDefault: watchlist\.id === nextWatchlist\.id/);
   assert.match(routeSource, /type WatchlistDeletionResponse/);
   assert.match(routeSource, /\.\.\.deletion/);
+});
+
+test("watchlist selector exposes per-list rename and delete actions without item counts", () => {
+  assert.match(pageSource, /className="watchlist-selector-more"/);
+  assert.match(pageSource, /onRename\(watchlist\.id\)/);
+  assert.match(pageSource, /onDeleteWatchlist\(watchlist\.id\)/);
+  assert.doesNotMatch(pageSource, /<small>\{watchlist\.items\.length\}<\/small>/);
+  assert.doesNotMatch(pageSource, /watch-save-state/);
 });
 
 test("D1 deletion protects only the last list and atomically promotes a replacement default", () => {

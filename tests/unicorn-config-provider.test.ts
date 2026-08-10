@@ -41,6 +41,17 @@ test("loads one validated non-secret master configuration", () => {
   assert.equal(unicornConfig.providers.market, "mock");
   assert.equal(unicornConfig.ui.symbolSummary.modules[0], "core.identity_quote@1.0.0");
   assert.deepEqual(unicornConfig.ui.symbolDetail.tabs, ["financials", "analyst", "technicals"]);
+  assert.deepEqual(unicornConfig.ui.symbolDetail.profileMetrics, [
+    "profile.exchange",
+    "profile.assetType",
+    "profile.sector",
+    "profile.industry",
+    "profile.location",
+    "profile.employees",
+    "profile.website",
+    "profile.ipoDate",
+    "profile.beta",
+  ]);
   assert.deepEqual(unicornConfig.ui.strategyDetail.summaryMetrics, [
     "portfolio.value",
     "portfolio.unrealizedGain",
@@ -53,6 +64,7 @@ test("loads one validated non-secret master configuration", () => {
   ]);
   assert.equal(Object.isFrozen(unicornConfig), true);
   assert.equal(Object.isFrozen(unicornConfig.ui.symbolDetail.tabs), true);
+  assert.equal(Object.isFrozen(unicornConfig.ui.symbolDetail.profileMetrics), true);
 });
 
 test("rejects unknown fields, unknown IDs, duplicates, and a missing fixed identity", () => {
@@ -65,6 +77,9 @@ test("rejects unknown fields, unknown IDs, duplicates, and a missing fixed ident
   expectConfigError((value) => {
     Object.assign(value.ui.symbolDetail.technicalMetrics, { 1: value.ui.symbolDetail.technicalMetrics[0] });
   }, "ui.symbolDetail.technicalMetrics[1]");
+  expectConfigError((value) => {
+    Object.assign(value.ui.symbolDetail.profileMetrics, { 1: value.ui.symbolDetail.profileMetrics[0] });
+  }, "ui.symbolDetail.profileMetrics[1]");
   expectConfigError((value) => {
     Object.assign(value.ui.symbolSummary, { modules: value.ui.symbolSummary.modules.slice(1) });
   }, "ui.symbolSummary.modules");
@@ -90,6 +105,7 @@ test("the UI consumes master arrays instead of duplicating display order", async
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const providerSource = await readFile(new URL("../api/index.server.ts", import.meta.url), "utf8");
   assert.match(pageSource, /unicornConfig\.ui\.symbolDetail\.tabs/);
+  assert.match(pageSource, /unicornConfig\.ui\.symbolDetail\.profileMetrics/);
   assert.match(pageSource, /unicornConfig\.ui\.symbolDetail\.fundamentalGroups/);
   assert.match(pageSource, /unicornConfig\.ui\.strategyDetail\.summaryMetrics/);
   assert.match(providerSource, /unicornConfig\.providers\[role\]/);

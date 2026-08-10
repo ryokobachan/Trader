@@ -30,6 +30,17 @@
     },
     "symbolDetail": {
       "tabs": ["financials", "analyst", "technicals"],
+      "profileMetrics": [
+        "profile.exchange",
+        "profile.assetType",
+        "profile.sector",
+        "profile.industry",
+        "profile.location",
+        "profile.employees",
+        "profile.website",
+        "profile.ipoDate",
+        "profile.beta"
+      ],
       "fundamentalGroups": [
         {
           "id": "income_statement",

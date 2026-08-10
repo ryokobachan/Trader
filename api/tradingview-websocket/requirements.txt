@@ -1,1 +1,2 @@
 tradingview-websocket==0.6
+yfinance==1.2.0

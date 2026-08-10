@@ -25,7 +25,6 @@ import {
 } from "lightweight-charts";
 import {
   ArrowsOut,
-  Bell,
   Camera,
   CaretDown,
   CaretRight,
@@ -64,12 +63,16 @@ import type {
 } from "./platform/unicorn-config";
 import { CompanyLogo } from "./components/CompanyLogo";
 import { companyLogoPathForUSStock } from "./platform/company-logo";
-import type { SymbolSummaryStock } from "./platform/symbol-summary";
+import {
+  formatSummaryAfterHoursPrice,
+  type SymbolSummaryStock,
+} from "./platform/symbol-summary";
 import {
   DEFAULT_SYMBOL_SUMMARY_DENSITY,
   DEFAULT_SYMBOL_SUMMARY_MODULES,
 } from "@extensions";
 import { SymbolSummaryHost } from "./features/symbol-summary/SymbolSummaryHost";
+import { buildSummaryDailyMarketMetrics } from "./features/symbol-summary/daily-market-metrics";
 import { useDismissibleLayer } from "./hooks/useDismissibleLayer";
 import { translate, useI18n, type Locale } from "./platform/i18n";
 import {
@@ -138,6 +141,42 @@ import {
   parseChartCandleCount,
 } from "./features/chart-timeframes/candle-count";
 import {
+  resolveChartTypeId,
+  toHeikinAshiBars,
+  type ChartTypeId,
+} from "./features/chart-types/chart-types";
+import {
+  SYNCHRONIZED_PRICE_SCALE_MIN_WIDTH,
+  createChartTimeScaleSync,
+  type ChartTimeScaleSync,
+} from "./features/chart-sync/chart-time-scale-sync";
+import {
+  CHART_TEMPLATE_STORAGE_KEY,
+  MAX_CHART_TEMPLATE_NAME_LENGTH,
+  createChartTemplate,
+  normalizeChartTemplateName,
+  parseChartTemplates,
+  serializeChartTemplates,
+  validateChartTemplateName,
+  type ChartIndicatorId,
+  type ChartTemplate,
+  type ChartTemplateNameError,
+} from "./features/chart-templates/chart-templates";
+import {
+  DEFAULT_RIGHT_PANEL_WIDTH,
+  DEFAULT_WATCHLIST_SPLIT_PERCENT,
+  MAX_RIGHT_PANEL_WIDTH,
+  MAX_WATCHLIST_SPLIT_PERCENT,
+  MIN_RIGHT_PANEL_WIDTH,
+  MIN_WATCHLIST_SPLIT_PERCENT,
+  WORKSPACE_LAYOUT_STORAGE_KEY,
+  clampRightPanelWidth,
+  clampWatchlistSplitPercent,
+  parseWorkspaceLayoutPreferences,
+  rightPanelMaxForViewport,
+  serializeWorkspaceLayoutPreferences,
+} from "./features/workspace-layout/panel-sizing";
+import {
   WATCHLIST_AFTER_HOURS_MAX_SYMBOLS,
   WATCHLIST_QUOTES_MAX_SYMBOLS,
 } from "./platform/provider-contracts";
@@ -152,12 +191,21 @@ import type {
   MarketBarInterval,
   MarketBarRange,
   MarketBarsResponse,
+  Quote,
   SyntheticLatestClose,
   SymbolWorkspace,
   WatchlistAfterHoursResponse,
   WatchlistQuoteItem,
   WatchlistQuotesResponse,
 } from "./platform/provider-contracts";
+import {
+  isNewerWatchlistQuote,
+  parseWatchlistQuoteStreamMessage,
+} from "./features/watchlist/quote-stream";
+import {
+  isNewerAfterHoursClose,
+  parseWatchlistAfterHoursStreamMessage,
+} from "./features/watchlist/after-hours-stream";
 import type {
   Watchlist,
   WatchlistDeletionResponse,
@@ -187,17 +235,7 @@ type Stock = SymbolSummaryStock & {
 type MarketDataStatus = "loading" | "provider" | "fixture" | "error";
 type AnalystHistoryStatus = "idle" | "loading" | "ready" | "error";
 
-type IndicatorId =
-  | "sma20"
-  | "ema50"
-  | "bollinger"
-  | "vwap"
-  | "rsi14"
-  | "macd"
-  | "stochastic"
-  | "atr14"
-  | "adx14"
-  | "obv";
+type IndicatorId = ChartIndicatorId;
 
 type IndicatorDefinition = {
   id: IndicatorId;
@@ -214,14 +252,15 @@ type UtilityPanelId = "watchlist" | "indicators" | "news";
 type PortfolioTab = "概要" | "保有銘柄" | "取引";
 type StrategyDuration = "1M" | "3M" | "6M" | "1Y" | "3Y" | "全期間";
 type StrategySortKey = "candidateAt" | "profit" | "maxDrawdown" | "recoveryFactor" | "sharpe" | "winRate";
-type AppDialogId = "alert" | "settings" | "snapshot" | "watchlist-create" | "watchlist-rename" | "watchlist-delete" | null;
+type AppDialogId = "settings" | "snapshot" | "watchlist-create" | "watchlist-rename" | "watchlist-delete" | null;
 type ToolbarMenuId = "chart-type" | "templates" | null;
 type InstrumentSearchIntent = "select" | "watchlist-add";
 type IndicatorSettingsTab = "パラメーター" | "スタイル" | "表示";
 type IndicatorLineStyle = "solid" | "dashed" | "dotted";
 
 const CHART_RANGE: MarketBarRange = "5y";
-const WATCHLIST_MARKET_REFRESH_MS = 60_000;
+const WATCHLIST_QUOTE_REFRESH_MS = 15_000;
+const WATCHLIST_AFTER_HOURS_REFRESH_MS = 60_000;
 
 const ENGLISH_INTERVAL_LABELS: Readonly<Record<MarketBarInterval, string>> = {
   "1m": "1m",
@@ -689,11 +728,19 @@ function watchlistQuoteStock(item: WatchlistQuoteItem, current?: Stock): Stock |
   };
 }
 
-function chartPerformance(items: readonly MarketBar[], offset: number) {
-  if (items.length < 2) return "—";
-  const last = items[items.length - 1].close;
-  const previous = items[Math.max(0, items.length - 1 - offset)].close;
-  return percentValue(previous === 0 ? undefined : last / previous - 1);
+function watchlistStreamQuoteStock(quote: Quote, current?: Stock): Stock | null {
+  if (!current || quote.price <= 0 || !Number.isFinite(quote.price)) return null;
+  return {
+    ...current,
+    price: quote.price,
+    change: quote.changePercent,
+    changeValue: quote.change,
+    open: quote.open,
+    high: quote.high,
+    low: quote.low,
+    volume: compactNumber(quote.volume),
+    marketCap: compactNumber(quote.marketCap, "$"),
+  };
 }
 
 const formatPrice = (stock: Stock, value = stock.price) =>
@@ -776,20 +823,13 @@ function getStockIntelligence(
 
   const profile = workspace.profile;
   const earnings = workspace.earnings[0];
+  const dailyMetrics = buildSummaryDailyMarketMetrics(bars);
   const closes = bars.map((item) => item.close).filter(Number.isFinite);
-  const yearLow = bars.length > 0 ? Math.min(...bars.map((item) => item.low)) : stock.low;
-  const yearHigh = bars.length > 0 ? Math.max(...bars.map((item) => item.high)) : stock.high;
-  const averageVolume = bars.length > 0
-    ? bars.slice(-30).reduce((sum, item) => sum + item.volume, 0) / Math.min(30, bars.length)
-    : workspace.quote.volume;
-  const recent = closes.slice(-15);
-  const gains = recent.flatMap((value, index) => index === 0 ? [] : [Math.max(0, value - recent[index - 1])]);
-  const losses = recent.flatMap((value, index) => index === 0 ? [] : [Math.max(0, recent[index - 1] - value)]);
-  const averageGain = gains.reduce((sum, value) => sum + value, 0) / Math.max(1, gains.length);
-  const averageLoss = losses.reduce((sum, value) => sum + value, 0) / Math.max(1, losses.length);
-  const rsi = averageLoss === 0 ? 100 : 100 - (100 / (1 + averageGain / averageLoss));
+  const yearLow = dailyMetrics.range52Week?.low;
+  const yearHigh = dailyMetrics.range52Week?.high;
+  const rsi = dailyMetrics.rsi14;
   const movingAverage20 = closes.slice(-20).reduce((sum, value) => sum + value, 0) / Math.max(1, Math.min(20, closes.length));
-  const liveTechnicalScore = closes.length === 0 ? 50 : stock.price > movingAverage20 ? 68 : 36;
+  const liveTechnicalScore = closes.length < 20 ? null : stock.price > movingAverage20 ? 68 : 36;
   const sessionLabels = {
     pre_market: translate(locale, "summary.market.preMarket"),
     regular: translate(locale, "summary.marketOpen"),
@@ -811,23 +851,25 @@ function getStockIntelligence(
     revenueEstimate: compactNumber(earnings?.revenueEstimate, "$"),
     exDividend: "—",
     description: profile?.description ?? "—",
-    yearLow: formatPrice(stock, yearLow),
-    yearHigh: formatPrice(stock, yearHigh),
+    yearLow: yearLow === undefined ? "—" : formatPrice(stock, yearLow),
+    yearHigh: yearHigh === undefined ? "—" : formatPrice(stock, yearHigh),
     dayRangePosition: Math.min(100, Math.max(0, ((stock.price - stock.low) / Math.max(stock.high - stock.low, 0.01)) * 100)),
-    yearRangePosition: Math.min(100, Math.max(0, ((stock.price - yearLow) / Math.max(yearHigh - yearLow, 0.01)) * 100)),
-    averageVolume30d: compactNumber(averageVolume),
+    yearRangePosition: yearLow === undefined || yearHigh === undefined
+      ? 50
+      : Math.min(100, Math.max(0, ((stock.price - yearLow) / Math.max(yearHigh - yearLow, 0.01)) * 100)),
+    averageVolume30d: compactNumber(dailyMetrics.averageVolume30 ?? undefined),
     performance: {
-      week: chartPerformance(bars, 5),
-      month: chartPerformance(bars, 21),
-      threeMonths: chartPerformance(bars, 63),
-      yearToDate: chartPerformance(bars, Math.max(1, bars.length - 1)),
-      year: chartPerformance(bars, 252),
+      week: percentValue(dailyMetrics.performance.week ?? undefined),
+      month: percentValue(dailyMetrics.performance.month ?? undefined),
+      threeMonths: percentValue(dailyMetrics.performance.threeMonths ?? undefined),
+      yearToDate: percentValue(dailyMetrics.performance.yearToDate ?? undefined),
+      year: percentValue(dailyMetrics.performance.year ?? undefined),
     },
     technical: {
-      overall: technicalRating(liveTechnicalScore),
-      movingAverages: stock.price >= movingAverage20 ? "買い" : "売り",
-      oscillators: rsi > 70 ? "売り" : rsi < 30 ? "買い" : "中立",
-      rsi: Number.isFinite(rsi) ? rsi.toFixed(1) : "—",
+      overall: liveTechnicalScore === null ? "—" : technicalRating(liveTechnicalScore),
+      movingAverages: liveTechnicalScore === null ? "—" : stock.price >= movingAverage20 ? "買い" : "売り",
+      oscillators: rsi === null ? "—" : rsi > 70 ? "売り" : rsi < 30 ? "買い" : "中立",
+      rsi: rsi === null ? "—" : rsi.toFixed(1),
     },
     beta: Number.isFinite(profile?.beta) ? profile!.beta!.toFixed(2) : "—",
     dataFreshness: new Date(workspace.asOf).toLocaleString(displayLocale, { timeZone: "Asia/Tokyo", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
@@ -848,6 +890,7 @@ function indicatorCalculationSpec(
     slow: settings.slow,
     signal: settings.signal,
     smoothing: settings.smoothing,
+    anchor: settings.anchor,
   };
 }
 
@@ -857,29 +900,15 @@ function getIndicatorReading(
   bars: readonly MarketBar[],
   settings: IndicatorSettings,
 ) {
-  const readings: Record<IndicatorId, string> = {
-    sma20: formatPrice(stock, stock.price * Number(scaledMetric(stock.seed, 101, 0.94, 1.03, 3))),
-    ema50: formatPrice(stock, stock.price * Number(scaledMetric(stock.seed, 103, 0.88, 1.01, 3))),
-    bollinger: `${scaledMetric(stock.seed, 107, 1.6, 3.1)}σ`,
-    vwap: formatPrice(stock, stock.price * Number(scaledMetric(stock.seed, 109, 0.96, 1.02, 3))),
-    rsi14: scaledMetric(stock.seed, 113, 37, 76),
-    macd: `${Number(scaledMetric(stock.seed, 127, -2.8, 4.2)) >= 0 ? "+" : ""}${scaledMetric(stock.seed, 127, -2.8, 4.2)}`,
-    stochastic: scaledMetric(stock.seed, 131, 24, 88),
-    atr14: `${scaledMetric(stock.seed, 137, 1.2, 5.8)}%`,
-    adx14: scaledMetric(stock.seed, 139, 18, 43),
-    obv: `${Number(scaledMetric(stock.seed, 149, -8, 15)) >= 0 ? "+" : ""}${scaledMetric(stock.seed, 149, -8, 15)}%`,
-  };
   const computed = computeIndicatorSeries(bars, indicatorCalculationSpec(id, settings));
   const primaryValue = latestIndicatorValue(computed);
-  if (primaryValue === undefined) return readings[id];
+  if (primaryValue === undefined) return "—";
   if (id === "sma20" || id === "ema50" || id === "vwap") return formatPrice(stock, primaryValue);
   if (id === "bollinger") {
     const values = latestIndicatorValues(computed);
     const upper = values.find((item) => item.key === "upper")?.value;
     const lower = values.find((item) => item.key === "lower")?.value;
-    return upper === undefined || lower === undefined
-      ? readings[id]
-      : `${formatPrice(stock, upper)} / ${formatPrice(stock, lower)}`;
+    return upper === undefined || lower === undefined ? "—" : `${formatPrice(stock, upper)} / ${formatPrice(stock, lower)}`;
   }
   if (id === "macd") return `${primaryValue >= 0 ? "+" : ""}${primaryValue.toFixed(3)}`;
   if (id === "stochastic" || id === "rsi14" || id === "adx14") return primaryValue.toFixed(1);
@@ -983,13 +1012,15 @@ function PriceChart({
   chartType,
   activeIndicators,
   indicatorSettings,
+  timeScaleSync,
 }: {
   stock: Stock;
   marketBars: readonly MarketBar[];
   range: string;
-  chartType: string;
+  chartType: ChartTypeId;
   activeIndicators: IndicatorId[];
   indicatorSettings: Record<IndicatorId, IndicatorSettings>;
+  timeScaleSync?: ChartTimeScaleSync;
 }) {
   const { locale, t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -997,7 +1028,25 @@ function PriceChart({
     () => generateSeries(marketBars, indicatorSettings),
     [indicatorSettings, marketBars],
   );
-  const latestCandle = fullData.candles.at(-1);
+  const displayCandles = useMemo(
+    () => chartType === "heikin-ashi" ? toHeikinAshiBars(fullData.candles) : fullData.candles,
+    [chartType, fullData.candles],
+  );
+  const displayVolumes = useMemo(
+    () => chartType === "heikin-ashi"
+      ? fullData.volumes.map((point, index) => {
+        const candle = displayCandles[index];
+        return {
+          ...point,
+          color: candle && candle.close >= candle.open
+            ? "rgba(38, 166, 154, .38)"
+            : "rgba(239, 83, 80, .36)",
+        };
+      })
+      : fullData.volumes,
+    [chartType, displayCandles, fullData.volumes],
+  );
+  const latestCandle = displayCandles.at(-1);
   const priceLineColor = latestCandle && latestCandle.close < latestCandle.open
     ? "#ef5350"
     : "#26a69a";
@@ -1028,6 +1077,7 @@ function PriceChart({
       },
       rightPriceScale: {
         borderColor: "#242424",
+        minimumWidth: SYNCHRONIZED_PRICE_SCALE_MIN_WIDTH,
         scaleMargins: { top: 0.08, bottom: 0.22 },
       },
       timeScale: {
@@ -1047,23 +1097,32 @@ function PriceChart({
       borderVisible: false,
       wickUpColor: "#26a69a",
       wickDownColor: "#ef5350",
+      priceFormat: stock.currency === "$"
+        ? { type: "price", precision: 2, minMove: 0.01 }
+        : { type: "price", precision: 0, minMove: 1 },
       priceLineColor,
       priceLineWidth: 1,
       lastValueVisible: true,
-      visible: chartType === "ローソク",
+      visible: chartType === "candles" || chartType === "heikin-ashi",
     });
     const priceLineSeries = chart.addSeries(LineSeries, {
       color: "#66a3ff",
       lineWidth: 2,
+      priceFormat: stock.currency === "$"
+        ? { type: "price", precision: 2, minMove: 0.01 }
+        : { type: "price", precision: 0, minMove: 1 },
       priceLineVisible: true,
-      visible: chartType === "ライン",
+      visible: chartType === "line",
     });
     const priceAreaSeries = chart.addSeries(AreaSeries, {
       lineColor: "#66a3ff",
       topColor: "rgba(41, 98, 255, 0.34)",
       bottomColor: "rgba(41, 98, 255, 0.01)",
       lineWidth: 2,
-      visible: chartType === "エリア",
+      priceFormat: stock.currency === "$"
+        ? { type: "price", precision: 2, minMove: 0.01 }
+        : { type: "price", precision: 0, minMove: 1 },
+      visible: chartType === "area",
     });
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
@@ -1116,20 +1175,29 @@ function PriceChart({
     });
 
     const count = fullData.candles.length;
-    candleSeries.setData(fullData.candles.slice(-count));
+    candleSeries.setData(displayCandles.slice(-count));
     const closeData = fullData.candles.map((point) => ({ time: point.time, value: point.close }));
     priceLineSeries.setData(closeData.slice(-count));
     priceAreaSeries.setData(closeData.slice(-count));
-    volumeSeries.setData(fullData.volumes.slice(-count));
+    volumeSeries.setData(displayVolumes.slice(-count));
     smaSeries.setData(fullData.sma20.slice(-count));
     emaSeries.setData(fullData.ema50.slice(-count));
     bollingerUpperSeries.setData(fullData.bollingerUpper.slice(-count));
     bollingerLowerSeries.setData(fullData.bollingerLower.slice(-count));
     vwapSeries.setData(fullData.vwap.slice(-count));
-    chart.timeScale().fitContent();
+    const timeScale = chart.timeScale();
+    const publishVisibleRange = timeScaleSync
+      ? (logicalRange: Parameters<ChartTimeScaleSync["publish"]>[0]) => timeScaleSync.publish(logicalRange)
+      : null;
+    if (publishVisibleRange) timeScale.subscribeVisibleLogicalRangeChange(publishVisibleRange);
+    timeScale.fitContent();
+    if (timeScaleSync) timeScaleSync.publish(timeScale.getVisibleLogicalRange());
 
-    return () => chart.remove();
-  }, [activeIndicators, chartType, fullData, indicatorSettings, locale, marketBars, priceLineColor, range]);
+    return () => {
+      if (publishVisibleRange) timeScale.unsubscribeVisibleLogicalRangeChange(publishVisibleRange);
+      chart.remove();
+    };
+  }, [activeIndicators, chartType, displayCandles, displayVolumes, fullData, indicatorSettings, locale, marketBars, priceLineColor, range, stock.currency, timeScaleSync]);
 
   return <div className="chart-canvas" ref={containerRef} aria-label={t("chart.priceAria", { symbol: stock.ticker })} />;
 }
@@ -1324,6 +1392,7 @@ const STOCK_DETAIL_METRIC_LABEL_KEYS: Readonly<Record<string, string>> = {
   "所在地": "metric.location",
   "従業員": "metric.employees",
   "Webサイト": "metric.website",
+  "IPO": "metric.ipo",
   "ベータ": "metric.beta",
   "現在値": "metric.currentPrice",
   "前日終値": "metric.previousClose",
@@ -1524,15 +1593,13 @@ function AnalystRatingHistoryTable({
   return (
     <div className="analyst-history-table-shell">
       <table className="analyst-rating-history-table">
-        <thead><tr><th>{t("detail.analyst.table.date")}</th><th>{t("detail.analyst.table.firm")}</th><th>{t("detail.analyst.table.rating")}</th><th>{t("detail.analyst.table.target")}</th><th>{t("detail.analyst.table.accuracy")}</th></tr></thead>
+        <thead><tr><th>{t("detail.analyst.table.date")}</th><th>{t("detail.analyst.table.firm")}</th><th>{t("detail.analyst.table.rating")}</th><th>{t("detail.analyst.table.targetPrevious")}</th><th>{t("detail.analyst.table.targetCurrent")}</th><th>{t("detail.analyst.table.accuracy")}</th></tr></thead>
         <tbody>
           {rows.map((event) => {
             const previousTarget = event.adjustedPreviousPriceTarget ?? event.previousPriceTarget;
             const ratingCurrent = event.ratingCurrent ?? event.rating;
             const ratingChange = [event.ratingPrior, ratingCurrent].filter(Boolean).join(" → ") || "—";
-            const targetChange = previousTarget !== undefined
-              ? `${formatAnalystTarget(previousTarget, locale)} → ${formatAnalystTarget(event.effectivePriceTarget, locale)}`
-              : formatAnalystTarget(event.effectivePriceTarget, locale);
+            const targetChangeTone = analystTargetChangeTone(event);
             const success = typeof event.overallSuccessRate === "number"
               ? `${(Math.abs(event.overallSuccessRate) <= 1 ? event.overallSuccessRate * 100 : event.overallSuccessRate).toFixed(1)}%`
               : "—";
@@ -1541,7 +1608,8 @@ function AnalystRatingHistoryTable({
                 <td><strong>{event.sourceEventDate}</strong><small>{event.actionPriceTarget ?? event.action ?? t("detail.analyst.updated")}</small></td>
                 <td><strong>{event.analystFirm ?? "—"}</strong><small>{event.analystName ?? "—"}</small></td>
                 <td className={`analyst-change-${analystRatingChangeTone(event)}`}>{ratingChange}</td>
-                <td className={`analyst-target-cell analyst-change-${analystTargetChangeTone(event)}`}>{targetChange}</td>
+                <td className="analyst-target-cell analyst-target-previous">{formatAnalystTarget(previousTarget, locale)}</td>
+                <td className={`analyst-target-cell analyst-change-${targetChangeTone}`}>{formatAnalystTarget(event.effectivePriceTarget, locale)}</td>
                 <td><strong>{event.smartScore !== undefined ? event.smartScore.toFixed(1) : "—"}</strong><small>{success}</small></td>
               </tr>
             );
@@ -1657,6 +1725,61 @@ function configuredStockDetailMetrics(
     const metric = byId.get(id);
     return metric ? [metric] : [];
   });
+}
+
+function CompanyProfileSection({
+  profile,
+  emptyMessage,
+}: {
+  profile: StockDetailViewModel["profile"];
+  emptyMessage: string;
+}) {
+  const { locale, t } = useI18n();
+  const [expanded, setExpanded] = useState(false);
+  const metrics = configuredStockDetailMetrics(
+    profile.metrics,
+    unicornConfig.ui.symbolDetail.profileMetrics,
+  );
+  const description = profile.description?.trim() ?? "";
+  const descriptionIsExpandable = description.length > 240;
+
+  return (
+    <section className="stock-detail-profile-card">
+      <header className="stock-detail-section-heading">
+        <div><span className="eyebrow">COMPANY PROFILE</span><h2>{t("detail.section.companyProfile")}</h2></div>
+      </header>
+      {description ? (
+        <>
+          <p className={descriptionIsExpandable && !expanded ? "clamped" : "expanded"}>{description}</p>
+          {descriptionIsExpandable && (
+            <button
+              type="button"
+              className="stock-detail-description-toggle"
+              aria-expanded={expanded}
+              onClick={() => setExpanded((current) => !current)}
+            >
+              {t(expanded ? "detail.profile.showLess" : "detail.profile.showMore")}
+            </button>
+          )}
+        </>
+      ) : metrics.length > 0 ? <p className="stock-detail-inline-empty">{emptyMessage}</p> : null}
+      {metrics.length > 0 ? (
+        <dl>
+          {metrics.map((metric) => (
+            <div key={metric.id}>
+              <dt>{stockDetailMetricLabel(metric.label, t)}</dt>
+              <dd>
+                {metric.href ? (
+                  <a href={metric.href} target="_blank" rel="noreferrer">{stockDetailMetricValue(metric, locale, t)}</a>
+                ) : stockDetailMetricValue(metric, locale, t)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : !description ? <StockDetailEmptyState message={emptyMessage} /> : null}
+      <div className="stock-detail-profile-source"><DetailSourceChip source={profile.source} /></div>
+    </section>
+  );
 }
 
 function FundamentalMetricSections({
@@ -1858,6 +1981,7 @@ function StockDetailPage({
         <div className="stock-detail-content stock-detail-content-one-column">
           {activeSection === "financials" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-financials" role="tabpanel" aria-labelledby="stock-detail-tab-financials">
             <header className="stock-detail-section-heading"><div><span className="eyebrow">FUNDAMENTALS & EARNINGS</span><h2>{t("detail.section.financials")}</h2></div></header>
+            <CompanyProfileSection key={stock.ticker} profile={detail.profile} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.profile", t)} />
             <FundamentalMetricSections source={detail.fundamentals.source} context={detail.fundamentals.context} metrics={detail.fundamentals.metrics} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.fundamentals", t)} />
             <EarningsActualEstimateChart earnings={earnings} />
             <EarningsSection earnings={earnings} source={detail.earnings.source} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.earnings", t)} />
@@ -2066,8 +2190,8 @@ function IndicatorSettingsDialog({
   const usesLength = !["vwap", "macd", "obv"].includes(indicator.id);
   const usesPriceSource = !["atr14", "adx14"].includes(indicator.id);
   const unsupportedSettingsMessage = locale === "ja"
-    ? "オフセット、VWAPアンカー、時間足別表示は現在の描画エンジンでは未対応です。"
-    : "Offset, VWAP anchors, and interval-specific visibility are not supported by the current renderer.";
+    ? "オフセットと時間足別表示は現在の描画エンジンでは未対応です。"
+    : "Offset and interval-specific visibility are not supported by the current renderer.";
 
   return (
     <div className="modal-backdrop settings-backdrop" onMouseDown={onClose}>
@@ -2096,7 +2220,7 @@ function IndicatorSettingsDialog({
                 <label><span>{indicatorText(locale, "dLength")}</span><input type="number" min="1" max="50" value={draft.signal} onChange={(event) => updateNumber("signal", event.target.value)} /></label>
               </>}
               {usesPriceSource && <label><span>{indicatorText(locale, "source")}</span><select value={draft.source} onChange={(event) => setDraft((current) => ({ ...current, source: event.target.value as IndicatorSettings["source"] }))}>{["終値", "始値", "高値", "安値", "HL2", "HLC3"].map((item) => <option value={item} key={item}>{localizeIndicatorSource(locale, item)}</option>)}</select></label>}
-              {indicator.id === "vwap" && <label><span>{indicatorText(locale, "anchorPeriod")}</span><select value={draft.anchor} disabled>{["セッション", "週", "月", "四半期", "年"].map((item) => <option value={item} key={item}>{localizeIndicatorAnchor(locale, item)}</option>)}</select></label>}
+              {indicator.id === "vwap" && <label><span>{indicatorText(locale, "anchorPeriod")}</span><select value={draft.anchor} onChange={(event) => setDraft((current) => ({ ...current, anchor: event.target.value as IndicatorSettings["anchor"] }))}>{["セッション", "週", "月", "四半期", "年"].map((item) => <option value={item} key={item}>{localizeIndicatorAnchor(locale, item)}</option>)}</select></label>}
               <label><span>{indicatorText(locale, "offset")}</span><input type="number" min="-100" max="100" value={draft.offset} disabled /></label>
               <p role="note">{unsupportedSettingsMessage}</p>
             </div>
@@ -2675,8 +2799,8 @@ function WatchlistPanel({
   stocks: Stock[];
   onAdd: () => void;
   onCreate: () => void;
-  onRename: () => void;
-  onDeleteWatchlist: () => void;
+  onRename: (watchlistId: string) => void;
+  onDeleteWatchlist: (watchlistId: string) => void;
   watchlists: readonly Watchlist[];
   activeWatchlistId: string;
   onSelectWatchlist: (watchlistId: string) => void;
@@ -2686,6 +2810,7 @@ function WatchlistPanel({
 }) {
   const { t } = useI18n();
   const [menu, setMenu] = useState<"lists" | "more" | null>(null);
+  const [listActionsId, setListActionsId] = useState<string | null>(null);
   const [sort, setSort] = useState<"manual" | "ticker" | "change">("manual");
   const [rowContextMenu, setRowContextMenu] = useState<{
     ticker: string;
@@ -2718,7 +2843,10 @@ function WatchlistPanel({
   useDismissibleLayer({
     open: menu === "lists",
     boundaryRefs: listsMenuBoundaries,
-    onDismiss: () => setMenu(null),
+    onDismiss: () => {
+      setListActionsId(null);
+      setMenu(null);
+    },
   });
   useDismissibleLayer({
     open: menu === "more",
@@ -2739,13 +2867,12 @@ function WatchlistPanel({
   return (
     <div className="watchlist-panel">
       <div className="right-panel-heading">
-        <div className="watch-menu-host" ref={listsMenuHostRef}><button type="button" className="panel-title-button" aria-haspopup="menu" aria-expanded={menu === "lists"} aria-controls="watchlist-selector-menu" onClick={() => setMenu((current) => current === "lists" ? null : "lists")}>
+        <div className="watch-menu-host" ref={listsMenuHostRef}><button type="button" className="panel-title-button" aria-haspopup="menu" aria-expanded={menu === "lists"} aria-controls="watchlist-selector-menu" onClick={() => { setListActionsId(null); setMenu((current) => current === "lists" ? null : "lists"); }}>
           {activeWatchlist?.name ?? t("watchlist.defaultName")} <CaretDown size={13} weight="bold" />
-        </button>{menu === "lists" && <div id="watchlist-selector-menu" className="watch-popover" role="menu">{watchlists.map((watchlist) => <button type="button" className={activeWatchlist?.id === watchlist.id ? "active" : ""} onClick={() => { onSelectWatchlist(watchlist.id); setMenu(null); }} key={watchlist.id}>{activeWatchlist?.id === watchlist.id && <Check size={13} />}{watchlist.name}<small>{watchlist.items.length}</small></button>)}<button type="button" onClick={() => { setMenu(null); onCreate(); }}><Plus size={13} />{t("watchlist.newList")}</button></div>}</div>
+        </button>{menu === "lists" && <div id="watchlist-selector-menu" className="watch-popover watchlist-selector-menu" role="menu">{watchlists.map((watchlist) => <div className="watchlist-selector-row" role="none" key={watchlist.id}><button type="button" role="menuitemradio" aria-checked={activeWatchlist?.id === watchlist.id} className={`watchlist-selector-choice ${activeWatchlist?.id === watchlist.id ? "active" : ""}`} onClick={() => { onSelectWatchlist(watchlist.id); setListActionsId(null); setMenu(null); }}>{activeWatchlist?.id === watchlist.id && <Check size={13} />}{watchlist.name}</button><button type="button" role="menuitem" className="watchlist-selector-more" aria-label={t("watchlist.listActions", { name: watchlist.name })} aria-haspopup="menu" aria-expanded={listActionsId === watchlist.id} onClick={(event) => { event.stopPropagation(); setListActionsId((current) => current === watchlist.id ? null : watchlist.id); }}><DotsThree size={17} /></button>{listActionsId === watchlist.id && <div className="watchlist-selector-actions" role="menu" aria-label={t("watchlist.listActions", { name: watchlist.name })}><button type="button" role="menuitem" disabled={persistenceStatus === "saving"} onClick={() => { setListActionsId(null); setMenu(null); onRename(watchlist.id); }}><PencilLine size={13} />{t("watchlist.rename")}</button><button type="button" role="menuitem" className="watchlist-delete-action" disabled={watchlists.length <= 1 || persistenceStatus === "saving"} title={watchlists.length <= 1 ? t("watchlist.deleteLastRequired") : undefined} onClick={() => { setListActionsId(null); setMenu(null); onDeleteWatchlist(watchlist.id); }}><Trash size={13} />{t("watchlist.delete")}</button></div>}</div>)}<button type="button" role="menuitem" onClick={() => { setListActionsId(null); setMenu(null); onCreate(); }}><Plus size={13} />{t("watchlist.newList")}</button></div>}</div>
         <div className="heading-actions">
-          <span className={`watch-save-state ${persistenceStatus}`} aria-live="polite">{t(`watchlist.status.${persistenceStatus === "ready" ? "saved" : persistenceStatus}`)}</span>
           <IconButton label={t("watchlist.addSymbol")} onClick={onAdd}><Plus size={17} /></IconButton>
-          <div className="watch-menu-host" ref={moreMenuHostRef}><IconButton label={t("watchlist.more")} hasPopup="menu" expanded={menu === "more"} controls="watchlist-options-menu" onClick={() => setMenu((current) => current === "more" ? null : "more")}><DotsThree size={18} /></IconButton>{menu === "more" && <div id="watchlist-options-menu" className="watch-popover align-right" role="menu"><span>{t("watchlist.sort")}</span>{[["manual", "watchlist.sort.manual"], ["ticker", "watchlist.sort.ticker"], ["change", "watchlist.sort.change"]].map(([value, labelKey]) => <button type="button" className={sort === value ? "active" : ""} key={value} onClick={() => { setSort(value as typeof sort); setMenu(null); }}>{sort === value && <Check size={13} />}{t(labelKey)}</button>)}<button type="button" role="menuitem" disabled={!activeWatchlist || persistenceStatus === "saving"} onClick={() => { setMenu(null); onRename(); }}><PencilLine size={13} />{t("watchlist.rename")}</button><button type="button" role="menuitem" onClick={() => { setMenu(null); onCreate(); }}><Plus size={13} />{t("watchlist.newList")}</button><button type="button" role="menuitem" className="watchlist-delete-action" disabled={!activeWatchlist || watchlists.length <= 1 || persistenceStatus === "saving"} title={watchlists.length <= 1 ? t("watchlist.deleteLastRequired") : undefined} onClick={() => { setMenu(null); onDeleteWatchlist(); }}><Trash size={13} />{t("watchlist.delete")}</button></div>}</div>
+          <div className="watch-menu-host" ref={moreMenuHostRef}><IconButton label={t("watchlist.more")} hasPopup="menu" expanded={menu === "more"} controls="watchlist-options-menu" onClick={() => setMenu((current) => current === "more" ? null : "more")}><DotsThree size={18} /></IconButton>{menu === "more" && <div id="watchlist-options-menu" className="watch-popover align-right" role="menu"><span>{t("watchlist.sort")}</span>{[["manual", "watchlist.sort.manual"], ["ticker", "watchlist.sort.ticker"], ["change", "watchlist.sort.change"]].map(([value, labelKey]) => <button type="button" className={sort === value ? "active" : ""} key={value} onClick={() => { setSort(value as typeof sort); setMenu(null); }}>{sort === value && <Check size={13} />}{t(labelKey)}</button>)}<button type="button" role="menuitem" onClick={() => { setMenu(null); onCreate(); }}><Plus size={13} />{t("watchlist.newList")}</button></div>}</div>
         </div>
       </div>
       <div className="watchlist-columns">
@@ -2793,7 +2920,7 @@ function WatchlistPanel({
                 {item.price > 0 && Number.isFinite(item.price) ? `${item.change >= 0 ? "+" : ""}${item.change.toFixed(2)}%` : "-"}
               </span>
               <span className={`watch-after-hours ${afterHoursTone}`} title={t("watchlist.afterHoursTooltip", { symbol: item.ticker })}>
-                {hasAfterHoursPrice ? afterHoursClose.toLocaleString("en-US", { maximumFractionDigits: 4 }) : "-"}
+                {hasAfterHoursPrice ? formatSummaryAfterHoursPrice(afterHoursClose) : "-"}
               </span>
             </button>
           );
@@ -2835,6 +2962,7 @@ function WatchlistPanel({
 export default function Home() {
   const { locale, setLocale, t, supportedLocales } = useI18n();
   const numberLocale = locale === "ja" ? "ja-JP" : "en-US";
+  const chartTimeScaleSync = useMemo(() => createChartTimeScaleSync(), []);
   const [selectedTicker, setSelectedTicker] = useState("AAPL");
   const [stockModels, setStockModels] = useState<Record<string, Stock>>(() => Object.fromEntries(STOCKS.map((item) => [item.ticker, item])));
   const [workspace, setWorkspace] = useState<SymbolWorkspace | null>(null);
@@ -2845,8 +2973,10 @@ export default function Home() {
   const [barsStatus, setBarsStatus] = useState<MarketDataStatus>("loading");
   const [analystHistoryResponse, setAnalystHistoryResponse] = useState<AnalystRatingHistoryResponse | null>(null);
   const [analystHistoryStatus, setAnalystHistoryStatus] = useState<AnalystHistoryStatus>("idle");
-  const [targetPriceMarketBars, setTargetPriceMarketBars] = useState<readonly MarketBar[]>([]);
-  const [targetPriceMarketBarsSymbol, setTargetPriceMarketBarsSymbol] = useState("");
+  const [dailyMarketBars, setDailyMarketBars] = useState<readonly MarketBar[]>([]);
+  const [dailyMarketBarsSymbol, setDailyMarketBarsSymbol] = useState("");
+  const [dailyMarketBarsProvenance, setDailyMarketBarsProvenance] = useState<DataProvenance | undefined>();
+  const [dailyBarsStatus, setDailyBarsStatus] = useState<MarketDataStatus>("loading");
   const [searchResults, setSearchResults] = useState<readonly Instrument[]>([]);
   const [searchStatus, setSearchStatus] = useState<InstrumentSearchStatus>("idle");
   const [searchRetryNonce, setSearchRetryNonce] = useState(0);
@@ -2860,6 +2990,10 @@ export default function Home() {
   );
   const [primaryView, setPrimaryView] = useState<PrimaryView>("chart");
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanelId | null>("watchlist");
+  const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_RIGHT_PANEL_WIDTH);
+  const [rightPanelMaxWidth, setRightPanelMaxWidth] = useState(MAX_RIGHT_PANEL_WIDTH);
+  const [watchlistSplitPercent, setWatchlistSplitPercent] = useState(DEFAULT_WATCHLIST_SPLIT_PERCENT);
+  const [workspaceLayoutReady, setWorkspaceLayoutReady] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchIntent, setSearchIntent] = useState<InstrumentSearchIntent>("select");
   const [indicatorLibraryOpen, setIndicatorLibraryOpen] = useState(false);
@@ -2871,11 +3005,17 @@ export default function Home() {
   const [afterHoursBySymbol, setAfterHoursBySymbol] = useState<Readonly<Record<string, SyntheticLatestClose>>>({});
   const [newWatchlistName, setNewWatchlistName] = useState("");
   const [renameWatchlistName, setRenameWatchlistName] = useState("");
+  const [managedWatchlistId, setManagedWatchlistId] = useState("");
   const [interval, setInterval] = useState<MarketBarInterval>("1d");
   const [chartCandleCount, setChartCandleCount] = useState<number>(DEFAULT_CHART_CANDLE_COUNT);
   const [chartCandleCountDraft, setChartCandleCountDraft] = useState(String(DEFAULT_CHART_CANDLE_COUNT));
   const [localeDraft, setLocaleDraft] = useState<Locale>(locale);
-  const [chartType, setChartType] = useState("ローソク");
+  const [chartType, setChartType] = useState<ChartTypeId>("candles");
+  const [userChartTemplates, setUserChartTemplates] = useState<ChartTemplate<IndicatorSettings>[]>([]);
+  const [chartTemplatesReady, setChartTemplatesReady] = useState(false);
+  const [templateEditor, setTemplateEditor] = useState<{ mode: "create" | "rename"; templateId?: string } | null>(null);
+  const [templateNameDraft, setTemplateNameDraft] = useState("");
+  const [templateNameError, setTemplateNameError] = useState<ChartTemplateNameError | null>(null);
   const [toolbarMenu, setToolbarMenu] = useState<ToolbarMenuId>(null);
   const chartTypeMenuHostRef = useRef<HTMLDivElement>(null);
   const chartTypeMenuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -2892,7 +3032,11 @@ export default function Home() {
   useDismissibleLayer({
     open: toolbarMenu === "templates",
     boundaryRefs: templateMenuBoundaries,
-    onDismiss: () => setToolbarMenu(null),
+    onDismiss: () => {
+      setToolbarMenu(null);
+      setTemplateEditor(null);
+      setTemplateNameError(null);
+    },
     restoreFocusRef: templateMenuTriggerRef,
   });
   const [appDialog, setAppDialog] = useState<AppDialogId>(null);
@@ -2904,6 +3048,7 @@ export default function Home() {
   const searchRef = useRef<HTMLInputElement>(null);
   const stock = stockModels[selectedTicker] ?? STOCKS[0];
   const activeWatchlist = watchlists?.find((watchlist) => watchlist.id === activeWatchlistId) ?? watchlists?.[0] ?? null;
+  const managedWatchlist = watchlists?.find((watchlist) => watchlist.id === managedWatchlistId) ?? activeWatchlist;
   const watchedTickers = activeWatchlist
     ? activeWatchlist.items.map((item) => item.symbol)
     : watchlists === null ? ["AAPL", "NVDA", "MSFT", "TSLA"] : [];
@@ -2919,22 +3064,38 @@ export default function Home() {
     : workspaceStatus === "loading" || barsStatus === "loading"
       ? "loading"
       : workspaceStatus === "provider" || barsStatus === "provider" ? "provider" : "fixture";
+  const researchDataStatus: MarketDataStatus = workspaceStatus === "error" || dailyBarsStatus === "error"
+    ? "error"
+    : workspaceStatus === "loading" || dailyBarsStatus === "loading"
+      ? "loading"
+      : workspaceStatus === "provider" || dailyBarsStatus === "provider" ? "provider" : "fixture";
   const detailWorkspace = workspace?.instrument.symbol === selectedTicker ? workspace : null;
   const detailMarketBars = useMemo<readonly MarketBar[]>(
     () => marketBarsSymbol === selectedTicker ? marketBars : [],
     [marketBars, marketBarsSymbol, selectedTicker],
   );
   const detailBarsProvenance = marketBarsSymbol === selectedTicker ? marketBarsProvenance : undefined;
-  const selectedTargetPriceMarketBars = interval === "1d"
-    ? detailMarketBars
-    : targetPriceMarketBarsSymbol === selectedTicker ? targetPriceMarketBars : detailMarketBars;
+  const detailDailyMarketBars = useMemo<readonly MarketBar[]>(
+    () => dailyMarketBarsSymbol === selectedTicker ? dailyMarketBars : [],
+    [dailyMarketBars, dailyMarketBarsSymbol, selectedTicker],
+  );
+  const detailDailyBarsProvenance = dailyMarketBarsSymbol === selectedTicker
+    ? dailyMarketBarsProvenance
+    : undefined;
   const stockDetailViewModel = useMemo(
-    () => buildStockDetailViewModel(detailWorkspace, detailMarketBars, detailBarsProvenance),
-    [detailBarsProvenance, detailMarketBars, detailWorkspace],
+    () => buildStockDetailViewModel(detailWorkspace, detailDailyMarketBars, detailDailyBarsProvenance),
+    [detailDailyBarsProvenance, detailDailyMarketBars, detailWorkspace],
   );
   const stockIntelligence = useMemo(
-    () => getStockIntelligence(stock, detailWorkspace, detailMarketBars, locale),
-    [detailMarketBars, detailWorkspace, locale, stock],
+    () => {
+      const intelligence = getStockIntelligence(stock, detailWorkspace, detailDailyMarketBars, locale);
+      if (!detailWorkspace || dailyBarsStatus === "provider" || dailyBarsStatus === "fixture") return intelligence;
+      return {
+        ...intelligence,
+        dataFreshness: t(dailyBarsStatus === "error" ? "status.connectionError" : "status.fetching"),
+      };
+    },
+    [dailyBarsStatus, detailDailyMarketBars, detailWorkspace, locale, stock, t],
   );
   const visibleNews = useMemo(() => {
     if (workspace?.instrument.symbol === stock.ticker && workspace.dataMode === "provider") {
@@ -3013,6 +3174,99 @@ export default function Home() {
       toastTimerRef.current = null;
     }, 2200);
   }, []);
+
+  const applyChartTemplate = useCallback((template: ChartTemplate<IndicatorSettings>) => {
+    setActiveIndicators([...template.activeIndicators]);
+    setHiddenIndicators([...template.hiddenIndicators]);
+    setIndicatorSettings((current) => {
+      const next = { ...current };
+      template.activeIndicators.forEach((indicatorId) => {
+        const saved = template.indicatorSettings[indicatorId];
+        if (!saved || typeof saved !== "object") return;
+        next[indicatorId] = {
+          ...current[indicatorId],
+          ...saved,
+          visibility: {
+            ...current[indicatorId].visibility,
+            ...(saved.visibility ?? {}),
+          },
+        };
+      });
+      return next;
+    });
+    setToolbarMenu(null);
+    setTemplateEditor(null);
+    setTemplateNameError(null);
+    showToast(t("toolbar.templateApplied", { name: template.name }));
+  }, [showToast, t]);
+
+  const applyBuiltInChartTemplate = useCallback((
+    id: string,
+    name: string,
+    indicatorIds: readonly IndicatorId[],
+  ) => {
+    applyChartTemplate(createChartTemplate({
+      id,
+      name,
+      activeIndicators: [...indicatorIds],
+      hiddenIndicators: [],
+      indicatorSettings: Object.fromEntries(indicatorIds.map((indicatorId) => [
+        indicatorId,
+        DEFAULT_INDICATOR_SETTINGS[indicatorId],
+      ])),
+    }));
+  }, [applyChartTemplate]);
+
+  const openTemplateEditor = useCallback((mode: "create" | "rename", template?: ChartTemplate<IndicatorSettings>) => {
+    setTemplateEditor({ mode, templateId: template?.id });
+    setTemplateNameDraft(template?.name ?? "");
+    setTemplateNameError(null);
+  }, []);
+
+  const saveTemplateEditor = useCallback(() => {
+    if (!templateEditor) return;
+    const builtInNames = [
+      { id: "builtin-trend", name: t("toolbar.trendTemplate") },
+      { id: "builtin-volatility", name: t("toolbar.volatilityTemplate") },
+      { id: "builtin-clean", name: t("toolbar.noIndicators") },
+    ];
+    const error = validateChartTemplateName(
+      templateNameDraft,
+      [...builtInNames, ...userChartTemplates],
+      templateEditor.templateId,
+    );
+    if (error) {
+      setTemplateNameError(error);
+      return;
+    }
+    const name = normalizeChartTemplateName(templateNameDraft);
+    if (templateEditor.mode === "create") {
+      const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const template = createChartTemplate({
+        id,
+        name,
+        activeIndicators,
+        hiddenIndicators,
+        indicatorSettings,
+      });
+      setUserChartTemplates((current) => [...current, template]);
+      showToast(t("toolbar.templateCreated", { name }));
+    } else {
+      setUserChartTemplates((current) => current.map((template) => (
+        template.id === templateEditor.templateId ? { ...template, name } : template
+      )));
+      showToast(t("toolbar.templateRenamed", { name }));
+    }
+    setTemplateEditor(null);
+    setTemplateNameDraft("");
+    setTemplateNameError(null);
+  }, [activeIndicators, hiddenIndicators, indicatorSettings, showToast, t, templateEditor, templateNameDraft, userChartTemplates]);
+
+  const deleteChartTemplate = useCallback((template: ChartTemplate<IndicatorSettings>) => {
+    setUserChartTemplates((current) => current.filter((item) => item.id !== template.id));
+    if (templateEditor?.templateId === template.id) setTemplateEditor(null);
+    showToast(t("toolbar.templateDeleted", { name: template.name }));
+  }, [showToast, t, templateEditor?.templateId]);
 
   useEffect(() => () => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
@@ -3222,6 +3476,65 @@ export default function Home() {
     setUtilityPanel((current) => current === id ? null : id);
   }, []);
 
+  const beginRightPanelResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = rightPanelWidth;
+    const handleMove = (moveEvent: PointerEvent) => {
+      setRightPanelWidth(clampRightPanelWidth(startWidth + startX - moveEvent.clientX, rightPanelMaxWidth));
+    };
+    const finish = () => {
+      document.documentElement.classList.remove("is-resizing-panel");
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+    document.documentElement.classList.add("is-resizing-panel");
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", finish, { once: true });
+    window.addEventListener("pointercancel", finish, { once: true });
+  }, [rightPanelMaxWidth, rightPanelWidth]);
+
+  const resizeRightPanelWithKeyboard = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    setRightPanelWidth((current) => {
+      if (event.key === "Home") return clampRightPanelWidth(Number.NEGATIVE_INFINITY, rightPanelMaxWidth);
+      if (event.key === "End") return clampRightPanelWidth(Number.POSITIVE_INFINITY, rightPanelMaxWidth);
+      return clampRightPanelWidth(current + (event.key === "ArrowLeft" ? 16 : -16), rightPanelMaxWidth);
+    });
+  }, [rightPanelMaxWidth]);
+
+  const beginWatchlistSplitResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
+    if (!bounds || bounds.height <= 0) return;
+    const handleMove = (moveEvent: PointerEvent) => {
+      const next = ((moveEvent.clientY - bounds.top) / bounds.height) * 100;
+      setWatchlistSplitPercent(clampWatchlistSplitPercent(next));
+    };
+    const finish = () => {
+      document.documentElement.classList.remove("is-resizing-panel");
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+    };
+    document.documentElement.classList.add("is-resizing-panel");
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", finish, { once: true });
+    window.addEventListener("pointercancel", finish, { once: true });
+  }, []);
+
+  const resizeWatchlistSplitWithKeyboard = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    setWatchlistSplitPercent((current) => {
+      if (event.key === "Home") return clampWatchlistSplitPercent(Number.NEGATIVE_INFINITY);
+      if (event.key === "End") return clampWatchlistSplitPercent(Number.POSITIVE_INFINITY);
+      return clampWatchlistSplitPercent(current + (event.key === "ArrowDown" ? 2 : -2));
+    });
+  }, []);
+
   const selectWatchlist = useCallback((watchlistId: string) => {
     setActiveWatchlistId(watchlistId);
     window.localStorage.setItem("unicorn.active-watchlist.v1", watchlistId);
@@ -3251,28 +3564,30 @@ export default function Home() {
     }
   }, [newWatchlistName, selectWatchlist, showToast, t]);
 
-  const openWatchlistRename = useCallback(() => {
-    if (!activeWatchlist) {
+  const openWatchlistRename = useCallback((watchlistId: string) => {
+    const targetWatchlist = watchlists?.find((watchlist) => watchlist.id === watchlistId) ?? null;
+    if (!targetWatchlist) {
       setWatchlistStatus("error");
       showToast(t("watchlist.loadError"));
       return;
     }
-    setRenameWatchlistName(activeWatchlist.name);
+    setManagedWatchlistId(targetWatchlist.id);
+    setRenameWatchlistName(targetWatchlist.name);
     setAppDialog("watchlist-rename");
-  }, [activeWatchlist, showToast, t]);
+  }, [showToast, t, watchlists]);
 
   const renameActiveWatchlist = useCallback(async () => {
-    if (!activeWatchlist) {
+    if (!managedWatchlist) {
       setWatchlistStatus("error");
       showToast(t("watchlist.loadError"));
       return;
     }
     const name = renameWatchlistName.trim();
-    if (!name || name.length > 60 || name === activeWatchlist.name) return;
+    if (!name || name.length > 60 || name === managedWatchlist.name) return;
 
     setWatchlistStatus("saving");
     try {
-      const response = await fetch(`/api/v1/watchlists/${encodeURIComponent(activeWatchlist.id)}`, {
+      const response = await fetch(`/api/v1/watchlists/${encodeURIComponent(managedWatchlist.id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -3286,6 +3601,7 @@ export default function Home() {
         watchlist.id === payload.watchlist.id ? payload.watchlist : watchlist,
       ) ?? current);
       setRenameWatchlistName("");
+      setManagedWatchlistId("");
       setAppDialog(null);
       setWatchlistStatus("ready");
       showToast(t("watchlist.renameSuccess", { name: payload.watchlist.name }));
@@ -3295,10 +3611,11 @@ export default function Home() {
         ? "watchlist.renameDuplicate"
         : "watchlist.renameError"));
     }
-  }, [activeWatchlist, renameWatchlistName, showToast, t]);
+  }, [managedWatchlist, renameWatchlistName, showToast, t]);
 
-  const openWatchlistDelete = useCallback(() => {
-    if (!activeWatchlist || !watchlists) {
+  const openWatchlistDelete = useCallback((watchlistId: string) => {
+    const targetWatchlist = watchlists?.find((watchlist) => watchlist.id === watchlistId) ?? null;
+    if (!targetWatchlist || !watchlists) {
       setWatchlistStatus("error");
       showToast(t("watchlist.loadError"));
       return;
@@ -3307,11 +3624,12 @@ export default function Home() {
       showToast(t("watchlist.deleteLastRequired"));
       return;
     }
+    setManagedWatchlistId(targetWatchlist.id);
     setAppDialog("watchlist-delete");
-  }, [activeWatchlist, showToast, t, watchlists]);
+  }, [showToast, t, watchlists]);
 
   const deleteActiveWatchlist = useCallback(async () => {
-    if (!activeWatchlist || !watchlists) {
+    if (!managedWatchlist || !watchlists) {
       setWatchlistStatus("error");
       showToast(t("watchlist.loadError"));
       return;
@@ -3322,7 +3640,7 @@ export default function Home() {
       return;
     }
 
-    const deletingWatchlist = activeWatchlist;
+    const deletingWatchlist = managedWatchlist;
     setWatchlistStatus("saving");
     try {
       const response = await fetch(`/api/v1/watchlists/${encodeURIComponent(deletingWatchlist.id)}`, {
@@ -3342,7 +3660,8 @@ export default function Home() {
         ...watchlist,
         isDefault: watchlist.id === nextWatchlist.id,
       })));
-      selectWatchlist(nextWatchlist.id);
+      if (deletingWatchlist.id === activeWatchlistId) selectWatchlist(nextWatchlist.id);
+      setManagedWatchlistId("");
       setAppDialog(null);
       setWatchlistStatus("ready");
       showToast(t("watchlist.deleteSuccess", { name: deletingWatchlist.name }));
@@ -3351,7 +3670,7 @@ export default function Home() {
       setWatchlistStatus(lastWatchlistRequired ? "ready" : "error");
       showToast(t(lastWatchlistRequired ? "watchlist.deleteLastRequired" : "watchlist.deleteError"));
     }
-  }, [activeWatchlist, selectWatchlist, showToast, t, watchlists]);
+  }, [activeWatchlistId, managedWatchlist, selectWatchlist, showToast, t, watchlists]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -3388,10 +3707,62 @@ export default function Home() {
       ? watchedTickerKey.split("\u0000").slice(0, WATCHLIST_QUOTES_MAX_SYMBOLS)
       : [];
     if (symbols.length === 0) return;
+    const symbolSet = new Set(symbols);
     const controller = new AbortController();
     let disposed = false;
+    let requestInFlight = false;
     let refreshTimer: number | undefined;
-    const refresh = () => {
+    let reconnectTimer: number | undefined;
+    let streamReadyTimer: number | undefined;
+    let flushTimer: number | undefined;
+    let eventSource: EventSource | undefined;
+    let streamConnected = false;
+    let reconnectDelay = 1_000;
+    const pendingQuotes = new Map<string, Quote>();
+    const latestAsOf = new Map<string, string>();
+    const resolvedSymbols = new Set<string>();
+
+    const scheduleNext = () => {
+      if (
+        disposed
+        || document.hidden
+        || refreshTimer !== undefined
+        || (streamConnected && resolvedSymbols.size >= symbols.length)
+      ) return;
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = undefined;
+        refresh();
+      }, WATCHLIST_QUOTE_REFRESH_MS);
+    };
+
+    const flushQuotes = () => {
+      flushTimer = undefined;
+      if (disposed || pendingQuotes.size === 0) return;
+      const updates = new Map(pendingQuotes);
+      pendingQuotes.clear();
+      setStockModels((current) => {
+        const next = { ...current };
+        for (const [symbol, quote] of updates) {
+          const merged = watchlistStreamQuoteStock(quote, next[symbol]);
+          if (merged) next[symbol] = merged;
+        }
+        return next;
+      });
+    };
+
+    const queueQuote = (symbol: string, quote: Quote) => {
+      if (!symbolSet.has(symbol)) return;
+      resolvedSymbols.add(symbol);
+      const previousAsOf = latestAsOf.get(symbol);
+      if (!isNewerWatchlistQuote(quote, previousAsOf)) return;
+      latestAsOf.set(symbol, quote.provenance.asOf);
+      pendingQuotes.set(symbol, quote);
+      if (flushTimer === undefined) flushTimer = window.setTimeout(flushQuotes, 100);
+    };
+
+    function refresh() {
+      if (disposed || document.hidden || requestInFlight) return;
+      requestInFlight = true;
       void fetch("/api/v1/watchlists/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3407,6 +3778,11 @@ export default function Home() {
           setStockModels((current) => {
             const next = { ...current };
             for (const item of response.items) {
+              if (!item.quote) continue;
+              resolvedSymbols.add(item.symbol);
+              const previousAsOf = latestAsOf.get(item.symbol);
+              if (!isNewerWatchlistQuote(item.quote, previousAsOf)) continue;
+              latestAsOf.set(item.symbol, item.quote.provenance.asOf);
               const merged = watchlistQuoteStock(item, next[item.symbol]);
               if (merged) next[item.symbol] = merged;
             }
@@ -3418,14 +3794,93 @@ export default function Home() {
           // Preserve the last known valid quote. A later poll retries it.
         })
         .finally(() => {
-          if (!disposed) refreshTimer = window.setTimeout(refresh, WATCHLIST_MARKET_REFRESH_MS);
+          requestInFlight = false;
+          scheduleNext();
         });
-  };
+    }
+
+    const disconnectStream = () => {
+      streamConnected = false;
+      if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
+      streamReadyTimer = undefined;
+      eventSource?.close();
+      eventSource = undefined;
+    };
+
+    const connectStream = () => {
+      if (disposed || document.hidden || eventSource || typeof EventSource === "undefined") return;
+      const query = new URLSearchParams({ symbols: symbols.join(",") });
+      const source = new EventSource(`/api/v1/watchlists/quotes/stream?${query}`);
+      eventSource = source;
+      source.onmessage = (event) => {
+        if (disposed || eventSource !== source) return;
+        const message = parseWatchlistQuoteStreamMessage(event.data);
+        if (!message) return;
+        streamConnected = true;
+        reconnectDelay = 1_000;
+        if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
+        streamReadyTimer = undefined;
+        queueQuote(message.symbol, message.quote);
+        if (resolvedSymbols.size >= symbols.length && refreshTimer !== undefined) {
+          window.clearTimeout(refreshTimer);
+          refreshTimer = undefined;
+        }
+      };
+      const handleStreamFailure = () => {
+        if (disposed || eventSource !== source) return;
+        disconnectStream();
+        refresh();
+        if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+        reconnectTimer = window.setTimeout(() => {
+          reconnectTimer = undefined;
+          connectStream();
+        }, reconnectDelay);
+        reconnectDelay = Math.min(30_000, reconnectDelay * 2);
+      };
+      source.onerror = handleStreamFailure;
+      streamReadyTimer = window.setTimeout(() => {
+        streamReadyTimer = undefined;
+        if (disposed || eventSource !== source || streamConnected) return;
+        handleStreamFailure();
+      }, 10_000);
+    };
+
+    const refreshNow = () => {
+      if (disposed || document.hidden) return;
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+      refreshTimer = undefined;
+      if (!streamConnected || resolvedSymbols.size < symbols.length) refresh();
+      connectStream();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+        if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+        refreshTimer = undefined;
+        reconnectTimer = undefined;
+        disconnectStream();
+        return;
+      }
+      refreshNow();
+    };
+
     refresh();
+    connectStream();
+    window.addEventListener("focus", refreshNow);
+    window.addEventListener("online", refreshNow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       disposed = true;
       controller.abort();
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+      if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+      if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
+      if (flushTimer !== undefined) window.clearTimeout(flushTimer);
+      disconnectStream();
+      window.removeEventListener("focus", refreshNow);
+      window.removeEventListener("online", refreshNow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [watchedTickerKey]);
 
@@ -3437,10 +3892,55 @@ export default function Home() {
       queueMicrotask(() => setAfterHoursBySymbol({}));
       return;
     }
+    const symbolSet = new Set(symbols);
     const controller = new AbortController();
     let disposed = false;
+    let requestInFlight = false;
     let refreshTimer: number | undefined;
-    const refresh = () => {
+    let reconnectTimer: number | undefined;
+    let streamReadyTimer: number | undefined;
+    let flushTimer: number | undefined;
+    let eventSource: EventSource | undefined;
+    let streamConnected = false;
+    let reconnectDelay = 1_000;
+    const pendingCloses = new Map<string, SyntheticLatestClose>();
+    const latestUpdatedAt = new Map<string, string>();
+
+    const scheduleNext = () => {
+      if (disposed || document.hidden || streamConnected) return;
+      refreshTimer = window.setTimeout(refresh, WATCHLIST_AFTER_HOURS_REFRESH_MS);
+    };
+
+    const flushCloses = () => {
+      flushTimer = undefined;
+      if (disposed || pendingCloses.size === 0) return;
+      const updates = new Map(pendingCloses);
+      pendingCloses.clear();
+      setAfterHoursBySymbol((current) => {
+        const next = { ...current };
+        for (const [symbol, item] of updates) {
+          if (isNewerAfterHoursClose(item, current[symbol]?.updatedAt)) next[symbol] = item;
+        }
+        return next;
+      });
+    };
+
+    const queueClose = (item: SyntheticLatestClose) => {
+      const previousUpdatedAt = latestUpdatedAt.get(item.symbol);
+      if (
+        !symbolSet.has(item.symbol)
+        || !item.updatedAt
+        || !isNewerAfterHoursClose(item, previousUpdatedAt)
+      ) return false;
+      latestUpdatedAt.set(item.symbol, item.updatedAt);
+      pendingCloses.set(item.symbol, item);
+      if (flushTimer === undefined) flushTimer = window.setTimeout(flushCloses, 100);
+      return true;
+    };
+
+    function refresh() {
+      if (disposed || document.hidden || requestInFlight) return;
+      requestInFlight = true;
       void fetch("/api/v1/watchlists/after-hours", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3452,21 +3952,98 @@ export default function Home() {
           return response.json() as Promise<WatchlistAfterHoursResponse>;
         })
         .then((response) => {
-          if (!disposed) setAfterHoursBySymbol(Object.fromEntries(response.items.map((item) => [item.symbol, item])));
+          if (disposed) return;
+          for (const item of response.items) queueClose(item);
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") return;
-          // Keep the last successful batch visible and retry automatically.
+          // Keep the last successful values visible and retry automatically.
         })
         .finally(() => {
-          if (!disposed) refreshTimer = window.setTimeout(refresh, WATCHLIST_MARKET_REFRESH_MS);
+          requestInFlight = false;
+          scheduleNext();
         });
+    }
+
+    const disconnectStream = () => {
+      streamConnected = false;
+      if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
+      streamReadyTimer = undefined;
+      eventSource?.close();
+      eventSource = undefined;
     };
+
+    const connectStream = () => {
+      if (disposed || document.hidden || eventSource || typeof EventSource === "undefined") return;
+      const query = new URLSearchParams({ symbols: symbols.join(",") });
+      const source = new EventSource(`/api/v1/watchlists/after-hours/stream?${query}`);
+      eventSource = source;
+      source.onmessage = (event) => {
+        if (disposed || eventSource !== source) return;
+        const message = parseWatchlistAfterHoursStreamMessage(event.data);
+        if (!message || !queueClose(message.item)) return;
+        streamConnected = true;
+        reconnectDelay = 1_000;
+        if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
+        streamReadyTimer = undefined;
+        if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+        refreshTimer = undefined;
+      };
+      const handleStreamFailure = () => {
+        if (disposed || eventSource !== source) return;
+        disconnectStream();
+        refresh();
+        if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+        reconnectTimer = window.setTimeout(() => {
+          reconnectTimer = undefined;
+          connectStream();
+        }, reconnectDelay);
+        reconnectDelay = Math.min(30_000, reconnectDelay * 2);
+      };
+      source.onerror = handleStreamFailure;
+      streamReadyTimer = window.setTimeout(() => {
+        streamReadyTimer = undefined;
+        if (disposed || eventSource !== source || streamConnected) return;
+        handleStreamFailure();
+      }, 15_000);
+    };
+
+    const refreshNow = () => {
+      if (disposed || document.hidden) return;
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+      refreshTimer = undefined;
+      if (!streamConnected) refresh();
+      connectStream();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+        if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+        refreshTimer = undefined;
+        reconnectTimer = undefined;
+        disconnectStream();
+        return;
+      }
+      refreshNow();
+    };
+
     refresh();
+    connectStream();
+    window.addEventListener("focus", refreshNow);
+    window.addEventListener("online", refreshNow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       disposed = true;
       controller.abort();
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+      if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+      if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
+      if (flushTimer !== undefined) window.clearTimeout(flushTimer);
+      disconnectStream();
+      window.removeEventListener("focus", refreshNow);
+      window.removeEventListener("online", refreshNow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [afterHoursTickerKey]);
 
@@ -3482,7 +4059,8 @@ export default function Home() {
           if (savedInterval) setInterval(savedInterval);
           const savedCandleCount = parseChartCandleCount(saved.candleCount);
           if (savedCandleCount !== null) setChartCandleCount(savedCandleCount);
-          if (["ローソク", "ライン", "エリア"].includes(String(saved.chartType))) setChartType(String(saved.chartType));
+          const savedChartType = resolveChartTypeId(saved.chartType);
+          if (savedChartType) setChartType(savedChartType);
           if (Array.isArray(saved.activeIndicators)) setActiveIndicators(saved.activeIndicators.filter(isIndicatorId));
           if (Array.isArray(saved.hiddenIndicators)) setHiddenIndicators(saved.hiddenIndicators.filter(isIndicatorId));
           if (Array.isArray(saved.favoriteIndicators)) setFavoriteIndicators(saved.favoriteIndicators.filter(isIndicatorId));
@@ -3525,6 +4103,54 @@ export default function Home() {
       utilityPanel,
     }));
   }, [activeIndicators, chartCandleCount, chartPreferencesReady, chartType, favoriteIndicators, hiddenIndicators, indicatorSettings, interval, utilityPanel]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const templates = parseChartTemplates(window.localStorage.getItem(CHART_TEMPLATE_STORAGE_KEY));
+      setUserChartTemplates(templates as ChartTemplate<IndicatorSettings>[]);
+      setChartTemplatesReady(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!chartTemplatesReady) return;
+    window.localStorage.setItem(CHART_TEMPLATE_STORAGE_KEY, serializeChartTemplates(userChartTemplates));
+  }, [chartTemplatesReady, userChartTemplates]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const saved = parseWorkspaceLayoutPreferences(window.localStorage.getItem(WORKSPACE_LAYOUT_STORAGE_KEY));
+      const maximum = rightPanelMaxForViewport(window.innerWidth);
+      setRightPanelMaxWidth(maximum);
+      setRightPanelWidth(clampRightPanelWidth(saved.rightPanelWidth, maximum));
+      setWatchlistSplitPercent(saved.watchlistSplitPercent);
+      setWorkspaceLayoutReady(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const handleViewportResize = () => {
+      const maximum = rightPanelMaxForViewport(window.innerWidth);
+      setRightPanelMaxWidth(maximum);
+      setRightPanelWidth((current) => clampRightPanelWidth(current, maximum));
+    };
+    window.addEventListener("resize", handleViewportResize);
+    return () => window.removeEventListener("resize", handleViewportResize);
+  }, []);
+
+  useEffect(() => {
+    if (!workspaceLayoutReady) return;
+    window.localStorage.setItem(WORKSPACE_LAYOUT_STORAGE_KEY, serializeWorkspaceLayoutPreferences({
+      rightPanelWidth,
+      watchlistSplitPercent,
+    }));
+  }, [rightPanelWidth, watchlistSplitPercent, workspaceLayoutReady]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -3626,32 +4252,43 @@ export default function Home() {
   }, [selectedTicker, shouldLoadAnalystHistory]);
 
   useEffect(() => {
-    if (!shouldLoadAnalystHistory || interval === "1d") return;
     const controller = new AbortController();
     const params = new URLSearchParams({
       range: CHART_RANGE,
       interval: "1d",
-      count: String(chartCandleCount),
+      count: String(DEFAULT_CHART_CANDLE_COUNT),
+    });
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) {
+        setDailyBarsStatus("loading");
+        setDailyMarketBars([]);
+        setDailyMarketBarsSymbol("");
+        setDailyMarketBarsProvenance(undefined);
+      }
     });
     void fetch(`/api/v1/symbols/${encodeURIComponent(selectedTicker)}/bars?${params}`, {
       signal: controller.signal,
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error("target-price bars request failed");
+        if (!response.ok) throw new Error("daily bars request failed");
         return response.json() as Promise<MarketBarsResponse>;
       })
       .then((response) => {
         if (response.instrument.symbol !== selectedTicker) return;
-        setTargetPriceMarketBars(response.bars.items);
-        setTargetPriceMarketBarsSymbol(response.instrument.symbol);
+        setDailyMarketBars(response.bars.items);
+        setDailyMarketBarsSymbol(response.instrument.symbol);
+        setDailyMarketBarsProvenance(response.bars.provenance);
+        setDailyBarsStatus(response.dataMode);
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        setTargetPriceMarketBars([]);
-        setTargetPriceMarketBarsSymbol("");
+        setDailyMarketBars([]);
+        setDailyMarketBarsSymbol("");
+        setDailyMarketBarsProvenance(undefined);
+        setDailyBarsStatus("error");
       });
     return () => controller.abort();
-  }, [chartCandleCount, interval, selectedTicker, shouldLoadAnalystHistory]);
+  }, [selectedTicker]);
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -3721,7 +4358,7 @@ export default function Home() {
         <button type="button" role="tab" aria-selected={primaryView !== "strategy"} className={primaryView !== "strategy" ? "active" : ""} onClick={() => setPrimaryView("chart")}><ChartBar size={15} /> {t("nav.chart")}</button>
         <button type="button" role="tab" aria-label={t("nav.strategies")} aria-selected={primaryView === "strategy"} className={primaryView === "strategy" ? "active" : ""} onClick={() => setPrimaryView("strategy")}><Lightning size={15} /> {t("nav.strategies")}</button>
         <span />
-        <small>{primaryView === "chart" ? t("shell.chartContext", { symbol: stock.ticker }) : primaryView === "stock-detail" ? t("shell.detailContext", { symbol: stock.ticker }) : t("shell.strategyContext")}</small>
+        <IconButton className="workspace-settings-button" label={t("nav.settings")} onClick={openWorkspaceSettings}><Gear size={18} /></IconButton>
       </nav>
 
       <header className="global-toolbar">
@@ -3738,10 +4375,71 @@ export default function Home() {
             ))}
           </div>
           <div className="toolbar-divider hide-narrow" />
-          <div className="toolbar-popover-host hide-narrow" ref={chartTypeMenuHostRef}><button ref={chartTypeMenuTriggerRef} type="button" className="toolbar-button" aria-haspopup="menu" aria-expanded={toolbarMenu === "chart-type"} aria-controls="chart-type-menu" onClick={() => setToolbarMenu((current) => current === "chart-type" ? null : "chart-type")}><ChartBar size={17} /> {t(chartType === "ローソク" ? "toolbar.candlestick" : chartType === "ライン" ? "toolbar.line" : "toolbar.area")} <CaretDown size={12} /></button>{toolbarMenu === "chart-type" && <div id="chart-type-menu" className="toolbar-popover chart-type-menu" role="menu">{[["ローソク", "toolbar.candlestick"], ["ライン", "toolbar.line"], ["エリア", "toolbar.area"]].map(([item, labelKey]) => <button type="button" className={chartType === item ? "active" : ""} key={item} onClick={() => { setChartType(item); setToolbarMenu(null); }}>{chartType === item && <Check size={13} />}{t(labelKey)}</button>)}</div>}</div>
+          <div className="toolbar-popover-host hide-narrow" ref={chartTypeMenuHostRef}>
+            <button ref={chartTypeMenuTriggerRef} type="button" className="toolbar-button" aria-haspopup="menu" aria-expanded={toolbarMenu === "chart-type"} aria-controls="chart-type-menu" onClick={() => setToolbarMenu((current) => current === "chart-type" ? null : "chart-type")}>
+              <ChartBar size={17} />
+              {t(chartType === "candles" ? "toolbar.candlestick" : chartType === "heikin-ashi" ? "toolbar.heikinAshi" : chartType === "line" ? "toolbar.line" : "toolbar.area")}
+              <CaretDown size={12} />
+            </button>
+            {toolbarMenu === "chart-type" && (
+              <div id="chart-type-menu" className="toolbar-popover chart-type-menu" role="menu">
+                {([
+                  ["candles", "toolbar.candlestick"],
+                  ["heikin-ashi", "toolbar.heikinAshi"],
+                  ["line", "toolbar.line"],
+                  ["area", "toolbar.area"],
+                ] as const).map(([item, labelKey]) => (
+                  <button type="button" className={chartType === item ? "active" : ""} key={item} onClick={() => { setChartType(item); setToolbarMenu(null); }}>
+                    {chartType === item && <Check size={13} />}{t(labelKey)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button type="button" className={`toolbar-button hide-narrow ${indicatorLibraryOpen ? "selected" : ""}`} onClick={() => setIndicatorLibraryOpen(true)}><FunctionIcon size={17} /> {t("toolbar.indicators")}</button>
-          <div className="toolbar-popover-host hide-mid" ref={templateMenuHostRef}><button ref={templateMenuTriggerRef} type="button" className="toolbar-button" aria-haspopup="menu" aria-expanded={toolbarMenu === "templates"} aria-controls="indicator-template-menu" onClick={() => setToolbarMenu((current) => current === "templates" ? null : "templates")}><Rows size={17} /> {t("toolbar.templates")}</button>{toolbarMenu === "templates" && <div id="indicator-template-menu" className="toolbar-popover template-menu" role="menu"><span>{t("toolbar.indicatorSet")}</span><button type="button" onClick={() => { setActiveIndicators(["sma20", "ema50", "rsi14"]); setToolbarMenu(null); showToast(t("toolbar.trendTemplate")); }}>{t("toolbar.trendTemplate")}<small>{t("toolbar.trendTemplateHelp")}</small></button><button type="button" onClick={() => { setActiveIndicators(["bollinger", "atr14", "macd"]); setToolbarMenu(null); showToast(t("toolbar.volatilityTemplate")); }}>{t("toolbar.volatilityTemplate")}<small>{t("toolbar.volatilityTemplateHelp")}</small></button><button type="button" onClick={() => { setActiveIndicators([]); setToolbarMenu(null); showToast(t("toolbar.noIndicators")); }}>{t("toolbar.noIndicators")}<small>{t("toolbar.noIndicatorsHelp")}</small></button></div>}</div>
-          <button type="button" className="toolbar-button hide-mid" onClick={() => setAppDialog("alert")}><Bell size={17} /> {t("toolbar.alert")}</button>
+          <div className="toolbar-popover-host hide-mid" ref={templateMenuHostRef}>
+            <button ref={templateMenuTriggerRef} type="button" className="toolbar-button" aria-haspopup="menu" aria-expanded={toolbarMenu === "templates"} aria-controls="indicator-template-menu" onClick={() => {
+              setToolbarMenu((current) => {
+                const next = current === "templates" ? null : "templates";
+                if (next === null) {
+                  setTemplateEditor(null);
+                  setTemplateNameError(null);
+                }
+                return next;
+              });
+            }}><Rows size={17} /> {t("toolbar.templates")}</button>
+            {toolbarMenu === "templates" && (
+              <div id="indicator-template-menu" className="toolbar-popover template-menu" role="menu">
+                <span>{t("toolbar.builtInTemplates")}</span>
+                <button className="template-option" type="button" onClick={() => applyBuiltInChartTemplate("builtin-trend", t("toolbar.trendTemplate"), ["sma20", "ema50", "rsi14"])}>{t("toolbar.trendTemplate")}<small>{t("toolbar.trendTemplateHelp")}</small></button>
+                <button className="template-option" type="button" onClick={() => applyBuiltInChartTemplate("builtin-volatility", t("toolbar.volatilityTemplate"), ["bollinger", "atr14", "macd"])}>{t("toolbar.volatilityTemplate")}<small>{t("toolbar.volatilityTemplateHelp")}</small></button>
+                <button className="template-option" type="button" onClick={() => applyBuiltInChartTemplate("builtin-clean", t("toolbar.noIndicators"), [])}>{t("toolbar.noIndicators")}<small>{t("toolbar.noIndicatorsHelp")}</small></button>
+                {userChartTemplates.length > 0 && <span>{t("toolbar.userTemplates")}</span>}
+                {userChartTemplates.map((template) => (
+                  <div className="template-row" key={template.id}>
+                    <button type="button" onClick={() => applyChartTemplate(template)}>{template.name}<small>{t("toolbar.indicatorCount", { count: template.activeIndicators.length })}</small></button>
+                    <span className="template-row-actions">
+                      <button type="button" aria-label={t("toolbar.renameTemplate", { name: template.name })} onClick={() => openTemplateEditor("rename", template)}><PencilLine size={14} /></button>
+                      <button type="button" aria-label={t("toolbar.deleteTemplate", { name: template.name })} onClick={() => deleteChartTemplate(template)}><Trash size={14} /></button>
+                    </span>
+                  </div>
+                ))}
+                {templateEditor ? (
+                  <form className="template-editor" onSubmit={(event) => { event.preventDefault(); saveTemplateEditor(); }}>
+                    <label htmlFor="template-name-input">{t(templateEditor.mode === "create" ? "toolbar.newTemplateName" : "toolbar.renameTemplateName")}</label>
+                    <input id="template-name-input" value={templateNameDraft} maxLength={MAX_CHART_TEMPLATE_NAME_LENGTH} aria-invalid={templateNameError !== null} onChange={(event) => { setTemplateNameDraft(event.target.value); setTemplateNameError(null); }} autoFocus />
+                    {templateNameError && <small role="alert">{t(templateNameError === "empty" ? "toolbar.templateNameEmpty" : templateNameError === "too-long" ? "toolbar.templateNameTooLong" : "toolbar.templateNameDuplicate", { max: MAX_CHART_TEMPLATE_NAME_LENGTH })}</small>}
+                    <div>
+                      <button type="button" onClick={() => { setTemplateEditor(null); setTemplateNameError(null); }}>{t("common.cancel")}</button>
+                      <button type="submit" className="template-save">{t("common.save")}</button>
+                    </div>
+                  </form>
+                ) : (
+                  <button className="template-create" type="button" onClick={() => openTemplateEditor("create")}><Plus size={14} /> {t("toolbar.saveCurrentTemplate")}</button>
+                )}
+              </div>
+            )}
+          </div>
         </> : primaryView === "strategy" ? <>
           <div className="strategy-toolbar-title"><Lightning size={18} weight="fill" /><span><strong>{t("toolbar.strategyReport")}</strong><small>{t("toolbar.strategySubtitle")}</small></span></div>
         </> : <>
@@ -3751,10 +4449,15 @@ export default function Home() {
           <button type="button" className="toolbar-button hide-mid" onClick={() => setPrimaryView("chart")}><ChartBar size={17} /> {t("toolbar.openChart")}</button>
         </>}
         <div className="toolbar-spacer" />
-        <IconButton label={t("nav.settings")} onClick={openWorkspaceSettings}><Gear size={18} /></IconButton>
       </header>
 
-      {primaryView === "chart" ? <div className={`workspace-grid ${utilityPanel && !focusMode ? "" : "utility-closed"} ${focusMode ? "focus-mode" : ""}`}>
+      {primaryView === "chart" ? <div
+        className={`workspace-grid ${utilityPanel && !focusMode ? "" : "utility-closed"} ${focusMode ? "focus-mode" : ""}`}
+        style={{
+          "--right-panel-width": `${rightPanelWidth}px`,
+          "--watchlist-split-percent": `${watchlistSplitPercent}%`,
+        } as React.CSSProperties}
+      >
         <section className="chart-area">
           <div className="chart-commandbar">
             <button type="button" className="chart-symbol-button" onClick={openInstrumentSearch}>
@@ -3782,9 +4485,9 @@ export default function Home() {
           </div>
           <div className={`chart-stack ${subIndicatorSpecs.length > 0 ? "has-subindicators" : ""}`}>
             <div className="chart-stage">
-              <PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} />
-              {dataStatus === "loading" && <div className="chart-data-state" role="status">{t("chart.historyLoading")}</div>}
-              {dataStatus === "error" && <div className="chart-data-state is-error" role="alert">{t("chart.historyError")}</div>}
+              <PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} timeScaleSync={chartTimeScaleSync} />
+              {barsStatus === "loading" && <div className="chart-data-state" role="status">{t("chart.historyLoading")}</div>}
+              {barsStatus === "error" && <div className="chart-data-state is-error" role="alert">{t("chart.historyError")}</div>}
               <div className="chart-watermark">{stock.ticker}</div>
               <div className="chart-indicator-legend" aria-label={indicatorText(locale, "chartIndicators")}>
                 {activeIndicatorDefinitions.map((indicator) => {
@@ -3804,11 +4507,23 @@ export default function Home() {
                 })}
               </div>
             </div>
-            <SubIndicatorPanes bars={detailMarketBars} indicators={subIndicatorSpecs} />
+            <SubIndicatorPanes bars={detailMarketBars} indicators={subIndicatorSpecs} timeScaleSync={chartTimeScaleSync} />
           </div>
         </section>
 
         <aside className={`right-panel utility-panel ${utilityPanel && !focusMode ? "is-open" : ""}`}>
+          {utilityPanel && !focusMode && <div
+            className="right-panel-resizer"
+            role="separator"
+            aria-label={t("layout.resizeRightPanel")}
+            aria-orientation="vertical"
+            aria-valuemin={MIN_RIGHT_PANEL_WIDTH}
+            aria-valuemax={rightPanelMaxWidth}
+            aria-valuenow={rightPanelWidth}
+            tabIndex={0}
+            onPointerDown={beginRightPanelResize}
+            onKeyDown={resizeRightPanelWithKeyboard}
+          />}
           {utilityPanel === "watchlist" && (
             <div className="right-tab-content watchlist-detail-layout" role="tabpanel" aria-label={`${t("sidebar.watchlist")} · ${t("summary.title")}`}>
               <WatchlistPanel
@@ -3825,6 +4540,18 @@ export default function Home() {
                 onDelete={removeWatchlistItem}
                 persistenceStatus={watchlistStatus}
                 afterHours={afterHoursBySymbol}
+              />
+              <div
+                className="watchlist-split-resizer"
+                role="separator"
+                aria-label={t("layout.resizeWatchlistSummary")}
+                aria-orientation="horizontal"
+                aria-valuemin={MIN_WATCHLIST_SPLIT_PERCENT}
+                aria-valuemax={MAX_WATCHLIST_SPLIT_PERCENT}
+                aria-valuenow={watchlistSplitPercent}
+                tabIndex={0}
+                onPointerDown={beginWatchlistSplitResize}
+                onKeyDown={resizeWatchlistSplitWithKeyboard}
               />
               <div className="stock-summary-scroll" aria-label={t("summary.ariaLabel", { symbol: stock.ticker })}>
                 <SymbolSummaryHost
@@ -3874,9 +4601,8 @@ export default function Home() {
           <span className="status-spacer" />
           <span className="connection-state status-connection"><span /> {t(dataStatus === "error" ? "status.connectionError" : dataStatus === "loading" ? "status.fetching" : "status.connected")}</span>
           <span className="status-disclaimer">{dataStatus === "provider" ? t("status.providerAsOf", { time: workspace?.asOf ? new Date(workspace.asOf).toLocaleString(numberLocale) : "—" }) : t("status.fixtureDisclaimer")}</span>
-          <a className="chart-library-attribution" href="https://www.tradingview.com/" target="_blank" rel="noreferrer">Lightweight Charts by TradingView</a>
         </footer>
-      </div> : primaryView === "stock-detail" ? <StockDetailPage stock={stock} targetPriceMarketBars={selectedTargetPriceMarketBars} earnings={detailWorkspace?.earnings ?? []} analystHistory={selectedAnalystHistory} analystHistoryStatus={analystHistoryStatus} detail={stockDetailViewModel} dataStatus={dataStatus} workspaceStatus={workspaceStatus} barsStatus={barsStatus} watched={watched} onBack={() => setPrimaryView("chart")} onToggleWatched={() => toggleWatched(stock.ticker)} /> : <StrategyHome onOpenChart={openChartFromStrategy} onAction={showToast} />}
+      </div> : primaryView === "stock-detail" ? <StockDetailPage stock={stock} targetPriceMarketBars={detailDailyMarketBars} earnings={detailWorkspace?.earnings ?? []} analystHistory={selectedAnalystHistory} analystHistoryStatus={analystHistoryStatus} detail={stockDetailViewModel} dataStatus={researchDataStatus} workspaceStatus={workspaceStatus} barsStatus={dailyBarsStatus} watched={watched} onBack={() => setPrimaryView("chart")} onToggleWatched={() => toggleWatched(stock.ticker)} /> : <StrategyHome onOpenChart={openChartFromStrategy} onAction={showToast} />}
 
       {searchOpen && (
         <div className="search-backdrop" onMouseDown={() => setSearchOpen(false)}>
@@ -3923,17 +4649,15 @@ export default function Home() {
         </div>
       )}
 
-      {appDialog === "alert" && <DialogShell title={t("alert.title")} eyebrow={`${stock.ticker} · ${formatPrice(stock)}`} onClose={() => setAppDialog(null)}><div className="dialog-body dialog-form-grid"><label><span>{t("alert.condition")}</span><select defaultValue="cross-above"><option value="cross-above">{t("alert.crossAbove")}</option><option value="cross-below">{t("alert.crossBelow")}</option><option value="percent">{t("alert.percentChange")}</option></select></label><label><span>{t("alert.price")}</span><input type="number" defaultValue={stock.target.toFixed(2)} /></label><label><span>{t("alert.expiration")}</span><select defaultValue="never"><option value="never">{t("alert.never")}</option><option value="week">{t("alert.week")}</option><option value="30d">{t("alert.days30")}</option></select></label><label className="check-line"><input type="checkbox" defaultChecked /> {t("alert.inApp")}</label></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="button" className="primary-action" onClick={() => { setAppDialog(null); showToast(t("alert.created", { symbol: stock.ticker })); }}>{t("common.create")}</button></footer></DialogShell>}
-
       {appDialog === "settings" && <DialogShell title={t("settings.workspace.title")} eyebrow={t("settings.workspace.eyebrow")} onClose={() => setAppDialog(null)}><div className="dialog-body settings-list"><label><span><strong>{t("settings.candles.title")}</strong><small>{t("settings.candles.help", { min: MIN_CHART_CANDLE_COUNT.toLocaleString(numberLocale), max: MAX_CHART_CANDLE_COUNT.toLocaleString(numberLocale) })}</small></span><input type="number" inputMode="numeric" min={MIN_CHART_CANDLE_COUNT} max={MAX_CHART_CANDLE_COUNT} step={1} value={chartCandleCountDraft} aria-label={t("settings.candles.title")} aria-invalid={parseChartCandleCount(chartCandleCountDraft) === null} onChange={(event) => setChartCandleCountDraft(event.target.value)} /></label><label><span><strong>{t("settings.priceGrid.title")}</strong><small>{t("settings.priceGrid.help")}</small></span><input type="checkbox" defaultChecked /></label><label><span><strong>{t("settings.watermark.title")}</strong><small>{t("settings.watermark.help")}</small></span><input type="checkbox" defaultChecked /></label><label><span><strong>{t("settings.extendedHours.title")}</strong><small>{t("settings.extendedHours.help")}</small></span><input type="checkbox" /></label><label><span><strong>{t("settings.language.title")}</strong><small>{t("settings.language.description")} {t("settings.language.storageNote")}</small></span><select value={localeDraft} aria-label={t("settings.language.title")} onChange={(event) => setLocaleDraft(event.target.value as Locale)}>{supportedLocales.map((option) => <option key={option.code} value={option.code}>{option.nativeLabel}{option.code === "en" ? ` · ${t("settings.language.default")}` : ""}</option>)}</select></label></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="button" className="primary-action" onClick={applyWorkspaceSettings}>{t("common.apply")}</button></footer></DialogShell>}
 
-      {appDialog === "snapshot" && <DialogShell title={t("snapshot.title")} eyebrow={`${stock.ticker} · ${localizedIntervalLabel(interval, locale)}`} onClose={() => setAppDialog(null)} wide><div className="dialog-body snapshot-dialog"><div className="snapshot-preview"><PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} /></div><div className="snapshot-meta"><span>1280 × 720</span><span>Unicorn watermark</span><span>{dataStatus === "provider" ? `${detailBarsProvenance?.providerId ?? detailWorkspace?.selectedProviders.market ?? "Provider"} data` : "Fixture data"}</span></div></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.close")}</button><button type="button" className="primary-action" onClick={() => { setAppDialog(null); showToast(t("snapshot.prepared")); }}><DownloadSimple size={15} /> {t("snapshot.save")}</button></footer></DialogShell>}
+      {appDialog === "snapshot" && <DialogShell title={t("snapshot.title")} eyebrow={`${stock.ticker} · ${localizedIntervalLabel(interval, locale)}`} onClose={() => setAppDialog(null)} wide><div className="dialog-body snapshot-dialog"><div className="snapshot-preview"><PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} /></div><div className="snapshot-meta"><span>1280 × 720</span><span>Unicorn watermark</span><span>{barsStatus === "provider" ? `${detailBarsProvenance?.providerId ?? "Provider"} data` : "Fixture data"}</span></div></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.close")}</button><button type="button" className="primary-action" onClick={() => { setAppDialog(null); showToast(t("snapshot.prepared")); }}><DownloadSimple size={15} /> {t("snapshot.save")}</button></footer></DialogShell>}
 
       {appDialog === "watchlist-create" && <DialogShell title={t("watchlist.createDialogTitle")} eyebrow={t("watchlist.createDialogEyebrow")} onClose={() => setAppDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={(event) => { event.preventDefault(); void createWatchlist(); }}><label><span>{t("watchlist.name")}</span><input value={newWatchlistName} maxLength={60} onChange={(event) => setNewWatchlistName(event.target.value)} placeholder={t("watchlist.namePlaceholder")} autoFocus /></label><p className="dialog-helper-copy">{t("watchlist.createHelp")}</p><footer className="dialog-actions form-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="submit" className="primary-action" disabled={!newWatchlistName.trim() || watchlistStatus === "saving"}>{t(watchlistStatus === "saving" ? "watchlist.creating" : "common.create")}</button></footer></form></DialogShell>}
 
-      {appDialog === "watchlist-rename" && activeWatchlist && <DialogShell title={t("watchlist.renameDialogTitle")} eyebrow={t("watchlist.renameDialogEyebrow")} onClose={() => setAppDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={(event) => { event.preventDefault(); void renameActiveWatchlist(); }}><label><span>{t("watchlist.name")}</span><input value={renameWatchlistName} maxLength={60} aria-invalid={!renameWatchlistName.trim() || renameWatchlistName.trim().length > 60} onChange={(event) => setRenameWatchlistName(event.target.value)} placeholder={t("watchlist.namePlaceholder")} autoFocus /></label><p className="dialog-helper-copy">{t("watchlist.renameHelp")}</p><footer className="dialog-actions form-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="submit" className="primary-action" disabled={!renameWatchlistName.trim() || renameWatchlistName.trim().length > 60 || renameWatchlistName.trim() === activeWatchlist.name || watchlistStatus === "saving"}>{t(watchlistStatus === "saving" ? "watchlist.renaming" : "common.save")}</button></footer></form></DialogShell>}
+      {appDialog === "watchlist-rename" && managedWatchlist && <DialogShell title={t("watchlist.renameDialogTitle")} eyebrow={t("watchlist.renameDialogEyebrow")} onClose={() => setAppDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={(event) => { event.preventDefault(); void renameActiveWatchlist(); }}><label><span>{t("watchlist.name")}</span><input value={renameWatchlistName} maxLength={60} aria-invalid={!renameWatchlistName.trim() || renameWatchlistName.trim().length > 60} onChange={(event) => setRenameWatchlistName(event.target.value)} placeholder={t("watchlist.namePlaceholder")} autoFocus /></label><p className="dialog-helper-copy">{t("watchlist.renameHelp")}</p><footer className="dialog-actions form-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="submit" className="primary-action" disabled={!renameWatchlistName.trim() || renameWatchlistName.trim().length > 60 || renameWatchlistName.trim() === managedWatchlist.name || watchlistStatus === "saving"}>{t(watchlistStatus === "saving" ? "watchlist.renaming" : "common.save")}</button></footer></form></DialogShell>}
 
-      {appDialog === "watchlist-delete" && activeWatchlist && <DialogShell title={t("watchlist.deleteDialogTitle")} eyebrow={t("watchlist.deleteDialogEyebrow")} onClose={() => setAppDialog(null)}><div className="dialog-body confirm-copy"><Trash size={28} /><p>{t("watchlist.deleteHelp", { name: activeWatchlist.name })}</p></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="button" className="danger-action" disabled={watchlistStatus === "saving" || !watchlists || watchlists.length <= 1} onClick={() => void deleteActiveWatchlist()}>{t(watchlistStatus === "saving" ? "watchlist.deleting" : "common.delete")}</button></footer></DialogShell>}
+      {appDialog === "watchlist-delete" && managedWatchlist && <DialogShell title={t("watchlist.deleteDialogTitle")} eyebrow={t("watchlist.deleteDialogEyebrow")} onClose={() => setAppDialog(null)}><div className="dialog-body confirm-copy"><Trash size={28} /><p>{t("watchlist.deleteHelp", { name: managedWatchlist.name })}</p></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="button" className="danger-action" disabled={watchlistStatus === "saving" || !watchlists || watchlists.length <= 1} onClick={() => void deleteActiveWatchlist()}>{t(watchlistStatus === "saving" ? "watchlist.deleting" : "common.delete")}</button></footer></DialogShell>}
 
       {indicatorLibraryOpen && (
         <IndicatorLibraryDialog activeIndicators={activeIndicators} favorites={favoriteIndicators} onAdd={addIndicator} onToggleFavorite={toggleFavoriteIndicator} onClose={() => setIndicatorLibraryOpen(false)} />

@@ -13,7 +13,7 @@ test("watchlist rename is exposed as a localized, controlled dialog", () => {
   assert.match(pageSource, /setAppDialog\("watchlist-rename"\)/);
   assert.match(pageSource, /value=\{renameWatchlistName\}/);
   assert.match(pageSource, /maxLength=\{60\}/);
-  assert.match(pageSource, /renameWatchlistName\.trim\(\) === activeWatchlist\.name/);
+  assert.match(pageSource, /renameWatchlistName\.trim\(\) === managedWatchlist\.name/);
 
   assert.equal(translate("en", "watchlist.rename"), "Rename watchlist");
   assert.equal(translate("ja", "watchlist.rename"), "ウォッチリスト名を変更");
@@ -28,7 +28,7 @@ test("watchlist rename is exposed as a localized, controlled dialog", () => {
 });
 
 test("watchlist rename is confirmed by the D1-backed PATCH response before updating UI state", () => {
-  assert.match(pageSource, /\/api\/v1\/watchlists\/\$\{encodeURIComponent\(activeWatchlist\.id\)\}/);
+  assert.match(pageSource, /\/api\/v1\/watchlists\/\$\{encodeURIComponent\(managedWatchlist\.id\)\}/);
   assert.match(pageSource, /method: "PATCH"/);
   assert.match(pageSource, /watchlist\.id === payload\.watchlist\.id \? payload\.watchlist : watchlist/);
   assert.match(pageSource, /payload\.error\?\.code/);

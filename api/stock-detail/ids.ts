@@ -106,6 +106,7 @@ export const STOCK_DETAIL_METRIC_IDS = [
 export type SymbolDetailTabId = (typeof SYMBOL_DETAIL_TAB_IDS)[number];
 export type FundamentalGroupId = (typeof FUNDAMENTAL_GROUP_IDS)[number];
 export type StockDetailMetricId = (typeof STOCK_DETAIL_METRIC_IDS)[number];
+export type ProfileMetricId = Extract<StockDetailMetricId, `profile.${string}`>;
 export type FundamentalMetricId = Extract<StockDetailMetricId, `fundamentals.${string}`>;
 export type MarketMetricId = Extract<StockDetailMetricId, `market.${string}`>;
 export type AnalystMetricId = Extract<StockDetailMetricId, `analyst.${string}`>;

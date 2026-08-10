@@ -17,11 +17,16 @@ import {
 } from "@/app/platform/provider-contracts";
 
 const SIDECAR_SCHEMA_VERSION = "unicorn.tradingview-sidecar.v1";
+const REALTIME_QUOTES_SCHEMA_VERSION = "unicorn.tradingview-realtime-quotes.v1";
 const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_TIMEOUT_MS = 65_000;
 const TRADINGVIEW_SOURCE_URL = "wss://data.tradingview.com/socket.io/websocket";
 const MAX_LATEST_CLOSE_SYMBOLS = 50;
+const MAX_REALTIME_SYMBOLS = 50;
 const MAX_SYNTHETIC_EXCHANGES = 8;
+const MAX_REALTIME_EVENT_BYTES = 64 * 1_024;
+const MAX_REALTIME_SNAPSHOT_BYTES = 256 * 1_024;
+const MAX_FUTURE_CLOCK_SKEW_MS = 60_000;
 const SYNTHETIC_EXCHANGE_PATTERN = /^[A-Z][A-Z0-9._-]{0,14}$/;
 
 export const DEFAULT_TRADINGVIEW_SYNTHETIC_EXCHANGES = Object.freeze([
@@ -34,7 +39,7 @@ export const DEFAULT_TRADINGVIEW_SYNTHETIC_EXCHANGES = Object.freeze([
 const manifest = {
   schemaVersion: PROVIDER_SCHEMA_VERSION,
   id: "tradingview-websocket",
-  version: "1.1.0",
+  version: "1.3.0",
   displayName: "TradingView websocket local sidecar",
   capabilities: ["market.quote", "market.bars", "market.synthetic_latest_close"],
   markets: ["US"],
@@ -50,6 +55,13 @@ type ProviderDependencies = Readonly<{
 }>;
 
 type JsonRecord = Record<string, unknown>;
+
+type RealtimeQuoteRequest = Readonly<{
+  instrument: Instrument;
+  symbol: string;
+  mic: string;
+  sourceSymbol: string;
+}>;
 
 export type TradingViewSidecarErrorCode =
   | "configuration"
@@ -74,6 +86,12 @@ function asRecord(value: unknown): JsonRecord | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as JsonRecord
     : null;
+}
+
+function hasExactKeys(value: JsonRecord | null, keys: readonly string[]): value is JsonRecord {
+  if (!value) return false;
+  const actual = Object.keys(value);
+  return actual.length === keys.length && actual.every((key) => keys.includes(key));
 }
 
 function finiteNumber(value: unknown): number | null {
@@ -181,6 +199,31 @@ function tradingViewExchange(instrument: Instrument): string | null {
   }
 }
 
+function realtimeQuoteRequests(
+  instruments: readonly Instrument[],
+): readonly RealtimeQuoteRequest[] {
+  const requests: RealtimeQuoteRequest[] = [];
+  const seen = new Set<string>();
+  for (const instrument of instruments) {
+    const exchange = tradingViewExchange(instrument);
+    const symbol = instrument.symbol.normalize("NFKC").trim().toUpperCase();
+    const mic = instrument.exchangeMic.toUpperCase();
+    if (
+      !exchange
+      || !/^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol)
+      || seen.has(symbol)
+    ) continue;
+    seen.add(symbol);
+    requests.push(Object.freeze({
+      instrument,
+      symbol,
+      mic,
+      sourceSymbol: `${exchange}:${symbol.replaceAll("-", ".")}`,
+    }));
+  }
+  return Object.freeze(requests);
+}
+
 const CANDLE_COUNTS = Object.freeze({
   "1m": Object.freeze({ "1d": 420, "5d": 2_100, "1mo": 5_000, "3mo": 5_000, "6mo": 5_000, "1y": 5_000, "5y": 5_000 }),
   "5m": Object.freeze({ "1d": 84, "5d": 420, "1mo": 1_800, "3mo": 5_000, "6mo": 5_000, "1y": 5_000, "5y": 5_000 }),
@@ -282,6 +325,40 @@ function normalizeBars(payload: unknown, expected: Readonly<{
   });
 }
 
+const SYNTHETIC_ITEM_KEYS = Object.freeze([
+  "symbol",
+  "sourceSymbol",
+  "close",
+  "currency",
+  "source",
+  "updatedAt",
+] as const);
+const SYNTHETIC_READY_EVENT_KEYS = Object.freeze([
+  "schemaVersion",
+  "type",
+  "exchange",
+  "exchanges",
+  "resolutionStrategy",
+  "state",
+  "items",
+  "ingestedAt",
+] as const);
+const SYNTHETIC_QUOTE_EVENT_KEYS = Object.freeze([
+  "schemaVersion",
+  "type",
+  "exchange",
+  "exchanges",
+  "resolutionStrategy",
+  "item",
+  "ingestedAt",
+] as const);
+const SYNTHETIC_STATUS_EVENT_KEYS = Object.freeze([
+  "schemaVersion",
+  "type",
+  "state",
+  "ingestedAt",
+] as const);
+
 function normalizeLatestCloses(
   payload: unknown,
   expectedSymbols: readonly string[],
@@ -318,6 +395,7 @@ function normalizeLatestCloses(
     const expectedMissingSource = allowedSourceSymbols[0];
     if (
       item?.symbol !== symbol
+      || !hasExactKeys(item, SYNTHETIC_ITEM_KEYS)
       || typeof item.sourceSymbol !== "string"
       || (isMissing
         ? item.sourceSymbol !== expectedMissingSource
@@ -343,17 +421,507 @@ function normalizeLatestCloses(
   return Object.freeze(items);
 }
 
+function normalizeSyntheticSymbols(symbols: readonly string[]): readonly string[] {
+  const normalizedSymbols = symbols.map((symbol) => symbol.normalize("NFKC").trim().toUpperCase());
+  if (
+    normalizedSymbols.length < 1
+    || normalizedSymbols.length > MAX_LATEST_CLOSE_SYMBOLS
+    || normalizedSymbols.some((symbol) => !/^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol))
+    || new Set(normalizedSymbols).size !== normalizedSymbols.length
+  ) {
+    throw new TradingViewSidecarError("invalid_request", "Latest-close symbols are invalid.");
+  }
+  return Object.freeze(normalizedSymbols);
+}
+
+const REALTIME_ITEM_KEYS = Object.freeze([
+  "symbol",
+  "sourceSymbol",
+  "price",
+  "previousClose",
+  "change",
+  "changePercent",
+  "open",
+  "high",
+  "low",
+  "volume",
+  "currency",
+  "session",
+  "updatedAt",
+  "stale",
+] as const);
+
+function normalizeRealtimeQuote(
+  value: unknown,
+  expectedBySymbol: ReadonlyMap<string, RealtimeQuoteRequest>,
+  ingestedAtValue: unknown,
+  observedNow: Date,
+): Quote | null {
+  const item = asRecord(value);
+  const ingestedAt = isoTimestamp(ingestedAtValue);
+  const symbol = typeof item?.symbol === "string" ? item.symbol : "";
+  const expected = expectedBySymbol.get(symbol);
+  if (
+    !item
+    || !expected
+    || Object.keys(item).length !== REALTIME_ITEM_KEYS.length
+    || Object.keys(item).some((key) => !REALTIME_ITEM_KEYS.includes(key as typeof REALTIME_ITEM_KEYS[number]))
+    || item.sourceSymbol !== expected.sourceSymbol
+    || item.currency !== "USD"
+    || typeof item.stale !== "boolean"
+    || !ingestedAt
+  ) {
+    throw new TradingViewSidecarError(
+      "invalid_response",
+      "TradingView sidecar returned invalid realtime quote data.",
+    );
+  }
+  if (item.price === null) {
+    const nullableFields = [
+      "previousClose",
+      "change",
+      "changePercent",
+      "open",
+      "high",
+      "low",
+      "volume",
+      "session",
+      "updatedAt",
+    ] as const;
+    if (!item.stale || nullableFields.some((field) => item[field] !== null)) {
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView sidecar returned malformed missing quote data.",
+      );
+    }
+    return null;
+  }
+
+  const price = finiteNumber(item.price);
+  const previousClose = finiteNumber(item.previousClose);
+  const change = finiteNumber(item.change);
+  const changePercent = finiteNumber(item.changePercent);
+  const open = finiteNumber(item.open);
+  const high = finiteNumber(item.high);
+  const low = finiteNumber(item.low);
+  const volume = finiteNumber(item.volume);
+  const updatedAt = isoTimestamp(item.updatedAt);
+  const sessionIsValid = item.session === null
+    || (typeof item.session === "string" && /^[a-z][a-z0-9_]{0,31}$/.test(item.session));
+  if (
+    price === null
+    || price <= 0
+    || previousClose === null
+    || previousClose <= 0
+    || change === null
+    || changePercent === null
+    || open === null
+    || open <= 0
+    || high === null
+    || high <= 0
+    || low === null
+    || low <= 0
+    || high < low
+    || volume === null
+    || volume < 0
+    || !updatedAt
+    || !sessionIsValid
+  ) {
+    throw new TradingViewSidecarError(
+      "invalid_response",
+      "TradingView sidecar returned malformed realtime quote values.",
+    );
+  }
+  const ingestedAtMs = Date.parse(ingestedAt);
+  const updatedAtMs = Date.parse(updatedAt);
+  const observedNowMs = observedNow.getTime();
+  if (
+    ingestedAtMs > observedNowMs + MAX_FUTURE_CLOCK_SKEW_MS
+    || updatedAtMs > observedNowMs + MAX_FUTURE_CLOCK_SKEW_MS
+    || updatedAtMs > ingestedAtMs + MAX_FUTURE_CLOCK_SKEW_MS
+  ) {
+    throw new TradingViewSidecarError(
+      "invalid_response",
+      "TradingView sidecar returned an invalid realtime quote timestamp.",
+    );
+  }
+  const expectedChange = price - previousClose;
+  const expectedChangePercent = (expectedChange / previousClose) * 100;
+  if (
+    Math.abs(change - expectedChange) > Math.max(0.01, price * 1e-8)
+    || Math.abs(changePercent - expectedChangePercent) > 0.01
+  ) {
+    throw new TradingViewSidecarError(
+      "invalid_response",
+      "TradingView sidecar returned inconsistent realtime quote changes.",
+    );
+  }
+  const observedDelay = Math.max(
+    0,
+    Math.min(900, Math.trunc((Date.parse(ingestedAt) - Date.parse(updatedAt)) / 1_000)),
+  );
+  const delaySeconds = item.stale ? 900 : observedDelay;
+  return Object.freeze({
+    instrumentId: expected.instrument.instrumentId,
+    price,
+    change,
+    changePercent,
+    previousClose,
+    open,
+    high,
+    low,
+    volume,
+    currency: "USD",
+    marketState: marketState(observedNow),
+    delaySeconds,
+    provenance: Object.freeze({
+      providerId: manifest.id,
+      sourceId: `tradingview-websocket:${expected.sourceSymbol}:realtime-quote`,
+      asOf: updatedAt,
+      ingestedAt,
+      sourceUrl: TRADINGVIEW_SOURCE_URL,
+    }),
+  });
+}
+
+function normalizeRealtimeSnapshot(
+  payload: unknown,
+  requests: readonly RealtimeQuoteRequest[],
+  observedNow: Date,
+): readonly Quote[] {
+  const root = asRecord(payload);
+  if (
+    root?.schemaVersion !== REALTIME_QUOTES_SCHEMA_VERSION
+    || !["connected", "reconnecting", "disconnected"].includes(String(root.state))
+    || !Array.isArray(root.items)
+    || root.items.length !== requests.length
+  ) {
+    throw new TradingViewSidecarError(
+      "invalid_response",
+      "TradingView sidecar returned an invalid realtime snapshot.",
+    );
+  }
+  const expectedBySymbol = new Map(requests.map((request) => [request.symbol, request]));
+  const seen = new Set<string>();
+  const quotes: Quote[] = [];
+  for (let index = 0; index < root.items.length; index += 1) {
+    const item = asRecord(root.items[index]);
+    const expected = requests[index]!;
+    if (item?.symbol !== expected.symbol || seen.has(expected.symbol)) {
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView sidecar returned a mismatched realtime snapshot.",
+      );
+    }
+    seen.add(expected.symbol);
+    const quote = normalizeRealtimeQuote(item, expectedBySymbol, root.ingestedAt, observedNow);
+    if (quote) quotes.push(quote);
+  }
+  return Object.freeze(quotes);
+}
+
 export function createTradingViewSidecarProvider(
   env: ProviderEnvironment,
   dependencies: ProviderDependencies = {},
 ) {
   const baseUrl = sidecarBaseUrl(env);
   const token = env.UNICORN_TRADINGVIEW_SIDECAR_TOKEN?.trim();
+  if (!loopbackHostname(baseUrl.hostname) && !token) {
+    throw new TradingViewSidecarError(
+      "configuration",
+      "A TradingView sidecar token is required for remote HTTPS endpoints.",
+    );
+  }
   const timeoutMs = positiveInteger(env.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
   const maxCandles = configuredCandleLimit(env.UNICORN_TRADINGVIEW_MAX_CANDLES);
   const syntheticExchanges = tradingViewSyntheticExchanges(env);
   const fetchImplementation = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
   const now = dependencies.now ?? (() => new Date());
+
+  function realtimeRequestBody(requests: readonly RealtimeQuoteRequest[]): string {
+    return JSON.stringify({
+      items: requests.map((request) => ({
+        symbol: request.symbol,
+        mic: request.mic,
+      })),
+    });
+  }
+
+  function linkedRequestController(
+    context: ProviderRequestContext,
+  ): Readonly<{
+    controller: AbortController;
+    clearHandshakeTimeout: () => void;
+    cleanup: () => void;
+    timedOut: () => boolean;
+  }> {
+    const controller = new AbortController();
+    let didTimeOut = false;
+    const abortFromContext = () => controller.abort(context.signal?.reason);
+    if (context.signal?.aborted) abortFromContext();
+    else context.signal?.addEventListener("abort", abortFromContext, { once: true });
+    const timer = setTimeout(() => {
+      didTimeOut = true;
+      controller.abort();
+    }, timeoutMs);
+    return Object.freeze({
+      controller,
+      clearHandshakeTimeout: () => clearTimeout(timer),
+      cleanup: () => {
+        clearTimeout(timer);
+        context.signal?.removeEventListener("abort", abortFromContext);
+      },
+      timedOut: () => didTimeOut,
+    });
+  }
+
+  async function boundedResponseText(response: Response, maximumBytes: number): Promise<string> {
+    const declaredLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView sidecar response exceeded the permitted size.",
+      );
+    }
+    if (!response.body) {
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView sidecar returned an empty response.",
+      );
+    }
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > maximumBytes) {
+          throw new TradingViewSidecarError(
+            "invalid_response",
+            "TradingView sidecar response exceeded the permitted size.",
+          );
+        }
+        chunks.push(value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  }
+
+  async function openRealtimeResponse(
+    path: "v1/realtime-quotes" | "v1/realtime-quotes/stream",
+    requests: readonly RealtimeQuoteRequest[],
+    context: ProviderRequestContext,
+  ): Promise<Readonly<{
+    response: Response;
+    linked: ReturnType<typeof linkedRequestController>;
+  }>> {
+    if (
+      requests.length < 1
+      || requests.length > MAX_REALTIME_SYMBOLS
+      || new Set(requests.map((request) => request.symbol)).size !== requests.length
+    ) {
+      throw new TradingViewSidecarError("invalid_request", "Realtime quote instruments are invalid.");
+    }
+    const linked = linkedRequestController(context);
+    let response: Response;
+    try {
+      response = await fetchImplementation(new URL(path, baseUrl), {
+        method: "POST",
+        headers: {
+          accept: path.endsWith("/stream") ? "text/event-stream" : "application/json",
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: realtimeRequestBody(requests),
+        cache: "no-store",
+        signal: linked.controller.signal,
+      });
+      if (path.endsWith("/stream")) linked.clearHandshakeTimeout();
+    } catch {
+      linked.cleanup();
+      if (linked.timedOut()) {
+        throw new TradingViewSidecarError("request_timeout", "TradingView sidecar request timed out.");
+      }
+      throw new TradingViewSidecarError("upstream_error", "TradingView sidecar request failed.");
+    }
+    if (!response.ok) {
+      linked.cleanup();
+      await response.body?.cancel().catch(() => undefined);
+      throw new TradingViewSidecarError(
+        "upstream_error",
+        "TradingView sidecar returned an unsuccessful response.",
+        response.status,
+      );
+    }
+    return Object.freeze({ response, linked });
+  }
+
+  async function requestRealtimeSnapshot(
+    requests: readonly RealtimeQuoteRequest[],
+    context: ProviderRequestContext,
+  ): Promise<readonly Quote[]> {
+    const { response, linked } = await openRealtimeResponse("v1/realtime-quotes", requests, context);
+    try {
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.toLowerCase().startsWith("application/json")) {
+        throw new TradingViewSidecarError(
+          "invalid_response",
+          "TradingView sidecar returned an invalid content type.",
+        );
+      }
+      const text = await boundedResponseText(response, MAX_REALTIME_SNAPSHOT_BYTES);
+      let payload: unknown;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw new TradingViewSidecarError(
+          "invalid_response",
+          "TradingView sidecar returned invalid JSON.",
+        );
+      }
+      return normalizeRealtimeSnapshot(payload, requests, now());
+    } finally {
+      linked.cleanup();
+    }
+  }
+
+  async function requestRealtimeStream(
+    requests: readonly RealtimeQuoteRequest[],
+    context: ProviderRequestContext,
+  ): Promise<ReadableStream<Quote>> {
+    const { response, linked } = await openRealtimeResponse(
+      "v1/realtime-quotes/stream",
+      requests,
+      context,
+    );
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().startsWith("text/event-stream") || !response.body) {
+      linked.cleanup();
+      await response.body?.cancel().catch(() => undefined);
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView sidecar returned an invalid event stream.",
+      );
+    }
+
+    const upstream = response.body.getReader();
+    const decoder = new TextDecoder();
+    const expectedBySymbol = new Map(requests.map((request) => [request.symbol, request]));
+    let canceled = false;
+
+    return new ReadableStream<Quote>({
+      start(controller) {
+        void (async () => {
+          let buffer = "";
+          let eventName = "";
+          let dataLines: string[] = [];
+          let eventBytes = 0;
+
+          const dispatch = () => {
+            if (dataLines.length === 0) {
+              eventName = "";
+              eventBytes = 0;
+              return;
+            }
+            let payload: unknown;
+            try {
+              payload = JSON.parse(dataLines.join("\n"));
+            } catch {
+              throw new TradingViewSidecarError(
+                "invalid_response",
+                "TradingView sidecar returned an invalid realtime event.",
+              );
+            }
+            const root = asRecord(payload);
+            if (eventName === "ready") {
+              if (root?.type !== "ready") {
+                throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid ready event.");
+              }
+              const quotes = normalizeRealtimeSnapshot(root, requests, now());
+              for (const quote of quotes) controller.enqueue(quote);
+              if (root.state !== "connected") {
+                throw new TradingViewSidecarError("upstream_error", "TradingView realtime source is reconnecting.");
+              }
+            } else if (eventName === "quote") {
+              if (root?.schemaVersion !== REALTIME_QUOTES_SCHEMA_VERSION || root.type !== "quote") {
+                throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid quote event.");
+              }
+              const quote = normalizeRealtimeQuote(root.item, expectedBySymbol, root.ingestedAt, now());
+              if (quote) controller.enqueue(quote);
+            } else if (eventName === "status") {
+              if (
+                root?.schemaVersion !== REALTIME_QUOTES_SCHEMA_VERSION
+                || root.type !== "status"
+                || !["connected", "reconnecting", "disconnected"].includes(String(root.state))
+                || !isoTimestamp(root.ingestedAt)
+              ) {
+                throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid status event.");
+              }
+              if (root.state !== "connected") {
+                throw new TradingViewSidecarError("upstream_error", "TradingView realtime source disconnected.");
+              }
+            }
+            eventName = "";
+            dataLines = [];
+            eventBytes = 0;
+          };
+
+          try {
+            while (!canceled) {
+              const { done, value } = await upstream.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              if (buffer.length > MAX_REALTIME_EVENT_BYTES * 2) {
+                throw new TradingViewSidecarError("invalid_response", "TradingView realtime event exceeded the permitted size.");
+              }
+              while (true) {
+                const newline = buffer.indexOf("\n");
+                if (newline < 0) break;
+                const line = buffer.slice(0, newline).replace(/\r$/, "");
+                buffer = buffer.slice(newline + 1);
+                if (line === "") {
+                  dispatch();
+                  continue;
+                }
+                if (line.startsWith(":")) continue;
+                eventBytes += line.length;
+                if (eventBytes > MAX_REALTIME_EVENT_BYTES) {
+                  throw new TradingViewSidecarError("invalid_response", "TradingView realtime event exceeded the permitted size.");
+                }
+                if (line.startsWith("event:")) eventName = line.slice(6).trim();
+                else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+              }
+            }
+            if (!canceled) controller.close();
+          } catch (error) {
+            if (!canceled && !linked.controller.signal.aborted) controller.error(error);
+            else if (!canceled) controller.close();
+          } finally {
+            canceled = true;
+            linked.cleanup();
+            await upstream.cancel().catch(() => undefined);
+            upstream.releaseLock();
+          }
+        })();
+      },
+      async cancel(reason) {
+        canceled = true;
+        linked.controller.abort(reason);
+        linked.cleanup();
+        await upstream.cancel(reason).catch(() => undefined);
+      },
+    });
+  }
 
   async function requestBars(
     instrument: Instrument,
@@ -412,15 +980,7 @@ export function createTradingViewSidecarProvider(
   }
 
   async function requestLatestCloses(symbols: readonly string[]): Promise<readonly SyntheticLatestClose[]> {
-    const normalizedSymbols = symbols.map((symbol) => symbol.normalize("NFKC").trim().toUpperCase());
-    if (
-      normalizedSymbols.length < 1
-      || normalizedSymbols.length > MAX_LATEST_CLOSE_SYMBOLS
-      || normalizedSymbols.some((symbol) => !/^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol))
-      || new Set(normalizedSymbols).size !== normalizedSymbols.length
-    ) {
-      throw new TradingViewSidecarError("invalid_request", "Latest-close symbols are invalid.");
-    }
+    const normalizedSymbols = normalizeSyntheticSymbols(symbols);
 
     const url = new URL("v1/latest-closes", baseUrl);
     const controller = new AbortController();
@@ -461,6 +1021,196 @@ export function createTradingViewSidecarProvider(
     return normalizeLatestCloses(payload, normalizedSymbols, syntheticExchanges);
   }
 
+  async function requestLatestCloseStream(
+    symbols: readonly string[],
+    context: ProviderRequestContext,
+  ): Promise<ReadableStream<SyntheticLatestClose>> {
+    const normalizedSymbols = normalizeSyntheticSymbols(symbols);
+    const linked = linkedRequestController(context);
+    let response: Response;
+    try {
+      response = await fetchImplementation(new URL("v1/latest-closes/stream", baseUrl), {
+        method: "POST",
+        headers: {
+          accept: "text/event-stream",
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ symbols: normalizedSymbols }),
+        cache: "no-store",
+        signal: linked.controller.signal,
+      });
+      linked.clearHandshakeTimeout();
+    } catch {
+      linked.cleanup();
+      if (linked.timedOut()) {
+        throw new TradingViewSidecarError("request_timeout", "TradingView sidecar request timed out.");
+      }
+      throw new TradingViewSidecarError("upstream_error", "TradingView sidecar request failed.");
+    }
+    if (!response.ok) {
+      linked.cleanup();
+      await response.body?.cancel().catch(() => undefined);
+      throw new TradingViewSidecarError(
+        "upstream_error",
+        "TradingView sidecar returned an unsuccessful response.",
+        response.status,
+      );
+    }
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().startsWith("text/event-stream") || !response.body) {
+      linked.cleanup();
+      await response.body?.cancel().catch(() => undefined);
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView sidecar returned an invalid latest-close event stream.",
+      );
+    }
+
+    const upstream = response.body.getReader();
+    const decoder = new TextDecoder();
+    const expectedSymbols = new Set(normalizedSymbols);
+    let canceled = false;
+
+    return new ReadableStream<SyntheticLatestClose>({
+      start(controller) {
+        void (async () => {
+          let buffer = "";
+          let eventName = "";
+          let dataLines: string[] = [];
+          let eventBytes = 0;
+
+          const dispatch = () => {
+            if (dataLines.length === 0) {
+              eventName = "";
+              eventBytes = 0;
+              return;
+            }
+            let payload: unknown;
+            try {
+              payload = JSON.parse(dataLines.join("\n"));
+            } catch {
+              throw new TradingViewSidecarError(
+                "invalid_response",
+                "TradingView sidecar returned an invalid latest-close event.",
+              );
+            }
+            const root = asRecord(payload);
+            if (eventName === "ready") {
+              if (
+                !hasExactKeys(root, SYNTHETIC_READY_EVENT_KEYS)
+                || root.type !== "ready"
+                || !["connected", "reconnecting", "disconnected"].includes(String(root.state))
+                || !isoTimestamp(root.ingestedAt)
+              ) {
+                throw new TradingViewSidecarError(
+                  "invalid_response",
+                  "TradingView sidecar returned an invalid latest-close ready event.",
+                );
+              }
+              for (const item of normalizeLatestCloses(
+                root,
+                normalizedSymbols,
+                syntheticExchanges,
+              )) controller.enqueue(item);
+            } else if (eventName === "quote") {
+              const item = asRecord(root?.item);
+              const symbol = typeof item?.symbol === "string" ? item.symbol : "";
+              if (
+                !hasExactKeys(root, SYNTHETIC_QUOTE_EVENT_KEYS)
+                || root.schemaVersion !== SIDECAR_SCHEMA_VERSION
+                || root.type !== "quote"
+                || !expectedSymbols.has(symbol)
+                || !isoTimestamp(root.ingestedAt)
+              ) {
+                throw new TradingViewSidecarError(
+                  "invalid_response",
+                  "TradingView sidecar returned an invalid latest-close quote event.",
+                );
+              }
+              const [normalized] = normalizeLatestCloses(
+                { ...root, items: [item] },
+                [symbol],
+                syntheticExchanges,
+              );
+              controller.enqueue(normalized!);
+            } else if (eventName === "status") {
+              if (
+                !hasExactKeys(root, SYNTHETIC_STATUS_EVENT_KEYS)
+                || root.schemaVersion !== SIDECAR_SCHEMA_VERSION
+                || root.type !== "status"
+                || !["connected", "reconnecting", "disconnected"].includes(String(root.state))
+                || !isoTimestamp(root.ingestedAt)
+              ) {
+                throw new TradingViewSidecarError(
+                  "invalid_response",
+                  "TradingView sidecar returned an invalid latest-close status event.",
+                );
+              }
+            } else {
+              throw new TradingViewSidecarError(
+                "invalid_response",
+                "TradingView sidecar returned an unknown latest-close event.",
+              );
+            }
+            eventName = "";
+            dataLines = [];
+            eventBytes = 0;
+          };
+
+          try {
+            while (!canceled) {
+              const { done, value } = await upstream.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              if (buffer.length > MAX_REALTIME_EVENT_BYTES * 2) {
+                throw new TradingViewSidecarError(
+                  "invalid_response",
+                  "TradingView latest-close event exceeded the permitted size.",
+                );
+              }
+              while (true) {
+                const newline = buffer.indexOf("\n");
+                if (newline < 0) break;
+                const line = buffer.slice(0, newline).replace(/\r$/, "");
+                buffer = buffer.slice(newline + 1);
+                if (line === "") {
+                  dispatch();
+                  continue;
+                }
+                if (line.startsWith(":")) continue;
+                eventBytes += line.length;
+                if (eventBytes > MAX_REALTIME_EVENT_BYTES) {
+                  throw new TradingViewSidecarError(
+                    "invalid_response",
+                    "TradingView latest-close event exceeded the permitted size.",
+                  );
+                }
+                if (line.startsWith("event:")) eventName = line.slice(6).trim();
+                else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+              }
+            }
+            if (!canceled) controller.close();
+          } catch (error) {
+            if (!canceled && !linked.controller.signal.aborted) controller.error(error);
+            else if (!canceled) controller.close();
+          } finally {
+            canceled = true;
+            linked.cleanup();
+            await upstream.cancel().catch(() => undefined);
+            upstream.releaseLock();
+          }
+        })();
+      },
+      async cancel(reason) {
+        canceled = true;
+        linked.controller.abort(reason);
+        linked.cleanup();
+        await upstream.cancel(reason).catch(() => undefined);
+      },
+    });
+  }
+
   return Object.freeze({
     manifest,
     syntheticMarket: Object.freeze({
@@ -471,42 +1221,40 @@ export function createTradingViewSidecarProvider(
         void context;
         return requestLatestCloses(symbols);
       },
+      getLatestCloseStream: async (
+        symbols: readonly string[],
+        context: ProviderRequestContext,
+      ): Promise<ReadableStream<SyntheticLatestClose>> => requestLatestCloseStream(symbols, context),
     }),
     market: Object.freeze({
-      getQuote: async (instrument: Instrument): Promise<Quote | null> => {
-        const normalized = await requestBars(instrument, { range: "5d", interval: "1d" }, 3);
-        if (!normalized) return null;
-        const latest = normalized.items.at(-1)!;
-        const previous = normalized.items.at(-2);
-        const previousClose = previous?.close ?? latest.open;
-        if (latest.close <= 0 || previousClose <= 0 || latest.open <= 0 || latest.high <= 0 || latest.low <= 0) {
-          return null;
+      getQuote: async (
+        instrument: Instrument,
+        context: ProviderRequestContext,
+      ): Promise<Quote | null> => {
+        const requests = realtimeQuoteRequests([instrument]);
+        if (requests.length !== 1) return null;
+        return (await requestRealtimeSnapshot(requests, context))[0] ?? null;
+      },
+      getQuotes: async (
+        instruments: readonly Instrument[],
+        context: ProviderRequestContext,
+      ): Promise<readonly Quote[]> => {
+        const requests = realtimeQuoteRequests(instruments);
+        if (requests.length === 0) return Object.freeze([]);
+        return requestRealtimeSnapshot(requests, context);
+      },
+      getQuoteStream: async (
+        instruments: readonly Instrument[],
+        context: ProviderRequestContext,
+      ): Promise<ReadableStream<Quote>> => {
+        const requests = realtimeQuoteRequests(instruments);
+        if (requests.length === 0) {
+          throw new TradingViewSidecarError(
+            "invalid_request",
+            "Realtime quote instruments are invalid.",
+          );
         }
-        const change = latest.close - previousClose;
-        return Object.freeze({
-          instrumentId: instrument.instrumentId,
-          price: latest.close,
-          change,
-          changePercent: previousClose === 0 ? 0 : (change / previousClose) * 100,
-          previousClose,
-          open: latest.open,
-          high: latest.high,
-          low: latest.low,
-          volume: latest.volume,
-          currency: "USD",
-          marketState: marketState(now()),
-          // Guest websocket entitlements are not guaranteed to be consolidated
-          // exchange real-time data. Surface a conservative delay instead of
-          // making a real-time claim the adapter cannot prove.
-          delaySeconds: 900,
-          provenance: Object.freeze({
-            providerId: manifest.id,
-            sourceId: `tradingview-websocket:${instrument.symbol}:quote`,
-            asOf: normalized.asOf,
-            ingestedAt: normalized.ingestedAt,
-            sourceUrl: TRADINGVIEW_SOURCE_URL,
-          }),
-        });
+        return requestRealtimeStream(requests, context);
       },
       getBars: async (
         instrument: Instrument,

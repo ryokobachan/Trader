@@ -278,6 +278,7 @@ function currency(value: number, locale: Locale) {
   return new Intl.NumberFormat(locale === "ja" ? "ja-JP" : "en-US", {
     style: "currency",
     currency: "USD",
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
 }

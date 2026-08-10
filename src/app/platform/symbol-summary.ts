@@ -103,7 +103,7 @@ export function formatSummaryAfterHoursPrice(value: number | null) {
   if (value === null) return "-";
   return value.toLocaleString("ja-JP", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
+    maximumFractionDigits: 2,
   });
 }
 

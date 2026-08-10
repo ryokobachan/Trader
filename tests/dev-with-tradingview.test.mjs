@@ -10,7 +10,7 @@ import {
   tradingViewDevelopmentProfile,
 } from "../src/tooling/scripts/dev-with-tradingview.mjs";
 
-test("forces chart bars through the authenticated local TradingView sidecar", () => {
+test("forces current prices and chart bars through the authenticated local TradingView sidecar", () => {
   const environment = tradingViewDevelopmentProfile({
     PATH: "/usr/bin",
     UNICORN_BARS_PROVIDER: "yahoo",
@@ -18,6 +18,7 @@ test("forces chart bars through the authenticated local TradingView sidecar", ()
   }, "test-sidecar-token", 8876);
 
   assert.equal(environment.PATH, "/usr/bin");
+  assert.equal(environment.UNICORN_MARKET_PROVIDER, "tradingview-websocket");
   assert.equal(environment.UNICORN_BARS_PROVIDER, "tradingview-websocket");
   assert.equal(environment.UNICORN_TRADINGVIEW_SIDECAR_URL, "http://127.0.0.1:8876");
   assert.equal(environment.UNICORN_TRADINGVIEW_SIDECAR_TOKEN, "test-sidecar-token");
@@ -43,6 +44,7 @@ test("allocates an available loopback port and rejects unrelated health pages", 
 
 test("forwards the chart provider and sidecar credentials into local Worker bindings", () => {
   for (const binding of [
+    "UNICORN_MARKET_PROVIDER",
     "UNICORN_BARS_PROVIDER",
     "UNICORN_TRADINGVIEW_SIDECAR_URL",
     "UNICORN_TRADINGVIEW_SIDECAR_TOKEN",
@@ -63,6 +65,23 @@ test("sidecar contract permits 10,000 candles and reports requested/returned cou
       < source.indexOf("process.join(2)"),
     "large payloads must be drained before the child process is joined",
   );
+});
+
+test("sidecar exposes cached authenticated yfinance fallbacks with a pinned runtime", async () => {
+  const [source, requirements] = await Promise.all([
+    readFile(new URL("../api/tradingview-websocket/sidecar.py", import.meta.url), "utf8"),
+    readFile(new URL("../api/tradingview-websocket/requirements.txt", import.meta.url), "utf8"),
+  ]);
+  assert.match(requirements, /^yfinance==1\.2\.0$/m);
+  assert.match(source, /YAHOO_SCHEMA_VERSION = "unicorn\.yahoo-sidecar\.v1"/);
+  assert.match(source, /parsed\.path in \{"\/v1\/yahoo\/profile", "\/v1\/yahoo\/earnings"\}/);
+  assert.match(source, /class YahooInFlight:/);
+  assert.match(source, /server\.yahoo_cache/);
+  assert.match(source, /server\.yahoo_inflight/);
+  assert.match(source, /target=load_yahoo_in_child/);
+  assert.match(source, /result_queue\.get\(timeout=timeout_seconds\)/);
+  assert.match(source, /self\.authenticated\(\)/);
+  assert.doesNotMatch(source, /send_json\([^\n]*raw_info/);
 });
 
 test("selects the requested live-data profile without reading credential values", () => {

@@ -2670,6 +2670,7 @@ textarea:focus-visible {
   color: #d1d4dc;
 }
 .analyst-target-cell { font-family: var(--font-mono); white-space: nowrap; }
+.analyst-target-previous { color: #a9afba; }
 .dialog-data-source { margin-right: auto; color: #8e949f; font-size: 11px; }
 
 /* TradingView-like summary density: 12px is the normal reading size; 10px is
@@ -2907,6 +2908,44 @@ textarea:focus-visible {
   margin-left: 0;
 }
 
+.watchlist-selector-menu {
+  min-width: 240px;
+}
+
+.watchlist-selector-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: center;
+  border-radius: 4px;
+}
+
+.watchlist-selector-row:hover,
+.watchlist-selector-row:focus-within {
+  background: #222225;
+}
+
+.watch-popover .watchlist-selector-choice {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watch-popover .watchlist-selector-more {
+  min-width: 30px;
+  justify-content: center;
+  padding: 5px;
+}
+
+.watchlist-selector-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  margin: 0 4px 4px;
+  border-top: 1px solid #353535;
+  padding-top: 4px;
+}
+
 .empty-watchlist {
   display: grid;
   place-items: center;
@@ -2925,17 +2964,101 @@ textarea:focus-visible {
   left: auto;
 }
 
-.template-menu button {
+.template-menu {
+  min-width: 284px;
+  max-height: min(560px, calc(100vh - 96px));
+  overflow-y: auto;
+}
+
+.template-menu > .template-option {
   min-width: 220px;
   display: grid;
   grid-template-columns: 1fr;
   gap: 2px;
 }
 
-.template-menu button small,
+.template-menu .template-option small,
+.template-row small,
 .profile-menu small {
   color: var(--muted-2);
   font-size: 9px;
+}
+
+.template-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.template-row > button:first-child {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+
+.template-row-actions {
+  display: flex;
+  align-items: center;
+}
+
+.template-row-actions > button {
+  min-width: 30px;
+  justify-content: center;
+  padding: 6px;
+}
+
+.template-create {
+  border-top: 1px solid #303030 !important;
+  border-radius: 0 !important;
+  margin-top: 4px;
+  padding-top: 9px !important;
+}
+
+.template-editor {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid #303030;
+  margin-top: 4px;
+  padding: 9px 7px 5px;
+}
+
+.template-editor label {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.template-editor input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #3d3d40;
+  border-radius: 5px;
+  outline: 0;
+  background: #080809;
+  color: #fff;
+  padding: 7px 8px;
+  font-size: 11px;
+}
+
+.template-editor input:focus {
+  border-color: #5f8fff;
+}
+
+.template-editor > small {
+  color: #ff7774;
+  font-size: 9px;
+}
+
+.template-editor > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.template-editor .template-save {
+  background: #2762dc;
+  color: #fff;
 }
 
 .profile-menu > div {
@@ -4369,6 +4492,15 @@ textarea:focus-visible {
 
 .workspace-view-tabs > span {
   flex: 1;
+}
+
+.workspace-view-tabs .workspace-settings-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 2px;
+  padding: 0;
 }
 
 .workspace-view-tabs > small {
@@ -6874,7 +7006,7 @@ textarea:focus-visible {
 .summary-after-hours {
   min-height: 34px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 6px;
   margin-top: 7px;
@@ -6883,24 +7015,34 @@ textarea:focus-visible {
   color: var(--muted);
 }
 
-.summary-after-hours > span,
-.summary-after-hours > small {
+.summary-after-hours > span {
   font-size: 11px;
 }
 
-.summary-after-hours > small {
-  min-width: 32px;
-  color: var(--muted-2);
+.summary-after-hours-value {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 7px;
+  white-space: nowrap;
 }
 
-.summary-after-hours > strong {
+.summary-after-hours-value > small {
+  flex: 0 0 auto;
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.summary-after-hours-value > strong {
+  min-width: 0;
   color: #fff;
   font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 600;
 }
 
-.summary-after-hours > strong.neutral {
+.summary-after-hours-value > strong.neutral {
   color: #fff;
 }
 
@@ -7210,19 +7352,6 @@ textarea:focus-visible {
   font-family: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.chart-library-attribution {
-  color: #77777d;
-  text-decoration: none;
-  white-space: nowrap;
-  font-size: 8px;
-}
-
-.chart-library-attribution:hover,
-.chart-library-attribution:focus-visible {
-  color: #d8d8dc;
-  text-decoration: underline;
 }
 
 .stock-detail-toolbar-title {
@@ -8371,8 +8500,7 @@ textarea:focus-visible {
 .workspace-view-tabs > small,
 .status-bar,
 .strategy-status-bar,
-.stock-detail-status,
-.chart-library-attribution {
+.stock-detail-status {
   font-size: var(--type-micro);
 }
 
@@ -8863,13 +8991,15 @@ textarea:focus-visible {
   }
 
   .stock-detail-hero {
-    grid-template-columns: 34px 38px minmax(0, 1fr) auto;
+    grid-template-columns: auto 38px minmax(0, 1fr) auto;
     gap: 7px;
     padding: 8px 10px;
   }
 
   .stock-detail-back {
+    width: auto;
     height: 36px;
+    overflow: visible;
     padding: 0 9px;
     font-size: 12px;
   }
@@ -8986,7 +9116,6 @@ textarea:focus-visible {
 .market-state,
 .status-bar,
 .strategy-status-bar,
-.chart-library-attribution,
 .watchlist-columns,
 .placement-pill,
 .detail-source-chip,
@@ -9051,22 +9180,6 @@ textarea:focus-visible {
   font-size: 13px;
 }
 
-.watch-save-state {
-  flex: 0 0 auto;
-  color: #7eaf91;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.watch-save-state.loading,
-.watch-save-state.saving {
-  color: #9fb5ff;
-}
-
-.watch-save-state.error {
-  color: #ff7774;
-}
-
 .watch-popover button small {
   margin-left: auto;
   color: var(--muted-2);
@@ -9077,6 +9190,103 @@ textarea:focus-visible {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
+}
+
+/* Device-local workspace sizing. The resize handles remain keyboard accessible
+ * and the CSS variables are clamped by the persisted layout contract. */
+.workspace-grid,
+.workspace-grid.bottom-collapsed {
+  grid-template-columns: minmax(460px, 1fr) var(--right-panel-width, 380px) 44px;
+}
+
+.workspace-grid .right-panel {
+  position: relative;
+}
+
+.right-panel-resizer {
+  position: absolute;
+  z-index: 18;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.right-panel-resizer::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  content: "";
+  transition: background 120ms ease;
+}
+
+.right-panel-resizer:hover::after,
+.right-panel-resizer:focus-visible::after {
+  background: var(--blue);
+}
+
+.watchlist-detail-layout {
+  grid-template-rows: minmax(180px, var(--watchlist-split-percent, 38%)) 8px minmax(0, 1fr);
+}
+
+.watchlist-split-resizer {
+  position: relative;
+  z-index: 8;
+  min-height: 8px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #050505;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.watchlist-split-resizer::after {
+  position: absolute;
+  top: 3px;
+  right: calc(50% - 18px);
+  width: 36px;
+  height: 2px;
+  border-radius: 2px;
+  background: #44464d;
+  content: "";
+}
+
+.watchlist-split-resizer:hover::after,
+.watchlist-split-resizer:focus-visible::after {
+  background: var(--blue);
+}
+
+.is-resizing-panel,
+.is-resizing-panel * {
+  user-select: none !important;
+}
+
+@media (max-width: 1260px) and (min-width: 981px) {
+  .workspace-grid,
+  .workspace-grid.bottom-collapsed {
+    grid-template-columns: minmax(420px, 1fr) var(--right-panel-width, 380px) 44px;
+  }
+}
+
+@media (max-width: 980px) {
+  .workspace-grid .right-panel {
+    width: min(var(--right-panel-width, 380px), calc(100vw - 60px));
+  }
+
+  .right-panel-resizer {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .workspace-grid .right-panel {
+    width: min(var(--right-panel-width, 380px), calc(100vw - 50px));
+  }
 }
 
 /* Strategy detail: one dense, horizontally scrollable table from position to
