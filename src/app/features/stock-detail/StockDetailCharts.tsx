@@ -6,6 +6,9 @@ import {
   createChart,
   LineSeries,
   LineStyle,
+  LineType,
+  type IChartApi,
+  type ISeriesApi,
   type LineData,
   type Time,
 } from "lightweight-charts";
@@ -19,6 +22,7 @@ import { useI18n, type Locale } from "../../platform/i18n";
 import { chartLocaleTag, formatChartDate } from "../chart-localization";
 
 const DAY_MS = 86_400_000;
+const ANALYST_TARGET_VALIDITY_DAYS = 365;
 
 export type AnalystChangeTone = "positive" | "negative" | "neutral";
 
@@ -44,8 +48,37 @@ type AnalystChartReadout = Readonly<{
   analystCount?: number;
 }>;
 
+type AnalystCrosshairReadout = Readonly<{
+  dataKey: string;
+  value: AnalystChartReadout;
+}>;
+
+type AnalystTargetChartResources = Readonly<{
+  chart: IChartApi;
+  low: ISeriesApi<"Line">;
+  average: ISeriesApi<"Line">;
+  high: ISeriesApi<"Line">;
+  actualPrice: ISeriesApi<"Line">;
+}>;
+
 function finitePositive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function isoCalendarDayTimestamp(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+  if (!Number.isFinite(timestamp)) return undefined;
+  return new Date(timestamp).toISOString().slice(0, 10) === value ? timestamp : undefined;
+}
+
+function analystTargetIsFresh(targetDate: string, actualDate: string) {
+  const targetTimestamp = isoCalendarDayTimestamp(targetDate);
+  const actualTimestamp = isoCalendarDayTimestamp(actualDate);
+  if (targetTimestamp === undefined || actualTimestamp === undefined || actualTimestamp < targetTimestamp) {
+    return false;
+  }
+  return actualTimestamp - targetTimestamp <= ANALYST_TARGET_VALIDITY_DAYS * DAY_MS;
 }
 
 function normalizedAnalystLabel(value: string | undefined) {
@@ -163,6 +196,50 @@ export function buildAnalystTargetPoints(
     }));
   }
   return Object.freeze(points);
+}
+
+/**
+ * Resolve the last observed consensus on or before an ISO calendar date.
+ * `points` is the ascending, de-duplicated output of buildAnalystTargetPoints.
+ * Dates before the first observation deliberately return no value.
+ */
+export function analystTargetPointAtOrBefore(
+  points: readonly AnalystTargetPoint[],
+  date: string,
+): AnalystTargetPoint | undefined {
+  if (isoCalendarDayTimestamp(date) === undefined || points.length === 0) return undefined;
+  let left = 0;
+  let right = points.length - 1;
+  let match: AnalystTargetPoint | undefined;
+  while (left <= right) {
+    const middle = Math.floor((left + right) / 2);
+    const point = points[middle];
+    if (point.date <= date) {
+      match = point;
+      left = middle + 1;
+    } else {
+      right = middle - 1;
+    }
+  }
+  return match && analystTargetIsFresh(match.date, date) ? match : undefined;
+}
+
+export function extendAnalystTargetPointsToActualPrice(
+  points: readonly AnalystTargetPoint[],
+  actualPrices: readonly ActualStockPricePoint[],
+): readonly AnalystTargetPoint[] {
+  const latestTarget = points.at(-1);
+  const latestActual = actualPrices.at(-1);
+  if (
+    !latestTarget
+    || !latestActual
+    || latestActual.date <= latestTarget.date
+    || !analystTargetIsFresh(latestTarget.date, latestActual.date)
+  ) return points;
+  return Object.freeze([
+    ...points,
+    Object.freeze({ ...latestTarget, date: latestActual.date }),
+  ]);
 }
 
 function marketBarDate(time: string) {
@@ -292,7 +369,8 @@ export function AnalystTargetHistoryChart({
 }) {
   const { locale, t } = useI18n();
   const hostRef = useRef<HTMLDivElement>(null);
-  const [crosshairReadout, setCrosshairReadout] = useState<AnalystChartReadout | null>(null);
+  const resourcesRef = useRef<AnalystTargetChartResources | null>(null);
+  const [crosshairReadout, setCrosshairReadout] = useState<AnalystCrosshairReadout | null>(null);
   const points = useMemo(
     () => buildAnalystTargetPoints(history?.items ?? []),
     [history],
@@ -305,9 +383,26 @@ export function AnalystTargetHistoryChart({
       allPrices.filter((point) => point.date >= firstTargetDate),
     );
   }, [marketBars, points]);
+  const plottedTargetPoints = useMemo(
+    () => extendAnalystTargetPointsToActualPrice(points, actualPrices),
+    [actualPrices, points],
+  );
   const latest = points.at(-1);
   const latestActualPrice = actualPrices.at(-1);
-  const displayedReadout: AnalystChartReadout | null = crosshairReadout ?? (latest ? {
+  const targetDataKey = useMemo(() => [
+    history?.instrumentId ?? "",
+    ...points.map((point) => [
+      point.date,
+      point.low,
+      point.average,
+      point.high,
+      point.analystCount,
+    ].join(":")),
+  ].join("|"), [history?.instrumentId, points]);
+  const activeCrosshairReadout = crosshairReadout?.dataKey === targetDataKey
+    ? crosshairReadout.value
+    : null;
+  const displayedReadout: AnalystChartReadout | null = activeCrosshairReadout ?? (latest ? {
     date: latest.date,
     low: latest.low,
     average: latest.average,
@@ -315,44 +410,47 @@ export function AnalystTargetHistoryChart({
     analystCount: latest.analystCount,
   } : null);
 
+  const hasPoints = points.length > 0;
+
+  // Own the chart instance for the lifetime of this dataset surface. Data,
+  // locale, and crosshair subscriptions update independently so routine live
+  // refreshes do not remove and recreate the canvas.
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || points.length === 0) return;
-    const chart = chartBase(host, locale);
+    if (!host || !hasPoints) return;
+    const chart = chartBase(host, "en");
     const low = chart.addSeries(LineSeries, {
       color: "#f0a15a",
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
+      lineType: LineType.WithSteps,
       priceLineVisible: false,
       lastValueVisible: true,
-      title: t("detail.chart.target.lowSeries"),
-    });
-    const average = chart.addSeries(LineSeries, {
-      color: "#4f8cff",
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
-      title: t("detail.chart.target.averageSeries"),
     });
     const high = chart.addSeries(LineSeries, {
       color: "#37c982",
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
+      lineType: LineType.WithSteps,
       priceLineVisible: false,
       lastValueVisible: true,
-      title: t("detail.chart.target.highSeries"),
     });
     const actualPrice = chart.addSeries(LineSeries, {
       color: "#f4f5f7",
       lineWidth: 2,
       priceLineVisible: false,
       lastValueVisible: true,
-      title: t("detail.chart.target.actualSeries"),
     });
-    low.setData(points.map((point) => ({ time: point.date as Time, value: point.low })));
-    average.setData(points.map((point) => ({ time: point.date as Time, value: point.average })));
-    high.setData(points.map((point) => ({ time: point.date as Time, value: point.high })));
-    actualPrice.setData(actualPrices.map((point) => ({ time: point.date as Time, value: point.close })));
+    // The average is the primary series. Add it last so equal low/high/actual
+    // values cannot paint over the blue consensus line.
+    const average = chart.addSeries(LineSeries, {
+      color: "#4f8cff",
+      lineWidth: 2,
+      lineType: LineType.WithSteps,
+      priceLineVisible: false,
+      lastValueVisible: true,
+    });
+    resourcesRef.current = { chart, low, average, high, actualPrice };
 
     const applyRightSideSpace = (width: number) => {
       chart.timeScale().applyOptions({
@@ -361,34 +459,65 @@ export function AnalystTargetHistoryChart({
       });
     };
     applyRightSideSpace(host.clientWidth);
+    const observer = observeChartResize(host, chart, applyRightSideSpace);
+    return () => {
+      observer.disconnect();
+      if (resourcesRef.current?.chart === chart) resourcesRef.current = null;
+      chart.remove();
+    };
+  }, [hasPoints]);
 
-    const targetPointByDate = new Map(points.map((point) => [point.date, point]));
-    chart.subscribeCrosshairMove((parameter) => {
+  useEffect(() => {
+    const resources = resourcesRef.current;
+    if (!resources) return;
+    resources.chart.applyOptions({ localization: { locale: chartLocaleTag(locale) } });
+    resources.low.applyOptions({ title: t("detail.chart.target.lowSeries") });
+    resources.average.applyOptions({ title: t("detail.chart.target.averageSeries") });
+    resources.high.applyOptions({ title: t("detail.chart.target.highSeries") });
+    resources.actualPrice.applyOptions({ title: t("detail.chart.target.actualSeries") });
+  }, [hasPoints, locale, t]);
+
+  useEffect(() => {
+    const resources = resourcesRef.current;
+    if (!resources) return;
+    resources.low.setData(plottedTargetPoints.map((point) => ({ time: point.date as Time, value: point.low })));
+    resources.average.setData(plottedTargetPoints.map((point) => ({ time: point.date as Time, value: point.average })));
+    resources.high.setData(plottedTargetPoints.map((point) => ({ time: point.date as Time, value: point.high })));
+    resources.actualPrice.setData(actualPrices.map((point) => ({ time: point.date as Time, value: point.close })));
+    resources.chart.timeScale().fitContent();
+  }, [actualPrices, hasPoints, plottedTargetPoints]);
+
+  useEffect(() => {
+    const resources = resourcesRef.current;
+    if (!resources) return;
+    const handleCrosshairMove: Parameters<IChartApi["subscribeCrosshairMove"]>[0] = (parameter) => {
       if (!parameter.time) {
         setCrosshairReadout(null);
         return;
       }
       const date = chartTimeDate(parameter.time);
-      const targetPoint = targetPointByDate.get(date);
-      const nextReadout: AnalystChartReadout = {
-        date,
-        low: lineSeriesValue(parameter.seriesData.get(low)),
-        average: lineSeriesValue(parameter.seriesData.get(average)),
-        high: lineSeriesValue(parameter.seriesData.get(high)),
-        actualPrice: lineSeriesValue(parameter.seriesData.get(actualPrice)),
-        analystCount: targetPoint?.analystCount,
-      };
-      setCrosshairReadout(nextReadout);
-    });
-    chart.timeScale().fitContent();
-    const observer = observeChartResize(host, chart, applyRightSideSpace);
-    return () => {
-      observer.disconnect();
-      chart.remove();
+      const targetPoint = analystTargetPointAtOrBefore(points, date);
+      setCrosshairReadout({
+        dataKey: targetDataKey,
+        value: {
+          date,
+          low: targetPoint?.low,
+          average: targetPoint?.average,
+          high: targetPoint?.high,
+          actualPrice: lineSeriesValue(parameter.seriesData.get(resources.actualPrice)),
+          analystCount: targetPoint?.analystCount,
+        },
+      });
     };
-  }, [actualPrices, locale, points, t]);
+    resources.chart.subscribeCrosshairMove(handleCrosshairMove);
+    return () => {
+      if (resourcesRef.current?.chart === resources.chart) {
+        resources.chart.unsubscribeCrosshairMove(handleCrosshairMove);
+      }
+    };
+  }, [hasPoints, points, targetDataKey]);
 
-  if (!history || points.length === 0) return null;
+  if (!history || !hasPoints) return null;
   return (
     <section className="detail-visual-card analyst-target-visual">
       <header>

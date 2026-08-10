@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { GET as getStrategyTransactions } from "../src/app/api/v1/strategy-portfolios/[strategyId]/transactions/route";
+import { GET as getStrategyTransaction } from "../src/app/api/v1/strategy-portfolios/[strategyId]/transactions/[transactionId]/route";
 import { GET as getStrategyPreferences } from "../src/app/api/v1/strategy-preferences/route";
+import { GET as getStrategies } from "../src/app/api/v1/strategies/route";
+import { GET as getStrategy } from "../src/app/api/v1/strategies/[strategyId]/route";
 import { POST as getAfterHours } from "../src/app/api/v1/watchlists/after-hours/route";
 import { POST as getWatchlistQuotes } from "../src/app/api/v1/watchlists/quotes/route";
 import { GET as getWatchlists } from "../src/app/api/v1/watchlists/route";
@@ -52,9 +55,25 @@ test("all persisted API families fail closed before touching D1", async () => {
   const responses = await Promise.all([
     getWatchlists(publicRequest("/api/v1/watchlists")),
     getStrategyPreferences(publicRequest("/api/v1/strategy-preferences")),
+    getStrategies(publicRequest("/api/v1/strategies")),
+    getStrategy(
+      publicRequest("/api/v1/strategies/sample.rsi-14-mean-reversion.v1"),
+      { params: Promise.resolve({ strategyId: "sample.rsi-14-mean-reversion.v1" }) },
+    ),
     getStrategyTransactions(
       publicRequest("/api/v1/strategy-portfolios/sample.rsi-14-mean-reversion.v1/transactions"),
       { params: Promise.resolve({ strategyId: "sample.rsi-14-mean-reversion.v1" }) },
+    ),
+    getStrategyTransaction(
+      publicRequest(
+        "/api/v1/strategy-portfolios/sample.rsi-14-mean-reversion.v1/transactions/trade-1",
+      ),
+      {
+        params: Promise.resolve({
+          strategyId: "sample.rsi-14-mean-reversion.v1",
+          transactionId: "trade-1",
+        }),
+      },
     ),
   ]);
 
@@ -87,7 +106,10 @@ test("every persisted route resolves ownership and watchlist provider proxies en
     "src/app/api/v1/watchlists/after-hours/route.ts",
     "src/app/api/v1/strategy-preferences/route.ts",
     "src/app/api/v1/strategy-preferences/[strategyId]/route.ts",
+    "src/app/api/v1/strategies/route.ts",
+    "src/app/api/v1/strategies/[strategyId]/route.ts",
     "src/app/api/v1/strategy-portfolios/[strategyId]/transactions/route.ts",
+    "src/app/api/v1/strategy-portfolios/[strategyId]/transactions/[transactionId]/route.ts",
   ];
   for (const routeFile of routeFiles) {
     assert.match(

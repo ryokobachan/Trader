@@ -20,10 +20,14 @@ test("strategy feature defaults to readable English and supports Japanese", () =
   assert.equal(english("index.title"), "Strategies");
   assert.equal(english("detail.addTransaction"), "Add transaction");
   assert.equal(english("detail.editStrategy"), "Edit strategy");
+  assert.equal(english("sample.userSupplied"), "USER-SUPPLIED");
+  assert.equal(english("chart.unavailable"), "No reproducible performance series is available for this strategy.");
   assert.equal(english("toast.portfolioDeleted"), "Strategy deleted.");
   assert.equal(english("toast.transactionSaved", { symbol: "AAPL", side: "Buy" }), "AAPL Buy saved.");
   assert.equal(japanese("index.title"), "戦略一覧");
   assert.equal(japanese("detail.editStrategy"), "戦略を編集");
+  assert.equal(japanese("sample.userSupplied"), "ユーザー入力");
+  assert.equal(japanese("chart.unavailable"), "この戦略には再現可能な成績時系列がありません。");
   assert.equal(japanese("toast.transactionSaved", { symbol: "AAPL", side: "買付" }), "AAPLの買付を保存しました");
 });
 

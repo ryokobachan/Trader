@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Unicorn Strategies"
+  short_description: "Explore, compare, and manage Unicorn strategies"
+  default_prompt: "Use $manage-unicorn-strategies to explore registered strategies, compare candidates, and safely update the selected strategy."

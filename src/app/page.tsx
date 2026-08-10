@@ -87,11 +87,18 @@ import {
 import {
   DEFAULT_SAMPLE_STRATEGY_ID,
   sampleStrategiesForLocale,
-  type SampleStrategyRecord as StrategyRecord,
+  type SampleStrategyRecord,
 } from "@strategies/catalog";
 import { buildStrategySummaryMetricRegistry } from "@strategies/metrics";
-import { SAMPLE_PORTFOLIO_HOLDINGS } from "@strategies/sample-portfolio";
-import { mergeStrategyPreferenceSnapshots } from "./features/strategy/strategy-preference-state";
+import {
+  SAMPLE_PORTFOLIO_HOLDINGS,
+  samplePortfolioHoldingsForStrategy,
+} from "@strategies/sample-portfolio";
+import {
+  markSamplePortfolio,
+  strategyMarketMark,
+  type StrategyMarketMark,
+} from "@strategies/market-valuation";
 import {
   resolveInstrumentSearchView,
   type InstrumentSearchStatus,
@@ -220,11 +227,11 @@ import type {
   StrategyPortfolioTransactionsResponse,
 } from "./platform/strategy-portfolio-contracts";
 import type {
-  StrategyPreference,
-  StrategyPreferenceDeleteResponse,
-  StrategyPreferenceMutationResponse,
-  StrategyPreferencesResponse,
-} from "./platform/strategy-preference-contracts";
+  StrategiesResponse,
+  StrategyMutationResponse,
+  StrategyPerformance,
+  StrategyRecord as StrategyApiRecord,
+} from "./platform/strategy-contracts";
 
 type Stock = SymbolSummaryStock & {
   currency: "$" | "¥";
@@ -308,6 +315,42 @@ type PortfolioTransaction = {
   price: number;
   fee: number;
 };
+
+type StrategyRecord = SampleStrategyRecord & {
+  origin: StrategyApiRecord["origin"];
+  version: number;
+  performance: StrategyPerformance;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+function strategyRecordFromApi(strategy: StrategyApiRecord): StrategyRecord {
+  return {
+    id: strategy.id,
+    origin: strategy.origin,
+    version: strategy.version,
+    family: strategy.family,
+    status: strategy.status,
+    candidateAt: strategy.candidateAt,
+    name: strategy.name,
+    category: strategy.category,
+    sourceLabels: [...strategy.sourceLabels],
+    headline: strategy.headline,
+    audit: { ...strategy.audit },
+    performance: { ...strategy.performance },
+    netReturn: strategy.performance.netReturn ?? 0,
+    maxDrawdown: strategy.performance.maxDrawdown ?? 0,
+    recoveryFactor: strategy.performance.recoveryFactor ?? 0,
+    sharpe: strategy.performance.sharpe,
+    forwardReturn: strategy.performance.forwardReturn ?? 0,
+    winRate: strategy.performance.winRate ?? 0,
+    trades: strategy.performance.trades ?? 0,
+    symbols: strategy.performance.symbols ?? 0,
+    cash: strategy.performance.cash ?? 0,
+    createdAt: strategy.createdAt,
+    updatedAt: strategy.updatedAt,
+  };
+}
 
 const STOCKS: Stock[] = [
   {
@@ -582,6 +625,9 @@ function isIndicatorId(value: unknown): value is IndicatorId {
 
 
 const PORTFOLIO_HOLDINGS = SAMPLE_PORTFOLIO_HOLDINGS;
+const STRATEGY_MARKET_SYMBOLS = Object.freeze(
+  Array.from(new Set(PORTFOLIO_HOLDINGS.map((holding) => holding.ticker))),
+);
 
 const portfolioTransactionFromApi = (
   transaction: StrategyPortfolioTransaction,
@@ -1319,6 +1365,18 @@ function PortfolioProfitChart({ seed, ariaLabel }: { seed: number; ariaLabel: st
   return <div className="portfolio-analysis-chart" ref={containerRef} aria-label={ariaLabel} />;
 }
 
+function StrategyChartUnavailable({
+  className,
+  title,
+  message,
+}: {
+  className: string;
+  title: string;
+  message: string;
+}) {
+  return <div className={`${className} empty-state`} role="status" aria-label={`${title} · ${message}`} data-chart-status="unavailable"><span>{message}</span></div>;
+}
+
 function DialogShell({
   title,
   eyebrow,
@@ -1425,6 +1483,11 @@ const STOCK_DETAIL_METRIC_LABEL_KEYS: Readonly<Record<string, string>> = {
   "FCFマージン": "metric.fcfMargin",
   "総資産回転率": "metric.assetTurnover",
   "インタレスト・カバレッジ": "metric.interestCoverage",
+  "Altman Zスコア": "metric.altmanZScore",
+  "Piotroski Fスコア": "metric.piotroskiScore",
+  "浮動株比率": "metric.freeFloatRatio",
+  "浮動株数": "metric.floatShares",
+  "発行済株式数": "metric.outstandingShares",
   "現金・短期投資": "metric.cash",
   "総資産": "metric.totalAssets",
   "有利子負債": "metric.totalDebt",
@@ -1468,6 +1531,8 @@ const STOCK_DETAIL_NOTE_KEYS: Readonly<Record<string, string>> = {
   "Provider最新値 · %": "detail.note.providerPercent",
   "Provider最新値 · 倍率": "detail.note.providerMultiple",
   "Provider最新値 · USD / 株": "detail.note.providerUsdPerShare",
+  "Provider最新値 · 株式数": "detail.note.providerShares",
+  "Provider算出値 · スコア": "detail.note.providerScore",
   "取得OHLCV全期間": "detail.note.allOhlcv",
   "終値・日足20本": "detail.note.closeDaily20",
   "日足20本": "detail.note.daily20",
@@ -1695,6 +1760,10 @@ const FUNDAMENTAL_GROUP_PRESENTATION: Readonly<Record<FundamentalGroupId, Readon
   profitability: {
     eyebrow: "PROFITABILITY",
     titleKey: "detail.section.profitability",
+  },
+  financial_health: {
+    eyebrow: "HEALTH & SHARE STRUCTURE",
+    titleKey: "detail.section.financialHealth",
   },
   balance_sheet: {
     eyebrow: "BALANCE SHEET",
@@ -2264,20 +2333,45 @@ function StrategyHome({
   const { locale } = useI18n();
   const st = useMemo(() => createStrategyTranslator(locale), [locale]);
   const baseStrategies = useMemo(() => sampleStrategiesForLocale(locale), [locale]);
-  const [strategyPreferences, setStrategyPreferences] = useState<StrategyPreference[] | null>(null);
-  const strategies = useMemo(
-    () => strategyPreferences === null
-      ? []
-      : sampleStrategiesForLocale(locale, strategyPreferences),
-    [locale, strategyPreferences],
-  );
-  const [strategyPreferenceStatus, setStrategyPreferenceStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [strategyMutationStatus, setStrategyMutationStatus] = useState<"idle" | "saving" | "deleting">("idle");
+  const fallbackStrategy = useMemo<StrategyRecord>(() => {
+    const strategy = baseStrategies[0];
+    return {
+      ...strategy,
+      origin: "built_in",
+      version: 1,
+      performance: {
+        provenance: "illustrative_catalog",
+        netReturn: strategy.netReturn,
+        maxDrawdown: strategy.maxDrawdown,
+        recoveryFactor: strategy.recoveryFactor,
+        sharpe: strategy.sharpe,
+        forwardReturn: strategy.forwardReturn,
+        winRate: strategy.winRate,
+        trades: strategy.trades,
+        symbols: strategy.symbols,
+        cash: strategy.cash,
+      },
+      createdAt: null,
+      updatedAt: null,
+    };
+  }, [baseStrategies]);
+  const [strategyRecords, setStrategyRecords] = useState<StrategyRecord[] | null>(null);
+  const strategies = strategyRecords ?? [];
+  const [strategyCatalogStatus, setStrategyCatalogStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [strategyMutationStatus, setStrategyMutationStatus] = useState<"idle" | "creating" | "duplicating" | "saving" | "deleting">("idle");
+  const [strategyMutationError, setStrategyMutationError] = useState<"request" | "conflict" | null>(null);
   const [strategyRefreshVersion, setStrategyRefreshVersion] = useState(0);
-  const strategyPreferenceReadControllerRef = useRef<AbortController | null>(null);
-  const strategyPreferenceReadEpochRef = useRef(0);
+  const strategyCatalogReadControllerRef = useRef<AbortController | null>(null);
+  const strategyCatalogReadEpochRef = useRef(0);
+  const [strategyMarketMarks, setStrategyMarketMarks] = useState<Readonly<Record<string, StrategyMarketMark>>>({});
+  const [strategyStockModels, setStrategyStockModels] = useState<Readonly<Record<string, Stock>>>(() => (
+    Object.fromEntries(STOCKS.map((item) => [item.ticker, item]))
+  ));
   const [settingsName, setSettingsName] = useState("");
   const [settingsHeadline, setSettingsHeadline] = useState("");
+  const [createName, setCreateName] = useState("");
+  const [createHeadline, setCreateHeadline] = useState("");
+  const [createCategory, setCreateCategory] = useState("");
   const [screen, setScreen] = useState<"index" | "detail">("index");
   const [selectedId, setSelectedId] = useState<string>(DEFAULT_SAMPLE_STRATEGY_ID);
   const [tab, setTab] = useState<PortfolioTab>("概要");
@@ -2304,7 +2398,6 @@ function StrategyHome({
     boundaryRefs: portfolioMenuBoundaries,
     onDismiss: () => setPortfolioMenuOpen(false),
   });
-  const [createMethod, setCreateMethod] = useState<"manual" | "watchlist" | "csv">("manual");
   const [strategyDuration, setStrategyDuration] = useState<StrategyDuration>("1Y");
   const [strategySortKey, setStrategySortKey] = useState<StrategySortKey>("profit");
   const [strategySortDirection, setStrategySortDirection] = useState<"asc" | "desc">("desc");
@@ -2316,34 +2409,101 @@ function StrategyHome({
   const [transactionShares, setTransactionShares] = useState("10");
   const [transactionPrice, setTransactionPrice] = useState("231.41");
   const activeStrategyDurationLabel = strategyDurationLabel(locale, strategyDuration);
-  const selected = strategies.find((strategy) => strategy.id === selectedId) ?? strategies[0] ?? baseStrategies[0];
-  const strategyCatalogReady = strategyPreferences !== null;
+  const selected = strategies.find((strategy) => strategy.id === selectedId) ?? strategies[0] ?? fallbackStrategy;
+  const strategyCatalogReady = strategyRecords !== null;
   const selectedStrategyIsVisible = strategies.some((strategy) => strategy.id === selected.id);
   const transactions = transactionsByStrategy[selected.id] ?? [];
   useEffect(() => {
     selectedStrategyIdRef.current = selected.id;
   }, [selected.id]);
   const selectedCatalogIndex = Math.max(0, baseStrategies.findIndex((strategy) => strategy.id === selected.id));
-  const unrealizedGain = PORTFOLIO_HOLDINGS.reduce((sum, holding) => sum + holding.unrealized, 0);
-  const { portfolioValue, cards: strategySummaryCards } = buildStrategySummaryMetricRegistry({
+  const illustrativeStrategyChartsAvailable = selected.origin === "built_in"
+    && selected.performance.provenance === "illustrative_catalog";
+  const samplePortfolioHoldings = useMemo(
+    () => selected.origin === "built_in"
+      ? samplePortfolioHoldingsForStrategy(selected.id)
+      : Object.freeze([]),
+    [selected.id, selected.origin],
+  );
+  const markedPortfolio = useMemo(
+    () => markSamplePortfolio(samplePortfolioHoldings, strategyMarketMarks, selected.cash),
+    [samplePortfolioHoldings, selected.cash, strategyMarketMarks],
+  );
+  const portfolioHoldings = markedPortfolio.holdings;
+  const unrealizedGain = markedPortfolio.unrealizedGain ?? 0;
+  const { cashValue, cards: strategySummaryCards } = buildStrategySummaryMetricRegistry({
     selected,
     selectedCatalogIndex,
     unrealizedGain,
+    ...(markedPortfolio.holdingsValue === null
+      ? {}
+      : { holdingsMarketValue: markedPortfolio.holdingsValue }),
     translate: st,
   });
-  const holdingRows = showSold
-    ? [...PORTFOLIO_HOLDINGS, { ticker: "META", shares: 0, average: 478.2, value: 0, allocation: 0, daily: 1.12, unrealized: 4832, beta: 1.22, rsi: 53.9, performance1M: 8.1, technicalRating: "買い" as const }]
-    : PORTFOLIO_HOLDINGS;
+  const isStrategySummaryMetricAvailable = (id: string) => {
+    if (selected.origin === "built_in") {
+      if (id === "portfolio.value" || id === "portfolio.unrealizedGain") {
+        return markedPortfolio.complete;
+      }
+      return true;
+    }
+    if (id === "portfolio.totalGain" || id === "portfolio.annualReturn") {
+      return selected.performance.netReturn !== null;
+    }
+    if (id === "risk.sharpe") return selected.performance.sharpe !== null;
+    if (id === "risk.maxDrawdown") return selected.performance.maxDrawdown !== null;
+    return false;
+  };
+  const holdingRows = showSold && selected.origin === "built_in"
+    ? [...portfolioHoldings, { ticker: "META", shares: 0, average: 478.2, currentPrice: null, value: 0, allocation: 0, daily: null, unrealized: 4832, beta: 1.22, rsi: 53.9, performance1M: 8.1, technicalRating: "買い" as const }]
+    : portfolioHoldings;
   const durationFactor: Record<StrategyDuration, number> = { "1M": 0.12, "3M": 0.31, "6M": 0.58, "1Y": 1, "3Y": 1.68, "全期間": 2.14 };
+  const performanceProvenanceLabel = (strategy: StrategyRecord) => {
+    if (strategy.performance.provenance === "illustrative_catalog") return st("sample.badge");
+    if (strategy.performance.provenance === "user_supplied") return st("sample.userSupplied");
+    if (strategy.performance.provenance === "transaction_snapshot") return st("sample.transactionSnapshot");
+    return st("sample.unavailable");
+  };
   const metricsFor = (strategy: StrategyRecord) => {
+    if (strategy.performance.provenance !== "illustrative_catalog") {
+      return {
+        profit: strategy.performance.netReturn,
+        maxDrawdown: strategy.performance.maxDrawdown,
+        recoveryFactor: strategy.performance.recoveryFactor,
+        sharpe: strategy.performance.sharpe,
+        winRate: strategy.performance.winRate,
+      };
+    }
     const factor = durationFactor[strategyDuration];
-    const profit = strategy.netReturn * factor;
-    const maxDrawdown = strategy.maxDrawdown * Math.min(1.22, 0.38 + factor * 0.62);
-    const recoveryFactor = Math.abs(maxDrawdown) > 0 ? profit / Math.abs(maxDrawdown) : 0;
-    const sharpe = strategy.sharpe === null ? null : strategy.sharpe * (0.84 + Math.min(factor, 1.4) * 0.16);
-    const winRate = 50 + (strategy.winRate - 50) * (0.72 + Math.min(factor, 1.2) * 0.28);
+    const profit = strategy.performance.netReturn === null
+      ? null
+      : strategy.performance.netReturn * factor;
+    const maxDrawdown = strategy.performance.maxDrawdown === null
+      ? null
+      : strategy.performance.maxDrawdown * Math.min(1.22, 0.38 + factor * 0.62);
+    const recoveryFactor = profit === null || maxDrawdown === null
+      ? null
+      : Math.abs(maxDrawdown) > 0 ? profit / Math.abs(maxDrawdown) : 0;
+    const sharpe = strategy.performance.sharpe === null
+      ? null
+      : strategy.performance.sharpe * (0.84 + Math.min(factor, 1.4) * 0.16);
+    const winRate = strategy.performance.winRate === null
+      ? null
+      : 50 + (strategy.performance.winRate - 50) * (0.72 + Math.min(factor, 1.2) * 0.28);
     return { profit, maxDrawdown, recoveryFactor, sharpe, winRate };
   };
+  const strategyStockFor = (ticker: string) => strategyStockModels[ticker]
+    ?? STOCKS.find((item) => item.ticker === ticker)
+    ?? { ...STOCKS[0], ticker, name: ticker, logoFallback: ticker.slice(0, 2), logoPath: "" };
+  const portfolioMoney = (value: number | null) => value === null
+    ? "—"
+    : `$${Math.round(value).toLocaleString("en-US")}`;
+  const signedPortfolioMoney = (value: number | null) => value === null
+    ? "—"
+    : `${value >= 0 ? "+" : "-"}$${Math.abs(Math.round(value)).toLocaleString("en-US")}`;
+  const portfolioPercent = (value: number | null, signed = false) => value === null
+    ? "—"
+    : `${signed && value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
   const strategyCategories = ["すべて", ...Array.from(new Set(strategies.map((strategy) => strategy.category)))];
   const activeStrategyCategory = strategyCategories.includes(strategyCategory) ? strategyCategory : "すべて";
   const listedStrategies = strategies
@@ -2367,11 +2527,14 @@ function StrategyHome({
       const bValue = metricsFor(b)[metricKey] ?? Number.NEGATIVE_INFINITY;
       return (Number(aValue) - Number(bValue)) * (strategySortDirection === "asc" ? 1 : -1);
     });
-  const profitableCount = listedStrategies.filter((strategy) => metricsFor(strategy).profit > 0).length;
-  const averageSharpe = listedStrategies.length
-    ? listedStrategies.reduce((sum, strategy) => sum + (metricsFor(strategy).sharpe ?? 0), 0) / listedStrategies.length
-    : 0;
-  const bestStrategy = [...listedStrategies].sort((a, b) => metricsFor(b).profit - metricsFor(a).profit)[0];
+  const profitableCount = listedStrategies.filter((strategy) => (metricsFor(strategy).profit ?? Number.NEGATIVE_INFINITY) > 0).length;
+  const strategiesWithSharpe = listedStrategies.filter((strategy) => metricsFor(strategy).sharpe !== null);
+  const averageSharpe = strategiesWithSharpe.length
+    ? strategiesWithSharpe.reduce((sum, strategy) => sum + (metricsFor(strategy).sharpe ?? 0), 0) / strategiesWithSharpe.length
+    : null;
+  const bestStrategy = [...listedStrategies]
+    .filter((strategy) => metricsFor(strategy).profit !== null)
+    .sort((a, b) => (metricsFor(b).profit ?? Number.NEGATIVE_INFINITY) - (metricsFor(a).profit ?? Number.NEGATIVE_INFINITY))[0];
 
   const applyStrategySort = (key: StrategySortKey) => {
     if (key === strategySortKey) setStrategySortDirection((current) => current === "desc" ? "asc" : "desc");
@@ -2394,61 +2557,149 @@ function StrategyHome({
   };
 
   const openTransaction = (ticker = "AAPL") => {
-    const stock = STOCKS.find((item) => item.ticker === ticker) ?? STOCKS[0];
+    const stock = strategyStockModels[ticker]
+      ?? STOCKS.find((item) => item.ticker === ticker)
+      ?? STOCKS[0];
     setTransactionTicker(ticker);
-    setTransactionPrice(String(stock.price));
+    setTransactionPrice(String(strategyMarketMarks[ticker]?.price ?? stock.price));
     setDialog("transaction");
   };
 
-  const upsertStrategyPreference = (preference: StrategyPreference) => {
-    setStrategyPreferences((current) => mergeStrategyPreferenceSnapshots(current ?? [], [preference]));
+  const upsertStrategyRecord = (strategy: StrategyApiRecord) => {
+    const normalized = strategyRecordFromApi(strategy);
+    setStrategyRecords((current) => {
+      const records = current ?? [];
+      const existingIndex = records.findIndex((item) => item.id === normalized.id);
+      if (existingIndex < 0) return [normalized, ...records];
+      return records.map((item) => item.id === normalized.id ? normalized : item);
+    });
   };
 
-  const invalidateStrategyPreferenceRead = () => {
-    strategyPreferenceReadEpochRef.current += 1;
-    strategyPreferenceReadControllerRef.current?.abort();
-    strategyPreferenceReadControllerRef.current = null;
+  const invalidateStrategyCatalogRead = () => {
+    strategyCatalogReadEpochRef.current += 1;
+    strategyCatalogReadControllerRef.current?.abort();
+    strategyCatalogReadControllerRef.current = null;
+  };
+
+  const refreshStrategyCatalog = () => {
+    setStrategyCatalogStatus("loading");
+    setStrategyMutationError(null);
+    setStrategyRefreshVersion((current) => current + 1);
+  };
+
+  const markStrategyMutationFailure = (status: number) => {
+    setStrategyMutationError(status === 409 ? "conflict" : "request");
   };
 
   const openStrategySettings = () => {
     setSettingsName(selected.name);
     setSettingsHeadline(selected.headline);
+    setStrategyMutationError(null);
     setDialog("settings");
+  };
+
+  const openCreateStrategy = () => {
+    setCreateName("");
+    setCreateHeadline("");
+    setCreateCategory("");
+    setStrategyMutationError(null);
+    setDialog("create");
   };
 
   useEffect(() => {
     const controller = new AbortController();
-    strategyPreferenceReadControllerRef.current?.abort();
-    strategyPreferenceReadControllerRef.current = controller;
-    const requestEpoch = strategyPreferenceReadEpochRef.current + 1;
-    strategyPreferenceReadEpochRef.current = requestEpoch;
-    void fetch("/api/v1/strategy-preferences", { signal: controller.signal })
+    strategyCatalogReadControllerRef.current?.abort();
+    strategyCatalogReadControllerRef.current = controller;
+    const requestEpoch = strategyCatalogReadEpochRef.current + 1;
+    strategyCatalogReadEpochRef.current = requestEpoch;
+    void fetch(`/api/v1/strategies?locale=${encodeURIComponent(locale)}`, { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error("strategy preference request failed");
-        return response.json() as Promise<StrategyPreferencesResponse>;
+        if (!response.ok) throw new Error("strategy catalog request failed");
+        return response.json() as Promise<StrategiesResponse>;
       })
       .then((payload) => {
-        if (controller.signal.aborted || strategyPreferenceReadEpochRef.current !== requestEpoch) return;
-        setStrategyPreferences((current) => current === null
-          ? payload.preferences
-          : mergeStrategyPreferenceSnapshots(current, payload.preferences));
-        const visibleStrategies = sampleStrategiesForLocale("en", payload.preferences);
+        if (controller.signal.aborted || strategyCatalogReadEpochRef.current !== requestEpoch) return;
+        const visibleStrategies = payload.strategies.map(strategyRecordFromApi);
+        setStrategyRecords(visibleStrategies);
         setSelectedId((current) => visibleStrategies.some((strategy) => strategy.id === current)
           ? current
           : visibleStrategies[0]?.id ?? DEFAULT_SAMPLE_STRATEGY_ID);
-        setStrategyPreferenceStatus("ready");
+        setStrategyCatalogStatus("ready");
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
-        if (strategyPreferenceReadEpochRef.current !== requestEpoch) return;
-        setStrategyPreferenceStatus("error");
+        if (strategyCatalogReadEpochRef.current !== requestEpoch) return;
+        setStrategyCatalogStatus("error");
       });
     return () => {
       controller.abort();
-      if (strategyPreferenceReadControllerRef.current === controller) {
-        strategyPreferenceReadControllerRef.current = null;
+      if (strategyCatalogReadControllerRef.current === controller) {
+        strategyCatalogReadControllerRef.current = null;
       }
     };
+  }, [locale, strategyRefreshVersion]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const symbols = [...STRATEGY_MARKET_SYMBOLS];
+    const quoteRequest = fetch("/api/v1/watchlists/quotes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbols }),
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => response.ok
+        ? response.json() as Promise<WatchlistQuotesResponse>
+        : null)
+      .catch(() => null);
+    const barsRequest = Promise.all(symbols.map(async (symbol) => {
+      try {
+        const response = await fetch(
+          `/api/v1/symbols/${encodeURIComponent(symbol)}/bars?range=5d&interval=1d&count=3`,
+          { cache: "no-store", signal: controller.signal },
+        );
+        if (!response.ok) return [symbol, []] as const;
+        const payload = await response.json() as MarketBarsResponse;
+        return [symbol, payload.bars.items] as const;
+      } catch {
+        return [symbol, []] as const;
+      }
+    }));
+
+    void Promise.all([quoteRequest, barsRequest]).then(([quoteResponse, barEntries]) => {
+      if (controller.signal.aborted) return;
+      const quoteItems = new Map(
+        (quoteResponse?.items ?? []).map((item) => [item.symbol, item] as const),
+      );
+      const barsBySymbol = new Map(barEntries);
+      const nextMarks: Record<string, StrategyMarketMark> = {};
+      const nextStocks: Record<string, Stock> = {};
+      for (const symbol of symbols) {
+        const item = quoteItems.get(symbol);
+        const mark = strategyMarketMark(item?.quote ?? null, barsBySymbol.get(symbol) ?? []);
+        if (!mark) continue;
+        nextMarks[symbol] = mark;
+        const staticStock = STOCKS.find((candidate) => candidate.ticker === symbol) ?? STOCKS[0];
+        const quoteStock = item ? watchlistQuoteStock(item, staticStock) : null;
+        const identityStock = item?.instrument
+          ? instrumentPlaceholder(item.instrument)
+          : staticStock;
+        const changeValue = mark.changePercent === null || mark.changePercent <= -100
+          ? 0
+          : mark.price - mark.price / (1 + mark.changePercent / 100);
+        nextStocks[symbol] = {
+          ...(quoteStock ?? identityStock),
+          price: mark.price,
+          change: mark.changePercent ?? 0,
+          changeValue,
+        };
+      }
+      setStrategyMarketMarks(Object.freeze(nextMarks));
+      setStrategyStockModels((current) => Object.freeze({ ...current, ...nextStocks }));
+    });
+
+    return () => controller.abort();
   }, [strategyRefreshVersion]);
 
   useEffect(() => {
@@ -2579,28 +2830,125 @@ function StrategyHome({
       return;
     }
 
-    invalidateStrategyPreferenceRead();
+    invalidateStrategyCatalogRead();
+    setStrategyMutationError(null);
     setStrategyMutationStatus("saving");
+    let conflict = false;
     try {
       const response = await fetch(
-        `/api/v1/strategy-preferences/${encodeURIComponent(selected.id)}`,
+        `/api/v1/strategies/${encodeURIComponent(selected.id)}?locale=${encodeURIComponent(locale)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(changes),
+          body: JSON.stringify({
+            ...changes,
+            ...(selected.origin === "custom" ? { expectedVersion: selected.version } : {}),
+          }),
         },
       );
-      if (!response.ok) throw new Error("strategy preference save failed");
-      const payload = await response.json() as StrategyPreferenceMutationResponse;
-      upsertStrategyPreference(payload.preference);
-      setStrategyPreferenceStatus("ready");
+      if (!response.ok) {
+        conflict = response.status === 409;
+        markStrategyMutationFailure(response.status);
+        throw new Error("strategy save failed");
+      }
+      const payload = await response.json() as StrategyMutationResponse;
+      upsertStrategyRecord(payload.strategy);
+      setStrategyCatalogStatus("ready");
       setStrategyMutationStatus("idle");
       setDialog(null);
       onAction(st("toast.settingsSaved"));
     } catch {
-      setStrategyPreferenceStatus("error");
       setStrategyMutationStatus("idle");
-      onAction(st("toast.settingsSaveFailed"));
+      onAction(st(conflict ? "toast.strategyConflict" : "toast.settingsSaveFailed"));
+    }
+  };
+
+  const createStrategy = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = createName.trim();
+    const headline = createHeadline.trim();
+    const category = createCategory.trim();
+    if (!name || !headline || name.length > 120 || headline.length > 500) return;
+
+    invalidateStrategyCatalogRead();
+    setStrategyMutationError(null);
+    setStrategyMutationStatus("creating");
+    try {
+      const response = await fetch("/api/v1/strategies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          headline,
+          ...(category ? { category } : {}),
+          family: "research",
+          status: "research",
+          sourceLabels: [],
+        }),
+      });
+      if (!response.ok) {
+        markStrategyMutationFailure(response.status);
+        throw new Error("strategy create failed");
+      }
+      const payload = await response.json() as StrategyMutationResponse;
+      upsertStrategyRecord(payload.strategy);
+      selectPortfolio(payload.strategy.id);
+      setScreen("detail");
+      setDialog(null);
+      setStrategyCatalogStatus("ready");
+      setStrategyMutationStatus("idle");
+      onAction(st("toast.portfolioCreated"));
+    } catch {
+      setStrategyMutationStatus("idle");
+      onAction(st("toast.portfolioCreateFailed"));
+    }
+  };
+
+  const duplicateSelectedStrategy = async () => {
+    invalidateStrategyCatalogRead();
+    setStrategyMutationError(null);
+    setStrategyMutationStatus("duplicating");
+    const duplicateName = st("duplicate.name", { name: selected.name }).slice(0, 120);
+    const performance = {
+      netReturn: selected.performance.netReturn,
+      maxDrawdown: selected.performance.maxDrawdown,
+      recoveryFactor: selected.performance.recoveryFactor,
+      sharpe: selected.performance.sharpe,
+      forwardReturn: selected.performance.forwardReturn,
+      winRate: selected.performance.winRate,
+      trades: selected.performance.trades,
+      symbols: selected.performance.symbols,
+      cash: selected.performance.cash,
+    };
+    try {
+      const response = await fetch("/api/v1/strategies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: duplicateName,
+          headline: selected.headline,
+          family: selected.family,
+          status: selected.status,
+          category: selected.category,
+          sourceLabels: selected.sourceLabels,
+          audit: selected.audit,
+          ...(selected.performance.provenance === "user_supplied" ? { performance } : {}),
+        }),
+      });
+      if (!response.ok) {
+        markStrategyMutationFailure(response.status);
+        throw new Error("strategy duplicate failed");
+      }
+      const payload = await response.json() as StrategyMutationResponse;
+      upsertStrategyRecord(payload.strategy);
+      selectPortfolio(payload.strategy.id);
+      setDialog(null);
+      setStrategyCatalogStatus("ready");
+      setStrategyMutationStatus("idle");
+      onAction(st("toast.portfolioDuplicated"));
+    } catch {
+      setStrategyMutationStatus("idle");
+      onAction(st("toast.portfolioDuplicateFailed"));
     }
   };
 
@@ -2611,11 +2959,16 @@ function StrategyHome({
     }
     const currentIndex = strategies.findIndex((strategy) => strategy.id === selected.id);
     const fallback = strategies[currentIndex + 1] ?? strategies[currentIndex - 1] ?? strategies[0];
-    invalidateStrategyPreferenceRead();
+    invalidateStrategyCatalogRead();
+    setStrategyMutationError(null);
     setStrategyMutationStatus("deleting");
+    let conflict = false;
     try {
+      const versionQuery = selected.origin === "custom"
+        ? `?expectedVersion=${encodeURIComponent(String(selected.version))}`
+        : "";
       const response = await fetch(
-        `/api/v1/strategy-preferences/${encodeURIComponent(selected.id)}`,
+        `/api/v1/strategies/${encodeURIComponent(selected.id)}${versionQuery}`,
         { method: "DELETE" },
       );
       if (!response.ok) {
@@ -2625,37 +2978,54 @@ function StrategyHome({
           setStrategyMutationStatus("idle");
           return;
         }
-        throw new Error("strategy preference delete failed");
+        conflict = response.status === 409;
+        markStrategyMutationFailure(response.status);
+        throw new Error("strategy delete failed");
       }
-      const payload = await response.json() as StrategyPreferenceDeleteResponse;
-      upsertStrategyPreference(payload.preference);
+      setStrategyRecords((current) => current?.filter((strategy) => strategy.id !== selected.id) ?? null);
       selectPortfolio(fallback.id);
       setTab("概要");
       setScreen("index");
       setDialog(null);
-      setStrategyPreferenceStatus("ready");
+      setStrategyCatalogStatus("ready");
       setStrategyMutationStatus("idle");
       onAction(st("toast.portfolioDeleted"));
     } catch {
-      setStrategyPreferenceStatus("error");
       setStrategyMutationStatus("idle");
-      onAction(st("toast.portfolioDeleteFailed"));
+      onAction(st(conflict ? "toast.strategyConflict" : "toast.portfolioDeleteFailed"));
     }
   };
+
+  const strategyNotice = strategyMutationError === "conflict" ? (
+    <div className="strategy-request-notice conflict" role="alert">
+      <span><strong>{st("notice.conflictTitle")}</strong>{st("notice.conflictDescription")}</span>
+      <button type="button" onClick={refreshStrategyCatalog}>{st("notice.reload")}</button>
+    </div>
+  ) : strategyMutationError === "request" || strategyCatalogStatus === "error" ? (
+    <div className="strategy-request-notice error" role="alert">
+      <span><strong>{st("notice.errorTitle")}</strong>{st("notice.errorDescription")}</span>
+      <button type="button" onClick={refreshStrategyCatalog}>{st("notice.retry")}</button>
+    </div>
+  ) : strategyCatalogStatus === "loading" ? (
+    <div className="strategy-request-notice loading" role="status">
+      <ClockCounterClockwise size={16} /> {st("notice.loading")}
+    </div>
+  ) : null;
 
   if (screen === "index") {
     return (
       <section className="strategy-home-shell portfolio-index-shell strategy-report-shell" aria-label={st("index.aria")}>
         <header className="portfolio-index-header strategy-report-header">
           <div><span className="eyebrow">{st("index.eyebrow")}</span><h1>{st("index.title")}</h1><p>{st("index.description")}</p></div>
-          <div><button type="button" onClick={() => { setStrategyPreferenceStatus("loading"); setStrategyRefreshVersion((current) => current + 1); onAction(st("toast.strategyRefreshed")); }}><ClockCounterClockwise size={15} /> {st("action.refresh")}</button><button type="button" className="primary-action" disabled={!strategyCatalogReady} onClick={() => { setCreateMethod("manual"); setDialog("create"); }}><Plus size={16} /> {st("action.addStrategy")}</button></div>
+          <div><button type="button" onClick={() => { refreshStrategyCatalog(); onAction(st("toast.strategyRefreshed")); }}><ClockCounterClockwise size={15} /> {st("action.refresh")}</button><button type="button" className="primary-action" disabled={!strategyCatalogReady || strategyMutationStatus !== "idle"} onClick={openCreateStrategy}><Plus size={16} /> {st("action.addStrategy")}</button></div>
         </header>
-        <div className="portfolio-index-content strategy-report-content">
+        <div className={`portfolio-index-content strategy-report-content ${strategyNotice ? "has-notice" : ""}`}>
+          {strategyNotice}
           <section className="strategy-report-kpis" aria-label={st("summary.aria")}>
             <div><span>{st("summary.visible")}</span><strong>{listedStrategies.length}</strong><small>{st("summary.total", { count: strategies.length })}</small></div>
             <div><span>{st("summary.profitable")}</span><strong>{profitableCount} / {listedStrategies.length}</strong><small>{st("summary.periodEvaluation", { period: activeStrategyDurationLabel })}</small></div>
-            <div><span>{st("summary.bestProfit")}</span><strong className="positive">{bestStrategy ? `+${metricsFor(bestStrategy).profit.toFixed(1)}%` : "—"}</strong><small>{bestStrategy?.name ?? st("common.none")}</small></div>
-            <div><span>{st("summary.averageSharpe")}</span><strong>{averageSharpe.toFixed(2)}</strong><small>{st("summary.visibleSubset")}</small></div>
+            <div><span>{st("summary.bestProfit")}</span><strong className="positive">{bestStrategy ? `+${(metricsFor(bestStrategy).profit ?? 0).toFixed(1)}%` : "—"}</strong><small>{bestStrategy?.name ?? st("common.none")}</small></div>
+            <div><span>{st("summary.averageSharpe")}</span><strong>{averageSharpe?.toFixed(2) ?? "—"}</strong><small>{st("summary.visibleSubset")}</small></div>
           </section>
 
           <section className="strategy-report-toolbar" aria-label={st("filter.aria")}>
@@ -2687,14 +3057,14 @@ function StrategyHome({
                   return <tr key={strategy.id}>
                     <td><span className="candidate-date">{strategy.candidateAt.split(" ")[0]}<small>{strategy.candidateAt.split(" ")[1]}</small></span></td>
                     <td><span className="strategy-category">{strategy.category}</span><span className="strategy-source-tags">{strategy.sourceLabels.map((label) => <i key={label}>{label}</i>)}</span></td>
-                    <td><button type="button" className="strategy-name-cell" onClick={() => openPortfolio(strategy.id)}><span><strong>{strategy.name}</strong><small>{strategy.headline}</small></span><span className="strategy-name-badges"><i className="strategy-sample-badge">{st("sample.badge")}</i><i className={`strategy-status ${strategy.status}`}>{strategy.status === "pinned" ? st("filter.adopted") : st("filter.notAdopted")}</i><i>{st("table.symbolCount", { count: strategy.symbols })}</i><i>{st("table.tradeCount", { count: strategy.trades })}</i></span><CaretRight size={15} /></button></td>
-                    <td className={metric.profit >= 0 ? "positive" : "negative-text"}><strong>{metric.profit >= 0 ? "+" : ""}{metric.profit.toFixed(1)}%</strong></td>
-                    <td className="negative-text"><strong>{metric.maxDrawdown.toFixed(1)}%</strong></td>
-                    <td><strong>{metric.recoveryFactor.toFixed(2)}</strong></td>
+                    <td><button type="button" className="strategy-name-cell" onClick={() => openPortfolio(strategy.id)}><span><strong>{strategy.name}</strong><small>{strategy.headline}</small></span><span className="strategy-name-badges"><i className={`strategy-sample-badge ${strategy.performance.provenance}`}>{performanceProvenanceLabel(strategy)}</i><i className={`strategy-status ${strategy.status}`}>{strategy.status === "pinned" ? st("filter.adopted") : st("filter.notAdopted")}</i><i>{st("table.symbolCount", { count: strategy.performance.symbols ?? "—" })}</i><i>{st("table.tradeCount", { count: strategy.performance.trades ?? "—" })}</i></span><CaretRight size={15} /></button></td>
+                    <td className={metric.profit === null ? "" : metric.profit >= 0 ? "positive" : "negative-text"}><strong>{metric.profit === null ? "—" : `${metric.profit >= 0 ? "+" : ""}${metric.profit.toFixed(1)}%`}</strong></td>
+                    <td className={metric.maxDrawdown === null ? "" : "negative-text"}><strong>{metric.maxDrawdown === null ? "—" : `${metric.maxDrawdown.toFixed(1)}%`}</strong></td>
+                    <td><strong>{metric.recoveryFactor?.toFixed(2) ?? "—"}</strong></td>
                     <td><strong>{metric.sharpe?.toFixed(2) ?? "—"}</strong></td>
                     <td><div className="strategy-audit-cell"><span>{strategy.audit.overfit === null ? <i>{st("audit.overfitNotEvaluated")}</i> : <i className={riskTone(strategy.audit.overfit)}>{st("audit.overfit", { score: strategy.audit.overfit })}</i>}{strategy.audit.leakage === null ? <i>{st("audit.leakageNotEvaluated")}</i> : <i className={riskTone(strategy.audit.leakage)}>{st("audit.leakage", { score: strategy.audit.leakage })}</i>}</span><small>{strategy.audit.verdict}</small></div></td>
-                    <td><div className="strategy-custom-cell"><strong className={strategy.forwardReturn >= 0 ? "positive" : "negative-text"}>{strategy.forwardReturn >= 0 ? "+" : ""}{strategy.forwardReturn.toFixed(1)}%</strong><small>{st("sample.illustrative")}</small></div></td>
-                    <td><strong>{metric.winRate.toFixed(1)}%</strong></td>
+                    <td><div className="strategy-custom-cell"><strong className={strategy.performance.forwardReturn === null ? "" : strategy.forwardReturn >= 0 ? "positive" : "negative-text"}>{strategy.performance.forwardReturn === null ? "—" : `${strategy.forwardReturn >= 0 ? "+" : ""}${strategy.forwardReturn.toFixed(1)}%`}</strong><small>{strategy.performance.provenance === "illustrative_catalog" ? st("sample.illustrative") : performanceProvenanceLabel(strategy)}</small></div></td>
+                    <td><strong>{metric.winRate === null ? "—" : `${metric.winRate.toFixed(1)}%`}</strong></td>
                   </tr>;
                 })}
               </tbody>
@@ -2702,16 +3072,16 @@ function StrategyHome({
             {listedStrategies.length === 0 && <div className="strategy-report-empty"><MagnifyingGlass size={24} /><strong>{st("empty.title")}</strong><span>{st("empty.description")}</span></div>}
           </div>
         </div>
-        <footer className="strategy-status-bar"><span><span /> {st("status.preferences", { status: strategyPreferenceStatus === "ready" ? st("common.connected") : strategyPreferenceStatus === "error" ? st("common.error") : st("common.loading") })}</span><span>{st("status.mockDisclaimer")}</span></footer>
+        <footer className="strategy-status-bar"><span><span /> {st("status.catalog", { status: strategyCatalogStatus === "ready" ? st("common.connected") : strategyCatalogStatus === "error" ? st("common.error") : st("common.loading") })}</span><span>{st("status.mockDisclaimer")}</span></footer>
         {dialog === "create" && (
-          <DialogShell title={st("create.title")} eyebrow="STEP 1 / 3" onClose={() => setDialog(null)}>
-            <div className="dialog-body portfolio-create-dialog">
-              <div className="segmented-control three">
-                {(["manual", "csv", "watchlist"] as const).map((method) => <button type="button" key={method} className={createMethod === method ? "active" : ""} onClick={() => setCreateMethod(method)}>{st(method === "manual" ? "create.manual" : method === "csv" ? "create.csv" : "create.watchlist")}</button>)}
-              </div>
-              {createMethod === "csv" ? <label className="file-drop"><UploadSimple size={24} /><strong>{st("create.chooseCsv")}</strong><span>{st("create.csvRequirements")}</span><input type="file" accept=".csv" /></label> : <div className="dialog-form-grid"><label><span>{st("create.portfolioName")}</span><input defaultValue={st(createMethod === "watchlist" ? "create.mainWatchName" : "create.newPortfolioName")} /></label><label><span>{st("create.baseCurrency")}</span><select defaultValue="USD"><option>USD</option><option>JPY</option></select></label>{createMethod === "watchlist" && <label className="check-line"><input type="checkbox" defaultChecked /> {st("create.addWatchlistSymbols", { count: 5 })}</label>}</div>}
-            </div>
-            <footer className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="button" className="primary-action" onClick={() => { setDialog(null); openPortfolio(DEFAULT_SAMPLE_STRATEGY_ID); onAction(st("toast.portfolioCreated")); }}>{st("common.continue")}</button></footer>
+          <DialogShell title={st("create.title")} eyebrow={st("create.eyebrow")} onClose={() => setDialog(null)}>
+            <form className="dialog-body dialog-form-grid" onSubmit={createStrategy}>
+              <label><span>{st("settings.name")}</span><input value={createName} required maxLength={120} onChange={(event) => setCreateName(event.target.value)} autoFocus /></label>
+              <label><span>{st("settings.description")}</span><textarea value={createHeadline} required maxLength={500} onChange={(event) => setCreateHeadline(event.target.value)} /></label>
+              <label><span>{st("filter.category")}</span><input value={createCategory} maxLength={120} placeholder={st("create.categoryPlaceholder")} onChange={(event) => setCreateCategory(event.target.value)} /></label>
+              {strategyMutationError && <small className="strategy-dialog-error" role="alert">{st(strategyMutationError === "conflict" ? "notice.conflictDescription" : "notice.errorDescription")}</small>}
+              <footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={strategyMutationStatus !== "idle" || !createName.trim() || !createHeadline.trim()}>{strategyMutationStatus === "creating" ? st("create.creating") : st("create.action")}</button></footer>
+            </form>
           </DialogShell>
         )}
       </section>
@@ -2724,16 +3094,19 @@ function StrategyHome({
         <button type="button" className="back-to-portfolios" onClick={() => setScreen("index")}><CaretRight size={15} /> {st("detail.back")}</button>
         <div className="portfolio-title-block"><select aria-label={st("detail.selectPortfolio")} value={selected.id} onChange={(event) => selectPortfolio(event.target.value)}>{strategies.map((strategy) => <option value={strategy.id} key={strategy.id}>{strategy.name}</option>)}</select><span>{selected.headline}</span></div>
         <div className="portfolio-header-actions">
+          <button type="button" onClick={refreshStrategyCatalog}><ClockCounterClockwise size={16} /> {st("action.refresh")}</button>
           <button type="button" className="primary-action" onClick={() => openTransaction()}><Plus size={16} /> {st("detail.addTransaction")}</button>
-          <div className="portfolio-menu-host" ref={portfolioMenuHostRef}><IconButton label={st("detail.portfolioMenu")} hasPopup="menu" expanded={portfolioMenuOpen} controls="portfolio-actions-menu" onClick={() => setPortfolioMenuOpen((value) => !value)}><DotsThree size={19} /></IconButton>{portfolioMenuOpen && <div id="portfolio-actions-menu" className="portfolio-menu" role="menu"><button type="button" onClick={() => { setPortfolioMenuOpen(false); openStrategySettings(); }}><Gear size={15} /> {st("detail.editStrategy")}</button><button type="button" onClick={() => { setPortfolioMenuOpen(false); onAction(st("toast.portfolioDuplicated")); }}><Copy size={15} /> {st("common.duplicate")}</button><button type="button" className="danger" disabled={strategies.length <= 1} onClick={() => { setPortfolioMenuOpen(false); setDialog("delete"); }}><Trash size={15} /> {st("common.delete")}</button></div>}</div>
+          <div className="portfolio-menu-host" ref={portfolioMenuHostRef}><IconButton label={st("detail.portfolioMenu")} hasPopup="menu" expanded={portfolioMenuOpen} controls="portfolio-actions-menu" onClick={() => setPortfolioMenuOpen((value) => !value)}><DotsThree size={19} /></IconButton>{portfolioMenuOpen && <div id="portfolio-actions-menu" className="portfolio-menu" role="menu"><button type="button" disabled={strategyMutationStatus !== "idle"} onClick={() => { setPortfolioMenuOpen(false); openStrategySettings(); }}><Gear size={15} /> {st("detail.editStrategy")}</button><button type="button" disabled={strategyMutationStatus !== "idle"} onClick={() => { setPortfolioMenuOpen(false); void duplicateSelectedStrategy(); }}><Copy size={15} /> {strategyMutationStatus === "duplicating" ? st("duplicate.duplicating") : st("common.duplicate")}</button><button type="button" className="danger" disabled={strategies.length <= 1 || strategyMutationStatus !== "idle"} onClick={() => { setPortfolioMenuOpen(false); setStrategyMutationError(null); setDialog("delete"); }}><Trash size={15} /> {st("common.delete")}</button></div>}</div>
         </div>
       </header>
       <div className="portfolio-detail-scroll">
-        <div className="portfolio-tip"><Lightning size={18} /><div><strong>{st("tip.title")}</strong><span>{st("tip.description")}</span></div><button type="button" onClick={() => setTab("概要")}>{st("tip.viewOverview")} <CaretRight size={14} /></button></div>
+        {strategyNotice}
+        <div className="portfolio-tip"><Lightning size={18} /><div><strong>{st("tip.title")}</strong><span>{st(illustrativeStrategyChartsAvailable ? "tip.description" : "tip.userDataDescription")}</span></div><button type="button" onClick={() => setTab("概要")}>{st("tip.viewOverview")} <CaretRight size={14} /></button></div>
         <section className="portfolio-summary-cards" aria-label={st("portfolio.summaryAria")}>
           {unicornConfig.ui.strategyDetail.summaryMetrics.map((id) => {
             const metric = strategySummaryCards[id];
-            return <div key={id} data-metric-id={id}><span>{metric.label}</span><strong className={metric.tone}>{metric.value}</strong><small className={metric.tone}>{metric.note}</small></div>;
+            const available = isStrategySummaryMetricAvailable(id);
+            return <div key={id} data-metric-id={id}><span>{metric.label}</span><strong className={available ? metric.tone : undefined}>{available ? metric.value : "—"}</strong><small className={available ? metric.tone : undefined}>{available ? metric.note : st("sample.unavailable")}</small></div>;
           })}
         </section>
         <nav className="portfolio-primary-tabs" role="tablist" aria-label={st("portfolio.viewAria")}>
@@ -2742,39 +3115,39 @@ function StrategyHome({
 
         {tab === "概要" && <div className="portfolio-tab-panel overview-panel" role="tabpanel">
           <section className="portfolio-main-card portfolio-change-card">
-            <header><div><h2>{st("chart.portfolioTrend")}</h2><span><i className="legend-dot portfolio-dot" /> Portfolio <i className="legend-dot benchmark-dot" /> S&P 500</span></div><div className="portfolio-chart-controls"><div className="segmented-control">{(["資産額", "パフォーマンス"] as const).map((item) => <button type="button" className={chartMode === item ? "active" : ""} onClick={() => setChartMode(item)} key={item}>{portfolioChartModeLabel(locale, item)}</button>)}</div><div className="period-control">{(["1M", "3M", "6M", "YTD", "1Y", "ALL"] as const).map((item) => <button type="button" className={period === item ? "active" : ""} onClick={() => setPeriod(item)} key={item}>{item}</button>)}</div></div></header>
-            <PortfolioValueChart
+            <header><div><h2>{st("chart.portfolioTrend")}</h2>{illustrativeStrategyChartsAvailable ? <span><i className="legend-dot portfolio-dot" /> Portfolio <i className="legend-dot benchmark-dot" /> S&P 500</span> : <span>{st("sample.unavailable")}</span>}</div>{illustrativeStrategyChartsAvailable && <div className="portfolio-chart-controls"><div className="segmented-control">{(["資産額", "パフォーマンス"] as const).map((item) => <button type="button" className={chartMode === item ? "active" : ""} onClick={() => setChartMode(item)} key={item}>{portfolioChartModeLabel(locale, item)}</button>)}</div><div className="period-control">{(["1M", "3M", "6M", "YTD", "1Y", "ALL"] as const).map((item) => <button type="button" className={period === item ? "active" : ""} onClick={() => setPeriod(item)} key={item}>{item}</button>)}</div></div>}</header>
+            {illustrativeStrategyChartsAvailable ? <PortfolioValueChart
               mode={chartMode}
               period={period}
               seed={selectedCatalogIndex + 2}
               ariaLabel={`${st("chart.portfolioTrend")} · ${portfolioChartModeLabel(locale, chartMode)}`}
-            />
+            /> : <StrategyChartUnavailable className="portfolio-chart-canvas" title={st("chart.portfolioTrend")} message={st("chart.unavailable")} />}
           </section>
           <div className="portfolio-overview-grid">
-            <section className="portfolio-main-card"><header><div><h2>{st("allocation.title")}</h2><span>{st("allocation.subtitle")}</span></div><ChartPieSlice size={18} /></header><div className="allocation-list">{PORTFOLIO_HOLDINGS.map((holding) => <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><span><i style={{ background: holding.daily >= 0 ? "#2962ff" : "#8b7cff" }} />{holding.ticker}</span><span>{holding.allocation.toFixed(1)}%</span><strong>${holding.value.toLocaleString("en-US")}</strong></button>)}</div></section>
-            <section className="portfolio-main-card"><header><div><h2>{st("movers.title")}</h2><span>{st("movers.subtitle")}</span></div><ChartLineUp size={18} /></header><div className="movers-list">{[...PORTFOLIO_HOLDINGS].sort((a, b) => b.daily - a.daily).map((holding) => { const holdingStock = STOCKS.find((item) => item.ticker === holding.ticker) ?? STOCKS[0]; return <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><CompanyLogo stock={holdingStock} /><span><strong>{holding.ticker}</strong><small>{holdingStock.name}</small></span><b className={holding.daily >= 0 ? "positive" : "negative-text"}>{holding.daily >= 0 ? "+" : ""}{holding.daily.toFixed(2)}%</b></button>; })}</div></section>
+            <section className="portfolio-main-card"><header><div><h2>{st("allocation.title")}</h2><span>{st("allocation.subtitle")}</span></div><ChartPieSlice size={18} /></header><div className="allocation-list">{portfolioHoldings.map((holding) => <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><span><i style={{ background: holding.daily !== null && holding.daily >= 0 ? "#2962ff" : "#8b7cff" }} />{holding.ticker}</span><span>{holding.allocation === null ? "—" : `${holding.allocation.toFixed(1)}%`}</span><strong>{portfolioMoney(holding.value)}</strong></button>)}</div></section>
+            <section className="portfolio-main-card"><header><div><h2>{st("movers.title")}</h2><span>{st("movers.subtitle")}</span></div><ChartLineUp size={18} /></header><div className="movers-list">{[...portfolioHoldings].sort((a, b) => (b.daily ?? Number.NEGATIVE_INFINITY) - (a.daily ?? Number.NEGATIVE_INFINITY)).map((holding) => { const holdingStock = strategyStockFor(holding.ticker); return <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><CompanyLogo stock={holdingStock} /><span><strong>{holding.ticker}</strong><small>{holdingStock.name}</small></span><b className={holding.daily === null ? "" : holding.daily >= 0 ? "positive" : "negative-text"}>{portfolioPercent(holding.daily, true)}</b></button>; })}</div></section>
           </div>
-          <section className="portfolio-main-card profitability-card" id="portfolio-profitability"><header><div><h2>{st("profitability.title")}</h2><span>{st("profitability.subtitle")}</span></div><div className="segmented-control">{(["TTM", "2026"] as const).map((item) => <button type="button" className={analysisPeriod === item ? "active" : ""} onClick={() => setAnalysisPeriod(item)} key={item}>{item}</button>)}</div></header><PortfolioProfitChart seed={selectedCatalogIndex + (analysisPeriod === "TTM" ? 4 : 8)} ariaLabel={st("profitability.title")} /></section>
-          <section className="portfolio-main-card contribution-card"><header><div><h2>{st("contribution.title")}</h2><span>{st("contribution.subtitle")}</span></div></header>{PORTFOLIO_HOLDINGS.map((holding) => <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><span><strong>{holding.ticker}</strong><small>{st("contribution.allocation", { value: holding.allocation.toFixed(1) })}</small></span><span className="contribution-track"><i style={{ width: `${Math.min(100, Math.abs(holding.unrealized) / 140)}%` }} /></span><b className={holding.unrealized >= 0 ? "positive" : "negative-text"}>{holding.unrealized >= 0 ? "+" : "-"}${Math.abs(holding.unrealized).toLocaleString("en-US")}</b></button>)}</section>
+          <section className="portfolio-main-card profitability-card" id="portfolio-profitability"><header><div><h2>{st("profitability.title")}</h2><span>{illustrativeStrategyChartsAvailable ? st("profitability.subtitle") : st("sample.unavailable")}</span></div>{illustrativeStrategyChartsAvailable && <div className="segmented-control">{(["TTM", "2026"] as const).map((item) => <button type="button" className={analysisPeriod === item ? "active" : ""} onClick={() => setAnalysisPeriod(item)} key={item}>{item}</button>)}</div>}</header>{illustrativeStrategyChartsAvailable ? <PortfolioProfitChart seed={selectedCatalogIndex + (analysisPeriod === "TTM" ? 4 : 8)} ariaLabel={st("profitability.title")} /> : <StrategyChartUnavailable className="portfolio-analysis-chart" title={st("profitability.title")} message={st("chart.unavailable")} />}</section>
+          <section className="portfolio-main-card contribution-card"><header><div><h2>{st("contribution.title")}</h2><span>{st("contribution.subtitle")}</span></div></header>{portfolioHoldings.map((holding) => <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><span><strong>{holding.ticker}</strong><small>{holding.allocation === null ? "—" : st("contribution.allocation", { value: holding.allocation.toFixed(1) })}</small></span><span className="contribution-track"><i style={{ width: `${holding.unrealized === null ? 0 : Math.min(100, Math.abs(holding.unrealized) / 140)}%` }} /></span><b className={holding.unrealized === null ? "" : holding.unrealized >= 0 ? "positive" : "negative-text"}>{signedPortfolioMoney(holding.unrealized)}</b></button>)}</section>
         </div>}
 
         {tab === "保有銘柄" && <div className="portfolio-tab-panel holdings-panel" role="tabpanel">
-          <div className="portfolio-table-title"><div><h2>{st("holdings.title")}</h2><span>{st("holdings.summary", { count: holdingRows.length, value: `$${PORTFOLIO_HOLDINGS.reduce((sum, item) => sum + item.value, 0).toLocaleString("en-US")}` })}</span></div><div><label className="toggle-label"><input type="checkbox" checked={showSold} onChange={(event) => setShowSold(event.target.checked)} />{st("holdings.showSold")}</label></div></div>
-          <div className="portfolio-table-scroll holdings-table-scroll"><table className="holdings-data-table" aria-label={st("holdings.aria")}><thead><tr><th>{st("holdings.symbol")}</th><th>{st("holdings.shares")}</th><th>{st("holdings.averageCost")}</th><th>{st("holdings.currentPrice")}</th><th>{st("holdings.currentValue")}</th><th>{st("holdings.allocation")}</th><th>{st("holdings.unrealized")}</th><th>{st("holdings.daily")}</th><th>{st("holdings.marketCap")}</th><th>PER</th><th>{st("holdings.oneMonth")}</th><th>Beta</th><th>RSI 14</th><th>{st("holdings.technical")}</th><th aria-label={st("holdings.actions")} /></tr></thead><tbody>{holdingRows.map((holding) => { const stock = STOCKS.find((item) => item.ticker === holding.ticker) ?? { ...STOCKS[0], ticker: holding.ticker, name: holding.ticker, logoFallback: holding.ticker.slice(0, 2), logoPath: "" }; const technicalTone = holding.technicalRating.includes("買い") ? "positive" : holding.technicalRating.includes("売り") ? "negative-text" : ""; return <tr key={holding.ticker}><td><button type="button" className="holding-symbol" onClick={() => onOpenChart(holding.ticker)}><CompanyLogo stock={stock} /><span><strong>{holding.ticker}</strong><small>{stock.name}</small></span></button></td><td>{holding.shares.toLocaleString("en-US")}</td><td>{formatPrice(stock, holding.average)}</td><td>{formatPrice(stock, stock.price)}</td><td>${holding.value.toLocaleString("en-US")}</td><td>{holding.allocation.toFixed(1)}%</td><td className={holding.unrealized >= 0 ? "positive" : "negative-text"}>{holding.unrealized >= 0 ? "+" : "-"}${Math.abs(holding.unrealized).toLocaleString("en-US")}</td><td className={holding.daily >= 0 ? "positive" : "negative-text"}>{holding.daily >= 0 ? "+" : ""}{holding.daily.toFixed(2)}%</td><td>{stock.marketCap}</td><td>{stock.pe}</td><td className={holding.performance1M >= 0 ? "positive" : "negative-text"}>{holding.performance1M >= 0 ? "+" : ""}{holding.performance1M.toFixed(1)}%</td><td>{holding.beta.toFixed(2)}</td><td>{holding.rsi.toFixed(1)}</td><td><span className={`technical-rating ${technicalTone}`}>{strategyTechnicalRatingLabel(locale, holding.technicalRating)}</span></td><td><IconButton label={st("holdings.transactionMenu", { symbol: holding.ticker })} onClick={() => openTransaction(holding.ticker)}><DotsThree size={17} /></IconButton></td></tr>; })}</tbody></table></div>
+          <div className="portfolio-table-title"><div><h2>{st("holdings.title")}</h2><span>{st("holdings.summary", { count: holdingRows.length, value: portfolioMoney(markedPortfolio.holdingsValue) })}</span></div><div><label className="toggle-label"><input type="checkbox" checked={showSold} onChange={(event) => setShowSold(event.target.checked)} />{st("holdings.showSold")}</label></div></div>
+          <div className="portfolio-table-scroll holdings-table-scroll"><table className="holdings-data-table" aria-label={st("holdings.aria")}><thead><tr><th>{st("holdings.symbol")}</th><th>{st("holdings.shares")}</th><th>{st("holdings.averageCost")}</th><th>{st("holdings.currentPrice")}</th><th>{st("holdings.currentValue")}</th><th>{st("holdings.allocation")}</th><th>{st("holdings.unrealized")}</th><th>{st("holdings.daily")}</th><th>{st("holdings.marketCap")}</th><th>PER</th><th>{st("holdings.oneMonth")}</th><th>Beta</th><th>RSI 14</th><th>{st("holdings.technical")}</th><th aria-label={st("holdings.actions")} /></tr></thead><tbody>{holdingRows.map((holding) => { const stock = strategyStockFor(holding.ticker); const technicalTone = holding.technicalRating.includes("買い") ? "positive" : holding.technicalRating.includes("売り") ? "negative-text" : ""; return <tr key={holding.ticker}><td><button type="button" className="holding-symbol" onClick={() => onOpenChart(holding.ticker)}><CompanyLogo stock={stock} /><span><strong>{holding.ticker}</strong><small>{stock.name}</small></span></button></td><td>{holding.shares.toLocaleString("en-US")}</td><td>{formatPrice(stock, holding.average)}</td><td>{holding.currentPrice === null ? "—" : formatPrice(stock, holding.currentPrice)}</td><td>{portfolioMoney(holding.value)}</td><td>{holding.allocation === null ? "—" : `${holding.allocation.toFixed(1)}%`}</td><td className={holding.unrealized === null ? "" : holding.unrealized >= 0 ? "positive" : "negative-text"}>{signedPortfolioMoney(holding.unrealized)}</td><td className={holding.daily === null ? "" : holding.daily >= 0 ? "positive" : "negative-text"}>{portfolioPercent(holding.daily, true)}</td><td>{stock.marketCap}</td><td>{stock.pe}</td><td className={holding.performance1M >= 0 ? "positive" : "negative-text"}>{holding.performance1M >= 0 ? "+" : ""}{holding.performance1M.toFixed(1)}%</td><td>{holding.beta.toFixed(2)}</td><td>{holding.rsi.toFixed(1)}</td><td><span className={`technical-rating ${technicalTone}`}>{strategyTechnicalRatingLabel(locale, holding.technicalRating)}</span></td><td><IconButton label={st("holdings.transactionMenu", { symbol: holding.ticker })} onClick={() => openTransaction(holding.ticker)}><DotsThree size={17} /></IconButton></td></tr>; })}</tbody></table></div>
         </div>}
 
         {tab === "取引" && <div className="portfolio-tab-panel transactions-panel" role="tabpanel">
           <div className="portfolio-table-title"><div><h2>{st("transactions.title")}</h2><span>{transactionLoadStatus === "loading" ? st("transactions.loading") : st("common.count", { count: transactions.length })} · {transactionMutationStatus === "saving" ? st("transactions.saving") : transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("transactions.saveError") : st("transactions.savedToD1")}</span></div><div className="transaction-actions"><div className="segmented-control">{(["取引", "現金"] as const).map((item) => <button type="button" className={transactionTab === item ? "active" : ""} onClick={() => setTransactionTab(item)} key={item}>{portfolioTransactionTabLabel(locale, item)}</button>)}</div><button type="button" onClick={() => setDialog("import")}><DownloadSimple size={15} /> {st("transactions.import")}</button><button type="button" onClick={() => onAction(st("toast.transactionsExported"))}><UploadSimple size={15} /> {st("transactions.export")}</button><button type="button" className="primary-action" onClick={() => openTransaction()}><Plus size={15} /> {st("detail.addTransaction")}</button></div></div>
-          {transactionTab === "取引" ? <div className="portfolio-table-scroll"><div className="transactions-table" role="table" aria-label={st("transactions.aria")}><div className="transactions-row transactions-head"><span>{st("transactions.date")}</span><span>{st("transactions.symbol")}</span><span>{st("transactions.type")}</span><span>{st("transactions.quantity")}</span><span>{st("transactions.price")}</span><span>{st("transactions.fee")}</span><span>{st("transactions.total")}</span><span /></div>{transactions.map((transaction) => <button type="button" className="transactions-row" key={transaction.id} onClick={() => openTransaction(transaction.ticker)}><span>{transaction.date}</span><span><b>{transaction.ticker}</b></span><span><i className={`transaction-side ${transaction.side}`}>{portfolioTransactionSideLabel(locale, transaction.side)}</i></span><span>{transaction.shares.toLocaleString("en-US")}</span><span>${transaction.price.toLocaleString("en-US")}</span><span>${transaction.fee.toFixed(2)}</span><span>${(transaction.shares * transaction.price).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span><CaretRight size={14} /></button>)}</div></div> : <div className="cash-ledger"><Wallet size={26} /><h3>{st("transactions.cashBalance", { value: `$${Math.round(portfolioValue * selected.cash / 100).toLocaleString("en-US")}` })}</h3><p>{st("transactions.cashDescription")}</p><button type="button" onClick={() => { setTransactionSide("配当"); openTransaction(); }}>{st("transactions.addCash")}</button></div>}
+          {transactionTab === "取引" ? <div className="portfolio-table-scroll"><div className="transactions-table" role="table" aria-label={st("transactions.aria")}><div className="transactions-row transactions-head"><span>{st("transactions.date")}</span><span>{st("transactions.symbol")}</span><span>{st("transactions.type")}</span><span>{st("transactions.quantity")}</span><span>{st("transactions.price")}</span><span>{st("transactions.fee")}</span><span>{st("transactions.total")}</span><span /></div>{transactions.map((transaction) => <button type="button" className="transactions-row" key={transaction.id} onClick={() => openTransaction(transaction.ticker)}><span>{transaction.date}</span><span><b>{transaction.ticker}</b></span><span><i className={`transaction-side ${transaction.side}`}>{portfolioTransactionSideLabel(locale, transaction.side)}</i></span><span>{transaction.shares.toLocaleString("en-US")}</span><span>${transaction.price.toLocaleString("en-US")}</span><span>${transaction.fee.toFixed(2)}</span><span>${(transaction.shares * transaction.price).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span><CaretRight size={14} /></button>)}</div></div> : <div className="cash-ledger"><Wallet size={26} /><h3>{st("transactions.cashBalance", { value: `$${cashValue.toLocaleString("en-US")}` })}</h3><p>{st("transactions.cashDescription")}</p><button type="button" onClick={() => { setTransactionSide("配当"); openTransaction(); }}>{st("transactions.addCash")}</button></div>}
         </div>}
 
       </div>
-      <footer className="strategy-status-bar"><span><span /> {st("status.transactions", { status: transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("common.error") : transactionLoadStatus === "loading" ? st("common.loading") : st("common.connected") })}</span><span>{st("status.backtestForward")}</span><span>{st("status.strategyDisclaimer")}</span></footer>
+      <footer className="strategy-status-bar"><span><span /> {st("status.transactions", { status: transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("common.error") : transactionLoadStatus === "loading" ? st("common.loading") : st("common.connected") })}</span><span>{st("status.catalog", { status: strategyCatalogStatus === "ready" ? st("common.connected") : strategyCatalogStatus === "error" ? st("common.error") : st("common.loading") })}</span><span>{st("status.strategyDisclaimer")}</span></footer>
 
-      {dialog === "transaction" && <DialogShell title={st("transaction.dialogTitle")} eyebrow={selected.name} onClose={() => setDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={submitTransaction}><label><span>{st("transaction.symbol")}</span><select value={transactionTicker} onChange={(event) => { setTransactionTicker(event.target.value); const next = STOCKS.find((item) => item.ticker === event.target.value); if (next) setTransactionPrice(String(next.price)); }}>{STOCKS.map((item) => <option value={item.ticker} key={item.ticker}>{item.ticker} · {item.name}</option>)}</select></label><label><span>{st("transaction.type")}</span><select value={transactionSide} onChange={(event) => setTransactionSide(event.target.value as PortfolioTransaction["side"])}><option value="買付">{st("transaction.buy")}</option><option value="売却">{st("transaction.sell")}</option><option value="配当">{st("transaction.dividend")}</option></select></label><label><span>{st("transaction.quantity")}</span><input type="number" min="0.01" step="0.01" value={transactionShares} onChange={(event) => setTransactionShares(event.target.value)} /></label><label><span>{st("transaction.price")}</span><input type="number" min="0" step="0.01" value={transactionPrice} onChange={(event) => setTransactionPrice(event.target.value)} /></label><footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={transactionMutationStatus === "saving"}>{transactionMutationStatus === "saving" ? st("transaction.saving") : st("transaction.save")}</button></footer></form></DialogShell>}
+      {dialog === "transaction" && <DialogShell title={st("transaction.dialogTitle")} eyebrow={selected.name} onClose={() => setDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={submitTransaction}><label><span>{st("transaction.symbol")}</span><select value={transactionTicker} onChange={(event) => { const ticker = event.target.value; setTransactionTicker(ticker); const next = strategyMarketMarks[ticker]?.price ?? strategyStockModels[ticker]?.price; if (next) setTransactionPrice(String(next)); }}>{STOCKS.map((item) => <option value={item.ticker} key={item.ticker}>{item.ticker} · {item.name}</option>)}</select></label><label><span>{st("transaction.type")}</span><select value={transactionSide} onChange={(event) => setTransactionSide(event.target.value as PortfolioTransaction["side"])}><option value="買付">{st("transaction.buy")}</option><option value="売却">{st("transaction.sell")}</option><option value="配当">{st("transaction.dividend")}</option></select></label><label><span>{st("transaction.quantity")}</span><input type="number" min="0.01" step="0.01" value={transactionShares} onChange={(event) => setTransactionShares(event.target.value)} /></label><label><span>{st("transaction.price")}</span><input type="number" min="0" step="0.01" value={transactionPrice} onChange={(event) => setTransactionPrice(event.target.value)} /></label><footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={transactionMutationStatus === "saving"}>{transactionMutationStatus === "saving" ? st("transaction.saving") : st("transaction.save")}</button></footer></form></DialogShell>}
       {dialog === "import" && <DialogShell title={st("import.title")} eyebrow="CSV IMPORT" onClose={() => setDialog(null)}><div className="dialog-body"><label className="file-drop"><UploadSimple size={24} /><strong>{st("import.dropCsv")}</strong><span>{st("import.description")}</span><input type="file" accept=".csv" /></label></div><footer className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="button" className="primary-action" onClick={() => { setDialog(null); onAction(st("toast.transactionsImported", { count: 5 })); }}>{st("import.action")}</button></footer></DialogShell>}
-      {dialog === "settings" && <DialogShell title={st("settings.title")} eyebrow="STRATEGY SETTINGS" onClose={() => setDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={saveStrategySettings}><label><span>{st("settings.name")}</span><input value={settingsName} required maxLength={120} onChange={(event) => setSettingsName(event.target.value)} autoFocus /></label><label><span>{st("settings.description")}</span><textarea value={settingsHeadline} required maxLength={500} onChange={(event) => setSettingsHeadline(event.target.value)} /></label><footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={strategyMutationStatus !== "idle" || !settingsName.trim() || !settingsHeadline.trim()}>{strategyMutationStatus === "saving" ? st("settings.saving") : st("common.save")}</button></footer></form></DialogShell>}
-      {dialog === "delete" && <DialogShell title={st("delete.title")} eyebrow={st("delete.confirm")} onClose={() => setDialog(null)}><div className="dialog-body confirm-copy"><Trash size={28} /><p>{st("delete.description", { name: selected.name })}</p></div><footer className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="button" className="danger-action" disabled={strategyMutationStatus !== "idle" || strategies.length <= 1} onClick={() => { void deleteSelectedStrategy(); }}>{strategyMutationStatus === "deleting" ? st("delete.deleting") : st("common.delete")}</button></footer></DialogShell>}
+      {dialog === "settings" && <DialogShell title={st("settings.title")} eyebrow="STRATEGY SETTINGS" onClose={() => setDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={saveStrategySettings}><label><span>{st("settings.name")}</span><input value={settingsName} required maxLength={120} onChange={(event) => setSettingsName(event.target.value)} autoFocus /></label><label><span>{st("settings.description")}</span><textarea value={settingsHeadline} required maxLength={500} onChange={(event) => setSettingsHeadline(event.target.value)} /></label>{strategyMutationError && <small className="strategy-dialog-error" role="alert">{st(strategyMutationError === "conflict" ? "notice.conflictDescription" : "notice.errorDescription")}</small>}<footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={strategyMutationStatus !== "idle" || !settingsName.trim() || !settingsHeadline.trim()}>{strategyMutationStatus === "saving" ? st("settings.saving") : st("common.save")}</button></footer></form></DialogShell>}
+      {dialog === "delete" && <DialogShell title={st("delete.title")} eyebrow={st("delete.confirm")} onClose={() => setDialog(null)}><div className="dialog-body confirm-copy"><Trash size={28} /><p>{st("delete.description", { name: selected.name })}</p>{strategyMutationError && <small className="strategy-dialog-error" role="alert">{st(strategyMutationError === "conflict" ? "notice.conflictDescription" : "notice.errorDescription")}</small>}</div><footer className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="button" className="danger-action" disabled={strategyMutationStatus !== "idle" || strategies.length <= 1} onClick={() => { void deleteSelectedStrategy(); }}>{strategyMutationStatus === "deleting" ? st("delete.deleting") : st("common.delete")}</button></footer></DialogShell>}
     </section>
   );
 }

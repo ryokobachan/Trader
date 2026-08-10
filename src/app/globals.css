@@ -4046,6 +4046,17 @@ textarea:focus-visible {
   resize: vertical;
 }
 
+.strategy-dialog-error {
+  display: block;
+  border: 1px solid #713738;
+  border-radius: 5px;
+  background: #1c0d0e;
+  color: #e49a9a;
+  padding: 8px 9px;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .dialog-form-grid .check-line,
 .check-line {
   min-height: 32px;
@@ -7931,6 +7942,62 @@ textarea:focus-visible {
   padding: 10px 14px 12px;
 }
 
+.strategy-report-content.has-notice {
+  grid-template-rows: auto 66px 52px minmax(0, 1fr);
+}
+
+.strategy-request-notice {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #3d485f;
+  border-radius: 5px;
+  background: #0c111c;
+  color: #a9b9e6;
+  padding: 7px 10px;
+  font-size: 9px;
+}
+
+.portfolio-detail-scroll > .strategy-request-notice {
+  margin-bottom: 10px;
+}
+
+.strategy-request-notice > span {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.strategy-request-notice strong {
+  color: #e1e7f7;
+  font-size: 10px;
+}
+
+.strategy-request-notice button {
+  min-width: 64px;
+  height: 25px;
+  border: 1px solid #4d5e86;
+  border-radius: 4px;
+  background: #111a2d;
+  color: #dce6ff;
+  cursor: pointer;
+  font-size: 8px;
+}
+
+.strategy-request-notice.conflict {
+  border-color: #6c5425;
+  background: #1b1509;
+  color: #d8b76b;
+}
+
+.strategy-request-notice.error {
+  border-color: #713738;
+  background: #1c0d0e;
+  color: #df8b8b;
+}
+
 .strategy-report-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -8264,6 +8331,24 @@ textarea:focus-visible {
   color: #e9bc5d;
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+.strategy-name-badges .strategy-sample-badge.transaction_snapshot {
+  border-color: #245441;
+  background: #0c231a;
+  color: #6ac99e;
+}
+
+.strategy-name-badges .strategy-sample-badge.user_supplied {
+  border-color: #35567a;
+  background: #0d1d30;
+  color: #85b6ee;
+}
+
+.strategy-name-badges .strategy-sample-badge.unavailable {
+  border-color: #414147;
+  background: #19191c;
+  color: #929299;
 }
 
 .strategy-audit-cell {

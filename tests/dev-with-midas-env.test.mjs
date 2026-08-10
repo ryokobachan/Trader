@@ -84,7 +84,7 @@ test("merges only allowlisted values, preserves existing values, and applies Uni
   assert.equal(merged.UNICORN_INSTRUMENT_PROVIDER, "yahoo");
   assert.equal(merged.UNICORN_MARKET_PROVIDER, "massive");
   assert.equal(merged.UNICORN_PROFILE_PROVIDER, "fmp");
-  assert.equal(merged.UNICORN_FUNDAMENTALS_PROVIDER, "yahoo");
+  assert.equal(merged.UNICORN_FUNDAMENTALS_PROVIDER, "fmp");
   assert.equal(merged.UNICORN_EARNINGS_PROVIDER, "fmp");
   assert.equal(merged.UNICORN_ANALYST_PROVIDER, "benzinga");
   assert.equal(merged.UNICORN_NEWS_PROVIDER, "yahoo");
@@ -122,12 +122,12 @@ test("launcher reports an unreadable source without exposing its path", () => {
   assert.match(result.stderr, /could not be read/i);
 });
 
-test("documents Yahoo as the instrument search provider in the local real-data profile", async () => {
+test("documents the FMP/Benzinga local real-data profile", async () => {
   const example = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 
   assert.match(example, /^# UNICORN_INSTRUMENT_PROVIDER=yahoo$/m);
   assert.match(example, /^# UNICORN_PROFILE_PROVIDER=fmp$/m);
-  assert.match(example, /^# UNICORN_FUNDAMENTALS_PROVIDER=yahoo$/m);
+  assert.match(example, /^# UNICORN_FUNDAMENTALS_PROVIDER=fmp$/m);
   assert.match(example, /^# UNICORN_EARNINGS_PROVIDER=fmp$/m);
   assert.match(example, /^# UNICORN_ANALYST_PROVIDER=benzinga$/m);
   assert.match(example, /^# UNICORN_NEWS_PROVIDER=yahoo$/m);

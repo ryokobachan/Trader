@@ -5,11 +5,12 @@ import test from "node:test";
 
 import { GET } from "../src/app/api/v1/strategy-portfolios/[strategyId]/transactions/route";
 import {
-  INITIAL_STRATEGY_PORTFOLIO_TRANSACTIONS,
+  SAMPLE_STRATEGY_PORTFOLIO_TRANSACTIONS,
   StrategyPortfolioTransactionInputError,
   normalizeStrategyId,
   normalizeStrategyPortfolioTransactionInput,
 } from "../src/app/platform/strategy-portfolio-contracts";
+import { assertStrategyTransactionAccess } from "../src/app/platform/strategies.server";
 import { installD1Binding } from "../src/db";
 
 function migrations(): string {
@@ -23,7 +24,7 @@ function migrations(): string {
 
 test("preserves the current strategy fixture through the canonical transaction contract", () => {
   assert.deepEqual(
-    INITIAL_STRATEGY_PORTFOLIO_TRANSACTIONS.map(({ symbol, side }) => [symbol, side]),
+    SAMPLE_STRATEGY_PORTFOLIO_TRANSACTIONS.map(({ symbol, side }) => [symbol, side]),
     [
       ["NVDA", "buy"],
       ["AAPL", "buy"],
@@ -89,7 +90,7 @@ test("rejects an invalid strategy route before accessing D1", async () => {
   assert.equal(payload.error.code, "invalid_request");
 });
 
-test("rejects an unknown well-formed strategy before GET can seed D1", async () => {
+test("rejects an unknown well-formed strategy before GET can access D1", async () => {
   installD1Binding(undefined);
   const strategyId = "sample.not-in-catalog.v1";
   const response = await GET(
@@ -99,6 +100,13 @@ test("rejects an unknown well-formed strategy before GET can seed D1", async () 
   assert.equal(response.status, 404);
   const payload = await response.json() as { error: { code: string } };
   assert.equal(payload.error.code, "strategy_not_found");
+});
+
+test("keeps retired sample transaction ledgers addressable without relisting them", async () => {
+  assert.equal(
+    await assertStrategyTransactionAccess("sample.relative-strength-6-1.v1"),
+    "built_in",
+  );
 });
 
 test("migration scopes transaction ids by owner and strategy and uses the ordered-query index", () => {

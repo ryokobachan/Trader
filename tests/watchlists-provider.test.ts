@@ -73,6 +73,7 @@ test("generated D1 migration keeps transaction data relational and separate from
     tableRows.map((row) => row.name),
     [
       "app_audit_events",
+      "custom_strategies",
       "strategy_portfolio_transactions",
       "strategy_preferences",
       "watchlist_items",

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/unicorn-logo.png" alt="Unicorn logo" width="144">
+  <img src="public/unicorn-logo-v3.png" alt="Unicorn logo" width="144">
 </p>
 
 # Unicorn
@@ -44,7 +44,7 @@ _The built-in strategy catalog is deterministic sample data, not a verified back
 
 - sortable sample strategy table with return, drawdown, recovery factor, Sharpe ratio, audit state, and win rate
 - portfolio overview, holdings, transactions, profitability, and symbol contribution
-- editable strategy name and description, soft deletion, and D1-backed transaction history; CSV import/export controls remain prototype affordances
+- owner-scoped custom strategy CRUD, built-in name/description overrides, soft deletion, and D1-backed transaction history
 - sample values are intentionally conservative examples, not verified backtest results
 
 ## Basic usage
@@ -56,7 +56,7 @@ _The built-in strategy catalog is deterministic sample data, not a verified back
 5. Open the watchlist selector and use each list's `…` menu to rename or delete it. The final list is protected from deletion.
 6. Drag the right-panel edge or the divider between the watchlist and symbol overview to resize the workspace. Both separators also support arrow keys.
 7. Select **Details** in the symbol overview to open financials, analysts, and technicals.
-8. Open **Strategies** to inspect samples. In a strategy detail screen, use `…` to edit or delete it. The final visible strategy is protected.
+8. Open **Strategies** to inspect samples or create a custom strategy. In a strategy detail screen, use `…` to duplicate, edit, or delete it.
 9. Use **Settings** in the top bar to change the candle count or switch between English and Japanese.
 
 ## Run locally
@@ -94,6 +94,35 @@ MIDAS_ENV_FILE=/absolute/path/to/Midas/.env npm run dev:midas
 
 Secrets stay server-side. The repository contains no provider credentials or downloaded third-party datasets.
 
+`dev:midas` is a credential/profile bridge, not a connection to the Midas database or `/data-sources` API. It reuses only allow-listed FMP/Benzinga settings and still calls the configured upstream providers directly. In this profile, FMP supplies company profiles, fundamentals, and earnings; this includes float/share structure and FMP-calculated Altman Z and Piotroski scores. Unicorn currently normalizes prices, company/fundamental/earnings data, analyst ratings, and news. Options, SEC ownership and insider filings, FINRA short data, corporate actions, government awards, and source scores still require dedicated provider contracts and UI extensions. TipRanks and Investing.com event feeds are intentionally out of scope.
+
+## Strategy CLI and AI agents
+
+The browser, CLI, and AI skill use the same owner-scoped API. Runtime strategy changes and transactions are stored in D1; none of these commands edit the built-in source catalog.
+
+```bash
+npm run strategy -- list
+npm run strategy -- list --family rule --provenance illustrative_catalog --sort sharpe --order desc --limit 10
+npm run strategy -- compare <strategy-id-a> <strategy-id-b> --sort netReturn
+npm run strategy -- get <strategy-id> --include transactions,performance
+npm run strategy -- create --file /tmp/strategy.json
+npm run strategy -- edit <strategy-id> --file /tmp/strategy-edit.json --version <version>
+npm run strategy -- delete <strategy-id> --version <version> --yes
+
+npm run strategy -- transactions list <strategy-id>
+npm run strategy -- transactions add <strategy-id> --file /tmp/transaction.json
+npm run strategy -- transactions edit <strategy-id> <transaction-id> --file /tmp/transaction-edit.json --updated-at <updatedAt>
+npm run strategy -- transactions delete <strategy-id> <transaction-id> --yes
+```
+
+Commands emit JSON and return nonzero on API or validation errors. Custom strategy edits use optimistic versions, and transaction edits require the latest `updatedAt` token, so an agent cannot silently overwrite a newer browser change. Performance is tagged as `illustrative_catalog`, `user_supplied`, `transaction_snapshot`, or `unavailable`; `transaction_snapshot` currently derives only exact trade and distinct-symbol counts from persisted transactions, not returns or risk metrics.
+
+Discovery filters and sorting run locally after one owner-scoped API read; `compare` returns the selected records, provenance groups, and an explicit `execution: "not_run"` disclosure. These commands explore strategies already registered in Unicorn. They do not generate candidates, execute rules, search parameters, download market data, or run a backtest.
+
+For an `illustrative_catalog` record, the `trades` and `symbols` fields are sample metadata, not saved D1 row counts. The aggregate response's `transactions` array is the durable trade history, and `cash` is a percentage allocation.
+
+The repository includes [`$manage-unicorn-strategies`](skills/manage-unicorn-strategies/SKILL.md), a Codex-compatible skill that requires inspect-before-mutate, explicit confirmation for deletion, and post-mutation verification.
+
 ## Data and persistence
 
 | Data | Default source | Storage |
@@ -105,7 +134,7 @@ Secrets stay server-side. The repository contains no provider credentials or dow
 | Optional `{symbol}USDT.P` reference price (SSE with snapshot fallback) | Local `tradingview-websocket` | Provider response only |
 | Analyst ratings and targets | Disabled by default; Benzinga-compatible adapter optional | Provider response only |
 | Watchlists and ordered items | User actions | D1 `DB` binding |
-| Strategy name/description overrides and tombstones | User actions | D1 `DB` binding |
+| Built-in strategy overrides, custom strategies, and tombstones | User actions | D1 `DB` binding |
 | Strategy portfolio transactions | User actions | D1 `DB` binding |
 | Language, chart type, indicators, templates, and panel sizes | User actions | Browser storage |
 
@@ -117,7 +146,7 @@ For existing data and strategy customization, developers use three root folders:
 
 - [`api/`](api/README.md) contains `config.json` and external data-source implementations. A value such as `"bars": "yahoo"` maps through the reviewed registry to `api/yahoo/`.
 - [`extensions/`](extensions/README.md) contains trusted frontend module registrations. It is separate from API adapters so server credentials cannot leak into the browser bundle.
-- [`strategies/`](strategies/README.md) contains the built-in strategy catalog, performance-card definitions, sample holdings, and the first-run sample transaction seed.
+- [`strategies/`](strategies/README.md) contains the built-in strategy catalog, performance-card definitions, sample holdings, and an explicit demo transaction fixture.
 
 Everything that normally should not be customized is grouped under `src/`.
 
@@ -157,7 +186,7 @@ Unicorn keeps product Core separate from deployment-owned extensions. JSON selec
 | Add a provider implementation | `api/<provider-id>/`, `api/index.server.ts`, `api/provider-roles.ts` |
 | Sample strategy definitions | `strategies/catalog.ts` |
 | Strategy performance cards | `strategies/metrics.ts` |
-| Sample holdings / first-run transactions | `strategies/sample-portfolio.ts`, `strategies/sample-transactions.ts` |
+| Sample holdings / optional demo transactions | `strategies/sample-portfolio.ts`, `strategies/sample-transactions.ts` |
 | Canonical provider DTOs | `src/app/platform/provider-contracts.ts` |
 | Add a new symbol-summary module | `extensions/`, then select its ID in `api/config.json` |
 | Symbol-detail metric IDs and calculations | `api/stock-detail/ids.ts`, `api/stock-detail/metrics.ts` |
@@ -185,6 +214,7 @@ Technical contracts:
 - [Indicator registry](docs/contracts/indicator-registry.md)
 - [UI module registry](docs/contracts/ui-module-registry.md)
 - [Watchlists](docs/contracts/watchlists.md)
+- [Unified strategies](docs/contracts/strategies.md)
 - [Strategy preferences](docs/contracts/strategy-preferences.md)
 - [Strategy transactions](docs/contracts/strategy-portfolio-transactions.md)
 - [Storage boundaries](docs/architecture/data-storage.md)

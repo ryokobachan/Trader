@@ -4,15 +4,21 @@ import test from "node:test";
 
 import {
   DEFAULT_SAMPLE_STRATEGY_ID,
+  RETIRED_SAMPLE_STRATEGY_IDS,
   SAMPLE_STRATEGY_DEFINITIONS,
   sampleStrategiesForLocale,
 } from "../strategies/catalog";
 
 test("ships a clear, conservative built-in strategy sample catalog", () => {
   const strategies = sampleStrategiesForLocale("en");
-  assert.equal(strategies.length, 10);
+  assert.equal(strategies.length, 3);
   assert.equal(DEFAULT_SAMPLE_STRATEGY_ID, strategies[0].id);
   assert.equal(new Set(strategies.map(({ id }) => id)).size, strategies.length);
+  assert.equal(RETIRED_SAMPLE_STRATEGY_IDS.length, 7);
+  assert.equal(
+    RETIRED_SAMPLE_STRATEGY_IDS.some((id) => strategies.some((strategy) => strategy.id === id)),
+    false,
+  );
 
   for (const strategy of strategies) {
     assert.match(strategy.id, /^sample\.[a-z0-9.-]+\.v1$/);

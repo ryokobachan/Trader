@@ -165,3 +165,39 @@ export const strategyPreferences = sqliteTable(
     ),
   ],
 );
+
+/**
+ * Owner-scoped strategies created through the UI, CLI, or an AI agent.
+ *
+ * The versioned JSON definition keeps this user-facing extension point compact
+ * while the surrounding columns provide ownership, optimistic concurrency,
+ * soft deletion, and efficient listing without exposing implementation data.
+ */
+export const customStrategies = sqliteTable(
+  "custom_strategies",
+  {
+    ownerId: text("owner_id").notNull(),
+    strategyId: text("strategy_id").notNull(),
+    version: integer("version").notNull().default(1),
+    definitionJson: text("definition_json").notNull(),
+    deletedAt: text("deleted_at"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    primaryKey({
+      name: "pk_custom_strategies",
+      columns: [table.ownerId, table.strategyId],
+    }),
+    check("ck_custom_strategies_version", sql`${table.version} >= 1`),
+    check(
+      "ck_custom_strategies_definition_json",
+      sql`json_valid(${table.definitionJson})`,
+    ),
+    index("idx_custom_strategies_owner_deleted_updated").on(
+      table.ownerId,
+      table.deletedAt,
+      table.updatedAt,
+    ),
+  ],
+);

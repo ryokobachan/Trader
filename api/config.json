@@ -86,6 +86,16 @@
           ]
         },
         {
+          "id": "financial_health",
+          "metrics": [
+            "fundamentals.piotroskiScore",
+            "fundamentals.altmanZScore",
+            "fundamentals.freeFloatRatio",
+            "fundamentals.floatShares",
+            "fundamentals.outstandingShares"
+          ]
+        },
+        {
           "id": "balance_sheet",
           "metrics": [
             "fundamentals.cashAndShortTermInvestments",

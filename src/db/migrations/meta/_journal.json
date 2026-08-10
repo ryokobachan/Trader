@@ -29,6 +29,13 @@
       "when": 1786292271622,
       "tag": "0003_flowery_callisto",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1786345372673,
+      "tag": "0004_right_sunspot",
+      "breakpoints": true
     }
   ]
 }

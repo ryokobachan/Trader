@@ -4,9 +4,11 @@ import test from "node:test";
 
 import {
   analystRatingChangeTone,
+  analystTargetPointAtOrBefore,
   analystTargetChangeTone,
   analystTargetRightOffsetPixels,
   buildActualStockPricePoints,
+  extendAnalystTargetPointsToActualPrice,
 } from "../src/app/features/stock-detail/StockDetailCharts";
 import { translate } from "../src/app/platform/i18n";
 import type { AnalystRatingEvent, MarketBar } from "../src/app/platform/provider-contracts";
@@ -58,6 +60,43 @@ test("uses the last observed bar when timestamps collide", () => {
   assert.deepEqual(points, [{ date: "2026-06-03", close: 104 }]);
 });
 
+test("carries target consensus forward for at most 365 calendar days", () => {
+  const first = { date: "2024-12-20", low: 180, average: 200, high: 220, analystCount: 12 };
+  const second = { date: "2025-01-01", low: 185, average: 205, high: 225, analystCount: 13 };
+  const points = [first, second];
+
+  assert.equal(analystTargetPointAtOrBefore(points, "2024-12-19"), undefined);
+  assert.equal(analystTargetPointAtOrBefore(points, "2024-12-20"), first);
+  assert.equal(analystTargetPointAtOrBefore(points, "2024-12-31"), first);
+  assert.equal(analystTargetPointAtOrBefore(points, "2025-01-01"), second);
+  assert.equal(analystTargetPointAtOrBefore(points, "2026-01-01"), second);
+  assert.equal(analystTargetPointAtOrBefore(points, "2026-01-02"), undefined);
+  assert.equal(analystTargetPointAtOrBefore(points, "not-a-date"), undefined);
+});
+
+test("extends the step target line only while the latest target is fresh", () => {
+  const points = [
+    { date: "2024-12-20", low: 180, average: 200, high: 220, analystCount: 12 },
+    { date: "2025-01-01", low: 185, average: 205, high: 225, analystCount: 13 },
+  ];
+  const extended = extendAnalystTargetPointsToActualPrice(points, [
+    { date: "2025-12-31", close: 202 },
+    { date: "2026-01-01", close: 207 },
+  ]);
+  assert.deepEqual(extended.at(-1), { ...points[1], date: "2026-01-01" });
+  assert.equal(points.length, 2);
+
+  const expired = extendAnalystTargetPointsToActualPrice(points, [
+    { date: "2026-01-02", close: 208 },
+  ]);
+  assert.equal(expired, points);
+
+  const beforeObservation = extendAnalystTargetPointsToActualPrice(points, [
+    { date: "2024-12-31", close: 199 },
+  ]);
+  assert.equal(beforeObservation, points);
+});
+
 test("renders actual closes as their own chart series and crosshair readout", async () => {
   const source = await readFile(
     new URL("../src/app/features/stock-detail/StockDetailCharts.tsx", import.meta.url),
@@ -68,7 +107,10 @@ test("renders actual closes as their own chart series and crosshair readout", as
   assert.match(source, /title:\s*t\("detail\.chart\.target\.actualSeries"\)/);
   assert.match(source, /actualPrice\.setData\(actualPrices/);
   assert.match(source, /subscribeCrosshairMove/);
-  assert.match(source, /seriesData\.get\(actualPrice\)/);
+  assert.match(source, /seriesData\.get\(resources\.actualPrice\)/);
+  assert.match(source, /analystTargetPointAtOrBefore\(points, date\)/);
+  assert.match(source, /lineType:\s*LineType\.WithSteps/);
+  assert.match(source, /extendAnalystTargetPointsToActualPrice\(points, actualPrices\)/);
   assert.match(source, /detail\.chart\.target\.aria/);
   assert.doesNotMatch(source, /createPriceLine/);
 });

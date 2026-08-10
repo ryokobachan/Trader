@@ -8,7 +8,8 @@ export const metadata: Metadata = {
   description: UNICORN_BRAND.description,
   icons: {
     icon: [
-      { url: UNICORN_BRAND.faviconPath, type: "image/png", sizes: "32x32" },
+      { url: UNICORN_BRAND.favicon16Path, type: "image/png", sizes: "16x16" },
+      { url: UNICORN_BRAND.favicon32Path, type: "image/png", sizes: "32x32" },
       { url: UNICORN_BRAND.faviconIcoPath, type: "image/x-icon" },
     ],
     shortcut: UNICORN_BRAND.faviconIcoPath,

@@ -266,7 +266,10 @@ test("persists owner-scoped overrides and tombstones while protecting the last s
     const list = await GET(new Request("http://localhost/api/v1/strategy-preferences"));
     const payload = await list.json() as { ownerId: string; preferences: StrategyPreference[] };
     assert.equal(payload.ownerId, "local-workspace");
-    assert.equal(payload.preferences.filter((preference) => preference.isDeleted).length, 9);
+    assert.equal(
+      payload.preferences.filter((preference) => preference.isDeleted).length,
+      SAMPLE_STRATEGY_DEFINITIONS.length - 1,
+    );
     assert.equal(
       payload.preferences.some((preference) => preference.strategyId === finalDefinition.id),
       false,
@@ -278,7 +281,7 @@ test("persists owner-scoped overrides and tombstones while protecting the last s
          WHERE owner_id = 'local-workspace' AND entity_type = 'strategy_preference'`,
       )
       .get() as { count: number };
-    assert.equal(auditCount.count, 11);
+    assert.equal(auditCount.count, SAMPLE_STRATEGY_DEFINITIONS.length + 1);
   } finally {
     installD1Binding(undefined);
     sqlite.close();

@@ -41,6 +41,11 @@ test("loads one validated non-secret master configuration", () => {
   assert.equal(unicornConfig.providers.market, "mock");
   assert.equal(unicornConfig.ui.symbolSummary.modules[0], "core.identity_quote@1.0.0");
   assert.deepEqual(unicornConfig.ui.symbolDetail.tabs, ["financials", "analyst", "technicals"]);
+  assert.ok(unicornConfig.ui.symbolDetail.fundamentalGroups.some((group) => (
+    group.id === "financial_health"
+    && group.metrics.includes("fundamentals.piotroskiScore")
+    && group.metrics.includes("fundamentals.freeFloatRatio")
+  )));
   assert.deepEqual(unicornConfig.ui.symbolDetail.profileMetrics, [
     "profile.exchange",
     "profile.assetType",
@@ -177,4 +182,20 @@ test("strategy summary formulas stay in a typed registry selected by the JSON", 
   assert.equal(result.cards["risk.sharpe"].value, selected.sharpe?.toFixed(2));
   assert.equal(result.cards["risk.maxDrawdown"].value, `${selected.maxDrawdown.toFixed(1)}%`);
   assert.equal(Object.isFrozen(result.cards), true);
+
+  const markedResult = buildStrategySummaryMetricRegistry({
+    selected,
+    selectedCatalogIndex: 0,
+    unrealizedGain: 500,
+    holdingsMarketValue: 78_000,
+    translate: createStrategyTranslator("en"),
+  });
+  assert.equal(markedResult.portfolioValue, 100_000);
+  assert.equal(markedResult.cashValue, 22_000);
+  assert.equal(markedResult.cards["portfolio.value"].value, "$100,000");
+  assert.equal(
+    markedResult.cards["portfolio.totalGain"].value,
+    result.cards["portfolio.totalGain"].value,
+    "a current quote must not manufacture a new strategy return",
+  );
 });

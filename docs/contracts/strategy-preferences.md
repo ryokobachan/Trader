@@ -1,5 +1,9 @@
 # Strategy preference API contract
 
+> Compatibility surface: the browser and CLI use the unified
+> `/api/v1/strategies` contract. These routes remain available for existing
+> integrations that only manage built-in name/headline overrides.
+
 - Schema: `unicorn.strategy-preferences.v1`
 - Storage: App OLTP D1 binding `DB`
 - Owner adapter: stable Sites `oai-authenticated-user-id`; anonymous

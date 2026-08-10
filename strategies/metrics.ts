@@ -15,6 +15,7 @@ export type StrategySummaryMetricContext = Readonly<{
   selected: SampleStrategyRecord;
   selectedCatalogIndex: number;
   unrealizedGain: number;
+  holdingsMarketValue?: number;
   translate: StrategyTranslator;
 }>;
 
@@ -28,10 +29,22 @@ export function buildStrategySummaryMetricRegistry({
   selected,
   selectedCatalogIndex,
   unrealizedGain,
+  holdingsMarketValue,
   translate,
 }: StrategySummaryMetricContext) {
-  const portfolioValue = 248630 + selectedCatalogIndex * 9340;
-  const totalGain = Math.round(portfolioValue * selected.netReturn / 100);
+  const illustrativePortfolioValue = 248630 + selectedCatalogIndex * 9340;
+  const cashRatio = Math.max(0, Math.min(0.99, selected.cash / 100));
+  const portfolioValue = holdingsMarketValue === undefined
+    ? illustrativePortfolioValue
+    : Math.round(holdingsMarketValue / (1 - cashRatio));
+  // `cash` is an allocation percentage, so a marked portfolio preserves that
+  // allocation instead of treating the percentage as a stale dollar balance.
+  const cashValue = holdingsMarketValue === undefined
+    ? Math.round(illustrativePortfolioValue * cashRatio)
+    : Math.max(0, portfolioValue - Math.round(holdingsMarketValue));
+  // Performance remains catalog provenance. A current price snapshot updates
+  // the value and unrealized cards, but must not manufacture a new backtest.
+  const totalGain = Math.round(illustrativePortfolioValue * selected.netReturn / 100);
   const annualizedYield = Math.max(-4.2, selected.netReturn * 0.82);
 
   const cards: Readonly<Record<StrategySummaryMetricId, StrategySummaryCard>> = {
@@ -39,7 +52,7 @@ export function buildStrategySummaryMetricRegistry({
       label: translate("portfolio.value"),
       value: `$${portfolioValue.toLocaleString("en-US")}`,
       note: translate("portfolio.cash", {
-        value: `$${Math.round(portfolioValue * selected.cash / 100).toLocaleString("en-US")}`,
+        value: `$${cashValue.toLocaleString("en-US")}`,
       }),
     },
     "portfolio.unrealizedGain": {
@@ -87,6 +100,7 @@ export function buildStrategySummaryMetricRegistry({
 
   return Object.freeze({
     portfolioValue,
+    cashValue,
     cards: Object.freeze(cards),
   });
 }

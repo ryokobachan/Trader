@@ -224,6 +224,36 @@ test("returns explicit empty sections instead of fixture or pseudo values", () =
   assert.doesNotMatch(JSON.stringify(model), /fixture|pseudo|開発用/i);
 });
 
+test("renders FMP share structure and financial scores only when supplied", () => {
+  const base = workspaceFixture();
+  assert.ok(base.fundamentals);
+  const workspace: SymbolWorkspace = {
+    ...base,
+    fundamentals: {
+      ...base.fundamentals,
+      shareStructure: {
+        freeFloatRatio: 0.9988,
+        floatShares: 14_669_554_809,
+        outstandingShares: 14_687_356_000,
+        provenance: provenance("fmp", "fmp:shares-float:AAPL"),
+      },
+      financialHealth: {
+        altmanZScore: 12.6123,
+        piotroskiScore: 9,
+        provenance: provenance("fmp", "fmp:financial-scores:AAPL"),
+      },
+    },
+  };
+  const model = buildStockDetailViewModel(workspace, []);
+  const values = new Map(model.fundamentals.metrics.map((metric) => [metric.id, metric.value]));
+
+  assert.equal(values.get("fundamentals.piotroskiScore"), "9 / 9");
+  assert.equal(values.get("fundamentals.altmanZScore"), "12.61");
+  assert.equal(values.get("fundamentals.freeFloatRatio"), "99.9%");
+  assert.equal(values.get("fundamentals.floatShares"), "14.67B");
+  assert.equal(values.get("fundamentals.outstandingShares"), "14.69B");
+});
+
 test("calculates technical metrics only when OHLCV history is sufficient", () => {
   const metrics = buildStockDetailTechnicalMetrics(ascendingBars(60));
   const values = new Map(metrics.map((item) => [item.label, item.value]));

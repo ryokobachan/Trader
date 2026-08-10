@@ -105,6 +105,18 @@ const TRANSACTION_SCHEMA_STATEMENTS = [
     CONSTRAINT ck_strategy_preferences_has_payload
       CHECK(name_override IS NOT NULL OR headline_override IS NOT NULL OR deleted_at IS NOT NULL)
   )`,
+  `CREATE TABLE IF NOT EXISTS custom_strategies (
+    owner_id TEXT NOT NULL,
+    strategy_id TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
+    definition_json TEXT NOT NULL CHECK(json_valid(definition_json)),
+    deleted_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT pk_custom_strategies PRIMARY KEY(owner_id, strategy_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_custom_strategies_owner_deleted_updated
+    ON custom_strategies(owner_id, deleted_at, updated_at)`,
 ] as const;
 
 /**

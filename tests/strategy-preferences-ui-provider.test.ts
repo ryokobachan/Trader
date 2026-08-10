@@ -10,19 +10,59 @@ async function strategyHomeSource() {
   return pageSource.slice(start, end);
 }
 
-test("StrategyHome merges durable preferences and connects edit/delete mutations", async () => {
+test("StrategyHome reads the unified strategy catalog and connects every CRUD mutation", async () => {
   const source = await strategyHomeSource();
 
-  assert.match(source, /strategyPreferences === null[\s\S]*sampleStrategiesForLocale\(locale, strategyPreferences\)/);
-  assert.match(source, /fetch\("\/api\/v1\/strategy-preferences"/);
+  assert.match(source, /fetch\(`\/api\/v1\/strategies\?locale=\$\{encodeURIComponent\(locale\)\}`/);
+  assert.match(source, /payload\.strategies\.map\(strategyRecordFromApi\)/);
+  assert.match(source, /fetch\("\/api\/v1\/strategies", \{[\s\S]*method: "POST"/);
+  assert.match(source, /const createStrategy = async/);
+  assert.match(source, /const duplicateSelectedStrategy = async/);
   assert.match(source, /method: "PATCH"/);
   assert.match(source, /method: "DELETE"/);
-  assert.match(source, /upsertStrategyPreference\(payload\.preference\)/);
+  assert.match(source, /upsertStrategyRecord\(payload\.strategy\)/);
+  assert.match(source, /selected\.origin === "custom" \? \{ expectedVersion: selected\.version \}/);
+  assert.match(source, /expectedVersion=\$\{encodeURIComponent\(String\(selected\.version\)\)\}/);
   assert.match(source, /payload\?\.error\?\.code === "last_visible_strategy"/);
   assert.match(source, /selectPortfolio\(fallback\.id\)/);
-  assert.match(source, /strategyPreferenceReadEpochRef\.current !== requestEpoch/);
-  assert.match(source, /mergeStrategyPreferenceSnapshots\(current, payload\.preferences\)/);
-  assert.match(source, /disabled=\{!strategyCatalogReady\}/);
+  assert.match(source, /strategyCatalogReadEpochRef\.current !== requestEpoch/);
+  assert.match(source, /disabled=\{!strategyCatalogReady \|\| strategyMutationStatus !== "idle"\}/);
+  assert.doesNotMatch(source, /\/api\/v1\/strategy-preferences/);
+});
+
+test("strategy loading, request failures, and version conflicts are visible", async () => {
+  const source = await strategyHomeSource();
+
+  assert.match(source, /strategyCatalogStatus === "loading"/);
+  assert.match(source, /strategyCatalogStatus === "error"/);
+  assert.match(source, /strategyMutationError === "conflict"/);
+  assert.match(source, /className="strategy-request-notice conflict" role="alert"/);
+  assert.match(source, /onClick=\{refreshStrategyCatalog\}/);
+  assert.match(source, /strategy\.performance\.provenance === "illustrative_catalog"/);
+  assert.match(source, /strategy\.performance\.provenance === "user_supplied"/);
+  assert.match(source, /strategy\.performance\.provenance !== "illustrative_catalog"/);
+  assert.match(source, /return st\("sample\.unavailable"\)/);
+  assert.match(source, /selected\.origin === "built_in"/);
+});
+
+test("seeded charts are limited to built-in illustrative strategies", async () => {
+  const source = await strategyHomeSource();
+
+  assert.match(
+    source,
+    /const illustrativeStrategyChartsAvailable = selected\.origin === "built_in"\s*&& selected\.performance\.provenance === "illustrative_catalog"/,
+  );
+  assert.match(source, /illustrativeStrategyChartsAvailable \? <PortfolioValueChart/);
+  assert.match(source, /illustrativeStrategyChartsAvailable \? <PortfolioProfitChart/);
+  assert.match(
+    source,
+    /<StrategyChartUnavailable className="portfolio-chart-canvas"[^>]*message=\{st\("chart\.unavailable"\)\}/,
+  );
+  assert.match(
+    source,
+    /<StrategyChartUnavailable className="portfolio-analysis-chart"[^>]*message=\{st\("chart\.unavailable"\)\}/,
+  );
+  assert.match(source, /st\(illustrativeStrategyChartsAvailable \? "tip\.description" : "tip\.userDataDescription"\)/);
 });
 
 test("transaction reads and writes are scoped to a strategy and stale responses are ignored", async () => {

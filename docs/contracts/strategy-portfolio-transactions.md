@@ -11,6 +11,9 @@
 |---|---|---|
 | `GET` | `/api/v1/strategy-portfolios/:strategyId/transactions` | Return the strategy's transactions in reverse date order |
 | `POST` | `/api/v1/strategy-portfolios/:strategyId/transactions` | Persist one transaction and its audit event |
+| `GET` | `/api/v1/strategy-portfolios/:strategyId/transactions/:transactionId` | Return one transaction |
+| `PATCH` | `/api/v1/strategy-portfolios/:strategyId/transactions/:transactionId` | Replace one transaction's canonical fields |
+| `DELETE` | `/api/v1/strategy-portfolios/:strategyId/transactions/:transactionId` | Delete one transaction and retain an audit marker |
 
 The canonical POST body is:
 
@@ -44,16 +47,42 @@ labels map as follows:
 zero; `price` and `fee` must be finite, non-negative numbers. Symbols are stored
 as normalized uppercase display references, not as market-data records.
 
-## First-read initialization
+PATCH accepts the same canonical fields as POST except `transactionId`, which
+comes only from the path, and requires the exact optimistic-lock token returned
+by the latest GET:
 
-The first GET for each known built-in `(ownerId, strategyId)` atomically seeds
-five U.S.-equity sample transactions and writes a versioned audit marker.
-Unknown or retired catalog IDs return `404 strategy_not_found` before D1 is
-accessed. Later reads never
-infer initialization from an empty result, so a future delete/import workflow
-can intentionally leave a portfolio empty without the fixture returning.
-Concurrent first reads use deterministic seed IDs and the same audit marker,
-preventing duplicate rows.
+```json
+{
+  "date": "2026-08-09",
+  "symbol": "AAPL",
+  "side": "buy",
+  "shares": 10,
+  "price": 232.25,
+  "fee": 0,
+  "expectedUpdatedAt": "2026-08-10T04:05:06.789Z"
+}
+```
+
+The guarded D1 update matches `owner_id`, `strategy_id`, `transaction_id`, and
+the old `updated_at`. A stale token returns `409 transaction_changed`; a row
+that no longer exists returns `404 transaction_not_found`. Clients must re-read
+after either response and must not retry a stale edit automatically. DELETE is
+idempotent after a successful deletion and returns `deleted: false` on a replay.
+
+## Read and idempotency behavior
+
+GET is always read-only. A new strategy starts with an empty transaction list;
+no demo data is installed implicitly. Public demo fixtures under `strategies/`
+are source examples only.
+
+POST uses the composite `(ownerId, strategyId, transactionId)` idempotency
+boundary. Concurrent requests with the same ID and payload create one row and
+one audit event; one response is 201 and replays return 200. If the content
+differs, the API returns `409 transaction_id_conflict`.
+
+Unknown, deleted, or inactive strategy IDs return `404 strategy_not_found`
+before a transaction mutation. Both built-in and owner-scoped custom strategy
+IDs are supported while active.
 
 Every query includes the request-scoped `owner_id`. A non-loopback request
 without a Sites user ID returns `401 authentication_required` before D1 is

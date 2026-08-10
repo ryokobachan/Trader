@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -37,7 +38,7 @@ test("server-renders the Unicorn stock analysis mock", async () => {
   assert.match(html, /<title>Unicorn — Stock Analysis Workspace<\/title>/i);
   assert.match(html, /aria-label="Unicorn"/);
   assert.match(html, /UNICORN/);
-  assert.match(html, /src="\/unicorn-logo\.png"/);
+  assert.match(html, /src="\/unicorn-logo-v3\.png"/);
   assert.doesNotMatch(html, /🦄/u);
   assert.doesNotMatch(html, /Pulseboard/i);
   assert.match(html, /AAPL/);
@@ -79,15 +80,24 @@ test("server-renders the Unicorn stock analysis mock", async () => {
 test("uses the supplied Unicorn logo for the favicon and shell metadata", async () => {
   const brand = await readFile(new URL("../src/app/platform/brand.ts", import.meta.url), "utf8");
   const layout = await readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8");
-  await access(new URL("../public/unicorn-logo.png", import.meta.url));
+  const logo = await readFile(new URL("../public/unicorn-logo-v3.png", import.meta.url));
   await access(new URL("../public/favicon.ico", import.meta.url));
-  await access(new URL("../public/favicon-unicorn-v2.ico", import.meta.url));
-  await access(new URL("../public/favicon-unicorn-v2.png", import.meta.url));
-  await access(new URL("../public/favicon.png", import.meta.url));
-  assert.match(brand, /logoPath:\s*"\/unicorn-logo\.png"/);
-  assert.match(brand, /faviconPath:\s*"\/favicon-unicorn-v2\.png"/);
-  assert.match(brand, /faviconIcoPath:\s*"\/favicon-unicorn-v2\.ico"/);
-  assert.match(brand, /appleTouchIconPath:\s*"\/favicon\.png"/);
+  await access(new URL("../public/favicon-unicorn-v3.ico", import.meta.url));
+  await access(new URL("../public/favicon-unicorn-v3-16.png", import.meta.url));
+  await access(new URL("../public/favicon-unicorn-v3-32.png", import.meta.url));
+  await access(new URL("../public/apple-touch-icon-unicorn-v3.png", import.meta.url));
+  assert.equal(
+    createHash("sha256").update(logo).digest("hex"),
+    "e94f959b2882dab682c50589b91b01cecd501855497ef97a685d94fb64e9a9a3",
+  );
+  assert.match(brand, /logoPath:\s*"\/unicorn-logo-v3\.png"/);
+  assert.match(brand, /favicon16Path:\s*"\/favicon-unicorn-v3-16\.png"/);
+  assert.match(brand, /favicon32Path:\s*"\/favicon-unicorn-v3-32\.png"/);
+  assert.match(brand, /faviconIcoPath:\s*"\/favicon-unicorn-v3\.ico"/);
+  assert.match(brand, /appleTouchIconPath:\s*"\/apple-touch-icon-unicorn-v3\.png"/);
+  assert.match(layout, /sizes:\s*"16x16"/);
+  assert.match(layout, /sizes:\s*"32x32"/);
+  assert.match(layout, /sizes:\s*"180x180"/);
   assert.match(layout, /image\/x-icon/);
   assert.match(layout, /openGraph/);
   assert.match(layout, /twitter/);

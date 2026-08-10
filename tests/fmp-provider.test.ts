@@ -334,6 +334,23 @@ test("normalizes quote, bars, profile, fundamentals, earnings, analyst, and news
           capitalExpenditure: -12,
           freeCashFlow: 108,
         }]);
+      case "/stable/shares-float":
+        return json([{
+          symbol: "AAPL",
+          date: "2026-08-09 20:12:15",
+          freeFloat: 99.87879921341867,
+          floatShares: 14_669_554_809,
+          outstandingShares: 14_687_356_000,
+          source: "https://www.sec.gov/",
+        }]);
+      case "/stable/financial-scores":
+        return json([{
+          symbol: "AAPL",
+          reportedCurrency: "USD",
+          altmanZScore: 12.61237092657927,
+          piotroskiScore: 9,
+          workingCapital: 492_000_000,
+        }]);
       case "/stable/earnings":
         return json([
           { date: "2026-07-30", epsActual: 1.6, epsEstimated: 1.5, revenueActual: 100, revenueEstimated: 98 },
@@ -418,6 +435,14 @@ test("normalizes quote, bars, profile, fundamentals, earnings, analyst, and news
   assert.equal(fundamentals?.bookValuePerShare, 7);
   assert.equal(fundamentals?.operatingCashFlowPerShare, 8);
   assert.equal(fundamentals?.freeCashFlowPerShare, 7.2);
+  assert.ok(Math.abs((fundamentals?.shareStructure?.freeFloatRatio ?? 0) - 0.9987879921341868) < 1e-12);
+  assert.equal(fundamentals?.shareStructure?.floatShares, 14_669_554_809);
+  assert.equal(fundamentals?.shareStructure?.outstandingShares, 14_687_356_000);
+  assert.equal(fundamentals?.shareStructure?.provenance.sourceId, "fmp:shares-float:AAPL");
+  assert.equal(fundamentals?.shareStructure?.provenance.asOf, "2026-08-09T20:12:15.000Z");
+  assert.equal(fundamentals?.financialHealth?.altmanZScore, 12.61237092657927);
+  assert.equal(fundamentals?.financialHealth?.piotroskiScore, 9);
+  assert.equal(fundamentals?.financialHealth?.provenance.sourceId, "fmp:financial-scores:AAPL");
   assert.equal(earnings[0]?.reportDate, "2026-07-30");
   assert.equal(analyst?.targetConsensus, 250);
   assert.equal(analyst?.analystCount, 36);
@@ -453,6 +478,29 @@ test("returns a partial fundamental snapshot when optional upstream datasets are
   assert.equal(result?.revenue, 420);
   assert.equal(result?.netIncome, 105);
   assert.equal(JSON.stringify(result).includes(SECRET), false);
+});
+
+test("strictly rejects malformed supplemental fundamentals without fabricating zero values", async () => {
+  const fetch: FmpFetch = async (input) => {
+    const url = requestUrl(input);
+    if (url.pathname === "/stable/shares-float") {
+      return json([
+        { symbol: "MSFT", freeFloat: 80, floatShares: 80, outstandingShares: 100 },
+        { symbol: "AAPL", freeFloat: "99.1", floatShares: -1, outstandingShares: 12.5 },
+      ]);
+    }
+    if (url.pathname === "/stable/financial-scores") {
+      return json([{ symbol: "AAPL", altmanZScore: "4.2", piotroskiScore: 9.5 }]);
+    }
+    return json({ error: "not entitled" }, 403);
+  };
+  const provider = createFmpProvider(
+    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { fetch, now: () => new Date(NOW) },
+  );
+
+  const result = await provider.fundamentals?.getFundamentals(INSTRUMENT, CONTEXT);
+  assert.equal(result, null);
 });
 
 test("sanitizes upstream, response, network, and timeout failures", async () => {

@@ -163,6 +163,21 @@ export type CompanyProfile = Readonly<{
   provenance: DataProvenance;
 }>;
 
+export type ShareStructureSnapshot = Readonly<{
+  /** Fraction of outstanding shares in the public float (`0.75` = 75%). */
+  freeFloatRatio?: number;
+  floatShares?: number;
+  outstandingShares?: number;
+  provenance: DataProvenance;
+}>;
+
+export type FinancialHealthSnapshot = Readonly<{
+  altmanZScore?: number;
+  /** Integer score in the canonical 0–9 range. */
+  piotroskiScore?: number;
+  provenance: DataProvenance;
+}>;
+
 export type FundamentalsSnapshot = Readonly<{
   instrumentId: string;
   currency: "USD";
@@ -223,6 +238,9 @@ export type FundamentalsSnapshot = Readonly<{
   bookValuePerShare?: number;
   operatingCashFlowPerShare?: number;
   freeCashFlowPerShare?: number;
+  /** Supplemental datasets retain endpoint-level provenance and absence. */
+  shareStructure?: ShareStructureSnapshot;
+  financialHealth?: FinancialHealthSnapshot;
   provenance: DataProvenance;
 }>;
 

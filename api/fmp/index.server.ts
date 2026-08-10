@@ -5,6 +5,7 @@ import {
   type CompanyProfile,
   type DataProvenance,
   type EarningsEvent,
+  type FinancialHealthSnapshot,
   type FundamentalsSnapshot,
   type Instrument,
   type MarketBarInterval,
@@ -15,6 +16,7 @@ import {
   type ProviderRegistration,
   type ProviderRequestContext,
   type Quote,
+  type ShareStructureSnapshot,
 } from "@/app/platform/provider-contracts";
 import { aggregateMarketBars } from "@/app/platform/market-bar-aggregation";
 import { companyLogoPathForUSStock } from "@/app/platform/company-logo";
@@ -183,6 +185,21 @@ function firstRecord(value: unknown): JsonRecord | undefined {
   return recordsFrom(value)[0];
 }
 
+function recordForSymbol(value: unknown, expectedSymbol: string): JsonRecord | undefined {
+  return recordsFrom(value).find((record) => normalizedSymbol(record.symbol) === expectedSymbol);
+}
+
+function strictNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function strictInteger(value: unknown, minimum: number, maximum = Number.MAX_SAFE_INTEGER): number | undefined {
+  const parsed = strictNumber(value);
+  return parsed !== undefined && Number.isSafeInteger(parsed) && parsed >= minimum && parsed <= maximum
+    ? parsed
+    : undefined;
+}
+
 function stringValue(...values: unknown[]): string | undefined {
   for (const value of values) {
     if (typeof value === "string" && value.trim()) return value.trim();
@@ -344,6 +361,67 @@ function provenance(
   };
 }
 
+function shareStructureFromPayload(
+  payload: unknown,
+  instrument: Instrument,
+  context: ProviderRequestContext,
+  client: FmpClient,
+  ingestedAt: string,
+): ShareStructureSnapshot | null {
+  const record = recordForSymbol(payload, instrument.symbol);
+  if (!record) return null;
+  const freeFloatPercent = strictNumber(record.freeFloat);
+  const freeFloatRatio = freeFloatPercent !== undefined
+    && freeFloatPercent >= 0
+    && freeFloatPercent <= 100
+    ? freeFloatPercent / 100
+    : undefined;
+  const outstandingShares = strictInteger(record.outstandingShares, 1);
+  const candidateFloatShares = strictInteger(record.floatShares, 0);
+  const floatShares = candidateFloatShares !== undefined
+    && (outstandingShares === undefined || candidateFloatShares <= outstandingShares)
+    ? candidateFloatShares
+    : undefined;
+  if (freeFloatRatio === undefined && floatShares === undefined && outstandingShares === undefined) return null;
+  return {
+    ...(freeFloatRatio === undefined ? {} : { freeFloatRatio }),
+    ...(floatShares === undefined ? {} : { floatShares }),
+    ...(outstandingShares === undefined ? {} : { outstandingShares }),
+    provenance: provenance(
+      client,
+      `fmp:shares-float:${instrument.symbol}`,
+      "shares-float",
+      isoDateTime(record.date) || sourceAsOf(context, ingestedAt),
+      ingestedAt,
+    ),
+  };
+}
+
+function financialHealthFromPayload(
+  payload: unknown,
+  instrument: Instrument,
+  context: ProviderRequestContext,
+  client: FmpClient,
+  ingestedAt: string,
+): FinancialHealthSnapshot | null {
+  const record = recordForSymbol(payload, instrument.symbol);
+  if (!record) return null;
+  const altmanZScore = strictNumber(record.altmanZScore);
+  const piotroskiScore = strictInteger(record.piotroskiScore, 0, 9);
+  if (altmanZScore === undefined && piotroskiScore === undefined) return null;
+  return {
+    ...(altmanZScore === undefined ? {} : { altmanZScore }),
+    ...(piotroskiScore === undefined ? {} : { piotroskiScore }),
+    provenance: provenance(
+      client,
+      `fmp:financial-scores:${instrument.symbol}`,
+      "financial-scores",
+      sourceAsOf(context, ingestedAt),
+      ingestedAt,
+    ),
+  };
+}
+
 function instrumentFromProfile(
   profile: JsonRecord,
   context: ProviderRequestContext,
@@ -416,7 +494,10 @@ function calculateGrowth(current: number | undefined, previous: number | undefin
 }
 
 function hasSnapshotData(snapshot: Omit<FundamentalsSnapshot, "instrumentId" | "currency" | "provenance">): boolean {
-  return Object.entries(snapshot).some(([name, value]) => name !== "period" && typeof value === "number");
+  return Object.entries(snapshot).some(([name, value]) => (
+    name !== "period"
+    && (typeof value === "number" || name === "shareStructure" || name === "financialHealth")
+  ));
 }
 
 function rangeDays(range: MarketBarRange): number {
@@ -652,12 +733,16 @@ export function createFmpProvider(
           incomePayload,
           balancePayload,
           cashFlowPayload,
+          sharesFloatPayload,
+          financialScoresPayload,
         ] = await Promise.all([
           optionalGet(client, "key-metrics-ttm", query),
           optionalGet(client, "ratios-ttm", query),
           optionalGet(client, "income-statement", { ...query, period: "annual", limit: 2 }),
           optionalGet(client, "balance-sheet-statement", { ...query, period: "annual", limit: 1 }),
           optionalGet(client, "cash-flow-statement", { ...query, period: "annual", limit: 1 }),
+          optionalGet(client, "shares-float", query),
+          optionalGet(client, "financial-scores", query),
         ]);
         const metrics = firstRecord(metricsPayload) || {};
         const ratios = firstRecord(ratiosPayload) || {};
@@ -674,6 +759,21 @@ export function createFmpProvider(
         const revenue = numberValue(currentIncome.revenue, metrics.revenueTTM);
         const freeCashFlow = numberValue(cashFlow.freeCashFlow, metrics.freeCashFlowTTM);
         const ebitda = numberValue(currentIncome.ebitda, metrics.ebitdaTTM);
+        const ingestedAt = now().toISOString();
+        const shareStructure = shareStructureFromPayload(
+          sharesFloatPayload,
+          instrument,
+          context,
+          client,
+          ingestedAt,
+        );
+        const financialHealth = financialHealthFromPayload(
+          financialScoresPayload,
+          instrument,
+          context,
+          client,
+          ingestedAt,
+        );
 
         const values = {
           period: stringValue(currentIncome.calendarYear, currentIncome.fiscalYear, currentIncome.period, currentIncome.date),
@@ -755,9 +855,10 @@ export function createFmpProvider(
             metrics.operatingCashFlowPerShareTTM,
           ),
           freeCashFlowPerShare: numberValue(ratios.freeCashFlowPerShareTTM, metrics.freeCashFlowPerShareTTM),
+          ...(shareStructure ? { shareStructure } : {}),
+          ...(financialHealth ? { financialHealth } : {}),
         };
         if (!hasSnapshotData(values)) return null;
-        const ingestedAt = now().toISOString();
         const reportAsOf = [currentIncome.date, balance.date, cashFlow.date]
           .map((value) => stringValue(value))
           .filter((value): value is string => Boolean(value))

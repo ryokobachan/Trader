@@ -124,6 +124,11 @@ const STOCK_DETAIL_METRIC_LABELS = {
   "fundamentals.freeCashFlowMargin": "FCFマージン",
   "fundamentals.assetTurnover": "総資産回転率",
   "fundamentals.interestCoverage": "インタレスト・カバレッジ",
+  "fundamentals.altmanZScore": "Altman Zスコア",
+  "fundamentals.piotroskiScore": "Piotroski Fスコア",
+  "fundamentals.freeFloatRatio": "浮動株比率",
+  "fundamentals.floatShares": "浮動株数",
+  "fundamentals.outstandingShares": "発行済株式数",
   "fundamentals.cashAndShortTermInvestments": "現金・短期投資",
   "fundamentals.totalAssets": "総資産",
   "fundamentals.totalDebt": "有利子負債",
@@ -428,6 +433,8 @@ export function buildStockDetailViewModel(
   const fundamentalPercentNote = "Provider最新値 · %";
   const fundamentalRatioNote = "Provider最新値 · 倍率";
   const fundamentalPerShareNote = "Provider最新値 · USD / 株";
+  const fundamentalShareCountNote = "Provider最新値 · 株式数";
+  const providerScoreNote = "Provider算出値 · スコア";
   const fundamentalMetrics = fundamentals ? present<StockDetailMetric>([
     metric("fundamentals.revenue", fundamentals.revenue, formatCompactCurrency, { note: fundamentalCurrencyNote }),
     metric("fundamentals.revenueGrowth", fundamentals.revenueGrowth, formatPercent, {
@@ -463,6 +470,11 @@ export function buildStockDetailViewModel(
     metric("fundamentals.freeCashFlowMargin", fundamentals.freeCashFlowMargin, formatUnsignedPercent, { note: fundamentalPercentNote }),
     metric("fundamentals.assetTurnover", fundamentals.assetTurnover, formatMultiple, { note: fundamentalRatioNote }),
     metric("fundamentals.interestCoverage", fundamentals.interestCoverage, formatMultiple, { note: fundamentalRatioNote }),
+    metric("fundamentals.piotroskiScore", fundamentals.financialHealth?.piotroskiScore, (value) => `${value.toFixed(0)} / 9`, { note: providerScoreNote }),
+    metric("fundamentals.altmanZScore", fundamentals.financialHealth?.altmanZScore, (value) => value.toFixed(2), { note: providerScoreNote }),
+    metric("fundamentals.freeFloatRatio", fundamentals.shareStructure?.freeFloatRatio, formatUnsignedPercent, { note: fundamentalPercentNote }),
+    metric("fundamentals.floatShares", fundamentals.shareStructure?.floatShares, formatCompactNumber, { note: fundamentalShareCountNote }),
+    metric("fundamentals.outstandingShares", fundamentals.shareStructure?.outstandingShares, formatCompactNumber, { note: fundamentalShareCountNote }),
     metric("fundamentals.cashAndShortTermInvestments", fundamentals.cashAndShortTermInvestments, formatCompactCurrency, { note: fundamentalCurrencyNote }),
     metric("fundamentals.totalAssets", fundamentals.totalAssets, formatCompactCurrency, { note: fundamentalCurrencyNote }),
     metric("fundamentals.totalDebt", fundamentals.totalDebt, formatCompactCurrency, { note: fundamentalCurrencyNote }),

@@ -33,6 +33,14 @@ export type CreateStrategyPortfolioTransactionInput = {
   fee: number;
 };
 
+export type UpdateStrategyPortfolioTransactionInput = Omit<
+  CreateStrategyPortfolioTransactionInput,
+  "transactionId"
+> & {
+  /** Exact `updatedAt` token returned by the latest transaction read. */
+  expectedUpdatedAt: string;
+};
+
 export type StrategyPortfolioTransactionsResponse = {
   schemaVersion: typeof STRATEGY_PORTFOLIO_TRANSACTIONS_SCHEMA_VERSION;
   ownerId: string;
@@ -45,7 +53,14 @@ export type StrategyPortfolioTransactionMutationResponse = {
   transaction: StrategyPortfolioTransaction;
 };
 
-export { SAMPLE_STRATEGY_TRANSACTIONS as INITIAL_STRATEGY_PORTFOLIO_TRANSACTIONS } from "@strategies/sample-transactions";
+export type StrategyPortfolioTransactionDeleteResponse = {
+  schemaVersion: typeof STRATEGY_PORTFOLIO_TRANSACTIONS_SCHEMA_VERSION;
+  strategyId: string;
+  deletedId: string;
+  deleted: boolean;
+};
+
+export { SAMPLE_STRATEGY_TRANSACTIONS as SAMPLE_STRATEGY_PORTFOLIO_TRANSACTIONS } from "@strategies/sample-transactions";
 
 export class StrategyPortfolioTransactionInputError extends Error {
   constructor(message: string) {
@@ -65,16 +80,22 @@ export function normalizeStrategyId(value: unknown): string {
   return strategyId;
 }
 
-function normalizeTransactionId(value: unknown): string | undefined {
-  if (value === undefined || value === null) return undefined;
+export function normalizeStrategyPortfolioTransactionId(
+  value: unknown,
+): string {
   if (typeof value !== "string") {
-    throw new StrategyPortfolioTransactionInputError("transactionId is invalid");
+    throw new StrategyPortfolioTransactionInputError("transactionId is required");
   }
   const transactionId = value.normalize("NFKC").trim();
   if (!TRANSACTION_ID_PATTERN.test(transactionId)) {
     throw new StrategyPortfolioTransactionInputError("transactionId is invalid");
   }
   return transactionId;
+}
+
+function normalizeOptionalTransactionId(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  return normalizeStrategyPortfolioTransactionId(value);
 }
 
 function normalizeDate(value: unknown): string {
@@ -122,7 +143,7 @@ export function normalizeStrategyPortfolioTransactionInput(
   }
 
   return {
-    transactionId: normalizeTransactionId(input.transactionId),
+    transactionId: normalizeOptionalTransactionId(input.transactionId),
     date: normalizeDate(input.date),
     symbol,
     side: input.side,
@@ -132,5 +153,49 @@ export function normalizeStrategyPortfolioTransactionInput(
     }),
     price: normalizeNumber(input.price, "price", { maximum: MAX_MONEY_VALUE }),
     fee: normalizeNumber(input.fee ?? 0, "fee", { maximum: MAX_MONEY_VALUE }),
+  };
+}
+
+export function normalizeStrategyPortfolioTransactionUpdateInput(
+  value: unknown,
+): UpdateStrategyPortfolioTransactionInput {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new StrategyPortfolioTransactionInputError("request body must be an object");
+  }
+  const input = value as Record<string, unknown>;
+  const allowed = new Set([
+    "date",
+    "symbol",
+    "side",
+    "shares",
+    "price",
+    "fee",
+    "expectedUpdatedAt",
+  ]);
+  if (Object.keys(input).some((key) => !allowed.has(key))) {
+    throw new StrategyPortfolioTransactionInputError(
+      "only date, symbol, side, shares, price, fee, and expectedUpdatedAt can be supplied",
+    );
+  }
+  if (
+    typeof input.expectedUpdatedAt !== "string"
+    || input.expectedUpdatedAt.length === 0
+    || input.expectedUpdatedAt.length > 64
+    || input.expectedUpdatedAt.trim() !== input.expectedUpdatedAt
+    || /[\u0000-\u001f\u007f]/.test(input.expectedUpdatedAt)
+  ) {
+    throw new StrategyPortfolioTransactionInputError(
+      "expectedUpdatedAt must be the exact updatedAt value from the latest transaction read",
+    );
+  }
+  const normalized = normalizeStrategyPortfolioTransactionInput(input);
+  return {
+    date: normalized.date,
+    symbol: normalized.symbol,
+    side: normalized.side,
+    shares: normalized.shares,
+    price: normalized.price,
+    fee: normalized.fee,
+    expectedUpdatedAt: input.expectedUpdatedAt,
   };
 }

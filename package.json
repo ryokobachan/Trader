@@ -25,6 +25,7 @@
     "dev:yahoo:app": "node src/tooling/scripts/dev-with-yahoo.mjs",
     "sidecar:tradingview": "python3 api/tradingview-websocket/sidecar.py",
     "config:check": "node --env-file-if-exists=.env.local --import tsx src/tooling/scripts/check-unicorn-config.ts",
+    "strategy": "tsx src/tooling/scripts/strategy-cli.ts",
     "build": "npm run config:check && vinext build",
     "start": "vinext start",
     "test": "npm run build && npm run test:contracts && node --test tests/rendered-html.test.mjs",

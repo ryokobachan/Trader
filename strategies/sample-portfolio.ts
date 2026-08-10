@@ -19,3 +19,22 @@ export const SAMPLE_PORTFOLIO_HOLDINGS: readonly SamplePortfolioHolding[] = Obje
   { ticker: "MSFT", shares: 92, average: 421.1, value: 47590, allocation: 19.1, daily: 0.72, unrealized: 8849, beta: 0.94, rsi: 55.1, performance1M: 4.9, technicalRating: "買い" },
   { ticker: "TSLA", shares: 118, average: 289.43, value: 40078, allocation: 16.1, daily: -1.47, unrealized: 5925, beta: 2.14, rsi: 47.8, performance1M: -3.6, technicalRating: "中立" },
 ]);
+
+const AAPL_ONLY_HOLDINGS = Object.freeze(
+  SAMPLE_PORTFOLIO_HOLDINGS.filter((holding) => holding.ticker === "AAPL"),
+);
+
+/**
+ * Return only the illustrative lots that belong to a visible built-in sample.
+ * Unknown/custom strategies intentionally receive no fabricated holdings.
+ */
+export function samplePortfolioHoldingsForStrategy(
+  strategyId: string,
+): readonly SamplePortfolioHolding[] {
+  if (strategyId === "sample.aapl-sma-50-200.v1") return AAPL_ONLY_HOLDINGS;
+  if (
+    strategyId === "sample.tech-leaders-equal-weight.v1"
+    || strategyId === "sample.rsi-14-mean-reversion.v1"
+  ) return SAMPLE_PORTFOLIO_HOLDINGS;
+  return Object.freeze([]);
+}
