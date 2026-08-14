@@ -11,6 +11,14 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "next-env.d.ts",
+    // Generated application and desktop build outputs:
+    "dist/**",
+    "src/desktop/frontend-dist/**",
+    "src/desktop/tauri/target/**",
+    "src/desktop/tauri/gen/**",
+    "src/desktop/runtime/tradingview-sidecar/.venv/**",
+    "src/desktop/runtime/tradingview-sidecar/build/**",
+    "src/desktop/runtime/tradingview-sidecar/dist/**",
   ]),
 ]);
 

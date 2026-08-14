@@ -126,7 +126,20 @@ test("stream route reports a configured market without streaming support", async
   });
 });
 
-test("stream route forwards only normalized direct USD listing quotes over same-origin SSE", async () => {
+test("snapshot mode gates SSE so fixture quote events cannot reach the UI", async () => {
+  const [snapshotRouteSource, streamRouteSource, pageSource] = await Promise.all([
+    readFile(new URL("../src/app/api/v1/watchlists/quotes/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/api/v1/watchlists/quotes/stream/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(snapshotRouteSource, /dataMode === "provider" && Boolean\(runtime\.market\.getQuoteStream\)/);
+  assert.match(streamRouteSource, /watchlistQuoteDataMode\([\s\S]*?runtime\.selectedProviderIds\.instrument,[\s\S]*?runtime\.selectedProviderIds\.market,[\s\S]*?\) !== "provider"/);
+  assert.match(pageSource, /providerQuotesEnabled = response\.dataMode === "provider"/);
+  assert.match(pageSource, /if \(!providerQuotesEnabled \|\| !symbolSet\.has\(symbol\)\) return;/);
+});
+
+test("stream route refuses a real market stream when instrument identity is fixture", async () => {
   const secret = "test-sidecar-secret";
   const originalFetch = globalThis.fetch;
   let requestedBody: unknown;
@@ -191,36 +204,39 @@ test("stream route forwards only normalized direct USD listing quotes over same-
         "http://localhost/api/v1/watchlists/quotes/stream?symbols=AAPL",
         { headers: { origin: "http://localhost", "sec-fetch-site": "same-origin" } },
       ));
-      assert.equal(response.status, 200);
-      assert.match(response.headers.get("content-type") ?? "", /^text\/event-stream/);
-      assert.equal(response.headers.get("x-accel-buffering"), "no");
-      const body = await response.text();
-      assert.match(body, /^: connected\n\n/);
-      assert.match(body, new RegExp(WATCHLIST_QUOTE_STREAM_SCHEMA_VERSION));
-      assert.match(body, /"symbol":"AAPL"/);
-      assert.match(body, /"currency":"USD"/);
-      assert.doesNotMatch(body, /USDT\.P|test-sidecar-secret/);
+      assert.equal(response.status, 409);
+      const body = await response.json() as { error?: { code?: string } };
+      assert.equal(body.error?.code, "stream_not_configured");
     });
   } finally {
     globalThis.fetch = originalFetch;
   }
 
-  assert.equal(requestedUrl?.pathname, "/v1/realtime-quotes/stream");
-  assert.deepEqual(requestedBody, { items: [{ symbol: "AAPL", mic: "XNAS" }] });
-  assert.ok(!requestedUrl?.toString().includes(secret));
+  assert.equal(requestedUrl, undefined, "fixture identity must be rejected before upstream access");
+  assert.equal(requestedBody, undefined);
 });
 
-test("watchlist UI treats SSE as primary, requires an application quote, and retains polling fallback", async () => {
+test("watchlist UI treats SSE or HTTPS long poll as primary and retains snapshot fallback", async () => {
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
   assert.match(pageSource, /new EventSource\(`\/api\/v1\/watchlists\/quotes\/stream\?\$\{query\}`\)/);
+  assert.match(pageSource, /providerQuotesEnabled = response\.dataMode === "provider"/);
+  assert.match(pageSource, /streamSupported = providerQuotesEnabled && response\.streamSupported === true/);
+  assert.match(pageSource, /longPollSupported = providerQuotesEnabled[\s\S]*?response\.longPollSupported === true[\s\S]*?&& !streamSupported/);
+  assert.match(pageSource, /fetch\("\/api\/v1\/watchlists\/quotes\/poll"/);
+  assert.match(pageSource, /JSON\.stringify\(\{ symbols, cursors: quoteLongPollCursors\(\) \}\)/);
+  assert.match(pageSource, /longPollController\?\.abort\("quote long poll stopped"\)/);
+  assert.match(pageSource, /scheduleQuoteLongPoll\(longPollRetryDelay === 1_000 \? 0 : longPollRetryDelay\)/);
+  assert.match(pageSource, /streamSupported !== true/);
   assert.doesNotMatch(pageSource, /source\.onopen[\s\S]{0,180}streamConnected = true/);
   assert.match(pageSource, /const message = parseWatchlistQuoteStreamMessage\(event\.data\);[\s\S]*?if \(!message\) return;[\s\S]*?streamConnected = true;[\s\S]*?reconnectDelay = 1_000;/);
   assert.match(pageSource, /if \(disposed \|\| eventSource !== source \|\| streamConnected\) return;[\s\S]*?10_000/);
   assert.match(pageSource, /WATCHLIST_QUOTE_REFRESH_MS = 15_000/);
   assert.match(pageSource, /const resolvedSymbols = new Set<string>\(\);/);
   assert.match(pageSource, /streamConnected && resolvedSymbols\.size >= symbols\.length/);
-  assert.match(pageSource, /if \(!streamConnected \|\| resolvedSymbols\.size < symbols\.length\) refresh\(\);/);
+  assert.match(pageSource, /Focus, pageshow, and exact market boundaries always require a fresh/);
+  assert.match(pageSource, /window\.addEventListener\("pageshow", refreshNow\)/);
+  assert.match(pageSource, /forceWatchlistQuoteSnapshotRef\.current = refreshNow/);
   assert.match(pageSource, /if \(document\.hidden\) \{[\s\S]*?disconnectStream\(\);/);
   assert.match(pageSource, /const previousAsOf = latestAsOf\.get\(symbol\);[\s\S]*?isNewerWatchlistQuote\(quote, previousAsOf\)/);
 });

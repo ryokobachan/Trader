@@ -35,3 +35,12 @@ test("analyst-ratings route bounds the upstream page size", async () => {
   assert.equal(response.status, 400);
   assert.equal(((await response.json()) as ErrorBody).error.code, "invalid_pagesize");
 });
+
+test("analyst-ratings route rejects malformed fresh controls", async () => {
+  const response = await GET(
+    new Request("http://localhost/api/v1/symbols/MU/analyst-ratings?fresh=0"),
+    context(),
+  );
+  assert.equal(response.status, 400);
+  assert.equal(((await response.json()) as ErrorBody).error.code, "invalid_fresh");
+});

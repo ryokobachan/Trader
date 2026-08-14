@@ -4,6 +4,7 @@ import {
 } from "../../../../../platform/provider-contracts";
 import { providerEnvironment } from "../../../../../platform/provider-environment.server";
 import { ProviderRegistryError } from "../../../../../platform/provider-registry";
+import { providerDataMode } from "../../../../../platform/watchlist-quotes.server";
 import { createProviderRuntime } from "@api/index.server";
 
 type RouteContext = { params: Promise<{ symbol: string }> };
@@ -59,6 +60,10 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   const url = new URL(request.url);
+  const fresh = url.searchParams.get("fresh");
+  if (fresh !== null && fresh !== "1") {
+    return errorResponse(400, "invalid_fresh", "fresh must be 1 when provided.", requestId);
+  }
   const today = new Date();
   const defaultDateTo = dateString(today);
   const defaultStart = new Date(Date.UTC(
@@ -123,12 +128,15 @@ export async function GET(request: Request, context: RouteContext) {
         instrument: runtime.selectedProviderIds.instrument,
         analyst: analystProviderId,
       },
-      dataMode: analystProviderId === "mock" ? "fixture" : "provider",
+      dataMode: providerDataMode(
+        runtime.selectedProviderIds.instrument,
+        analystProviderId,
+      ),
       asOf: history.provenance.asOf,
     };
     return Response.json(response, {
       headers: {
-        "Cache-Control": "private, max-age=300",
+        "Cache-Control": fresh === "1" ? "private, no-store" : "private, max-age=300",
         "X-Request-Id": requestId,
       },
     });

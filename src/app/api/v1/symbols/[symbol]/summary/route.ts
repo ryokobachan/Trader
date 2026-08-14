@@ -5,6 +5,7 @@ import {
 import { providerEnvironment } from "../../../../../platform/provider-environment.server";
 import { ProviderRegistryError } from "../../../../../platform/provider-registry";
 import { isUsableCurrentQuote } from "../../../../../platform/watchlist-quotes.server";
+import { providerDataMode } from "../../../../../platform/watchlist-quotes.server";
 import { createProviderRuntime } from "@api/index.server";
 
 type RouteContext = {
@@ -47,6 +48,10 @@ export async function GET(request: Request, context: RouteContext) {
       instrument,
       quote,
       selectedProviders: runtime.selectedProviderIds,
+      dataMode: providerDataMode(
+        runtime.selectedProviderIds.instrument,
+        runtime.selectedProviderIds.market,
+      ),
       asOf: quote.provenance.asOf,
     };
 

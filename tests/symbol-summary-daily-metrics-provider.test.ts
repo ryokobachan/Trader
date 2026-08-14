@@ -136,6 +136,7 @@ test("sorts daily observations and keeps the latest duplicate date without mutat
     ...bars.at(-1)!,
     time: bars.at(-1)!.time.replace("20:00:00", "21:00:00"),
     close: bars.at(-1)!.close + 5,
+    high: bars.at(-1)!.close + 6,
   };
   const input = [replacement, ...bars.slice().reverse()];
   const snapshot = input.slice();
@@ -149,6 +150,20 @@ test("sorts daily observations and keeps the latest duplicate date without mutat
   );
 });
 
+test("drops malformed OHLCV before calculating summary metrics", () => {
+  const valid = weekdayBars("2026-07-01", 35);
+  const malformed: MarketBar[] = [
+    { ...valid.at(-1)!, time: "2026-08-20T20:00:00.000Z", open: 0 },
+    { ...valid.at(-1)!, time: "2026-08-21T20:00:00.000Z", high: valid.at(-1)!.close - 1 },
+    { ...valid.at(-1)!, time: "2026-08-22T20:00:00.000Z", low: valid.at(-1)!.close + 1 },
+    { ...valid.at(-1)!, time: "2026-08-23T20:00:00.000Z", volume: -1 },
+  ];
+
+  const metrics = buildSummaryDailyMarketMetrics([...valid, ...malformed]);
+  assert.equal(metrics.asOf, valid.at(-1)!.time.slice(0, 10));
+  assert.equal(metrics.averageVolume30, buildSummaryDailyMarketMetrics(valid).averageVolume30);
+});
+
 test("wires a dedicated daily series into summary, detail technicals, and analyst history", () => {
   assert.match(pageSource, /interval:\s*"1d",[\s\S]*?count:\s*String\(DEFAULT_CHART_CANDLE_COUNT\)/);
   assert.match(
@@ -157,12 +172,20 @@ test("wires a dedicated daily series into summary, detail technicals, and analys
   );
   assert.match(
     pageSource,
-    /getStockIntelligence\(stock, detailWorkspace, detailDailyMarketBars, locale\)/,
+    /getStockIntelligence\([\s\S]*?stock,[\s\S]*?detailWorkspace,[\s\S]*?dailyBarsStatus === "provider" \? detailDailyMarketBars : \[\],[\s\S]*?locale/,
   );
+  assert.match(pageSource, /buildStockDetailTechnicalRatings\(bars\)/);
+  assert.match(pageSource, /technicalRatings\.overall\.verdict/);
+  assert.match(pageSource, /technicalRatings\.movingAverages\.verdict/);
+  assert.match(pageSource, /technicalRatings\.oscillators\.verdict/);
+  assert.doesNotMatch(pageSource, /\? 68 : 36|movingAverage20/);
   assert.match(pageSource, /targetPriceMarketBars=\{detailDailyMarketBars\}/);
   assert.match(pageSource, /barsStatus=\{dailyBarsStatus\}/);
   assert.match(pageSource, /dataStatus=\{researchDataStatus\}/);
-  assert.match(pageSource, /dataFreshness:\s*t\(dailyBarsStatus === "error"/);
+  assert.match(
+    pageSource,
+    /dataFreshness:\s*t\(dailyBarsStatus === "loading" \? "status\.fetching" : "status\.connectionError"\)/,
+  );
   assert.doesNotMatch(
     pageSource,
     /buildStockDetailViewModel\(detailWorkspace, detailMarketBars/,

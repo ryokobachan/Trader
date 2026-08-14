@@ -10,8 +10,11 @@ import {
 } from "../../../../platform/request-owner.server";
 import {
   createTradingViewSidecarProvider,
+  loadTradingViewScannerLatestCloses,
   TradingViewSidecarError,
   tradingViewSyntheticExchanges,
+  tradingViewWebsocketProviderRegistration,
+  tradingViewWorkerLatestCloseStreamSupported,
 } from "@api/tradingview-websocket/index.server";
 
 const SYMBOL_PATTERN = /^[A-Z][A-Z0-9.-]{0,9}$/;
@@ -84,15 +87,31 @@ export async function POST(request: Request) {
 
   try {
     const environment = providerEnvironment();
-    const adapter = createTradingViewSidecarProvider(environment);
     const exchanges = tradingViewSyntheticExchanges(environment);
-    const items = await adapter.syntheticMarket.getLatestCloses(symbols, { requestId });
+    const sidecarConfigured = Boolean(
+      environment.UNICORN_TRADINGVIEW_SIDECAR_URL?.trim(),
+    );
+    const items = sidecarConfigured
+      ? await createTradingViewSidecarProvider(environment)
+        .syntheticMarket.getLatestCloses(symbols, { requestId, signal: request.signal })
+      : await loadTradingViewScannerLatestCloses(
+        environment,
+        symbols,
+        { requestId, signal: request.signal },
+      );
     const response: WatchlistAfterHoursResponse = {
       schemaVersion: WATCHLIST_AFTER_HOURS_SCHEMA_VERSION,
       exchange: exchanges[0]!,
       exchanges,
       items,
-      selectedProvider: adapter.manifest.id,
+      selectedProvider: tradingViewWebsocketProviderRegistration.manifest.id,
+      streamSupported: sidecarConfigured,
+      ...(sidecarConfigured
+        ? { streamTransport: "sse" as const }
+        : {}),
+      ...(!sidecarConfigured && tradingViewWorkerLatestCloseStreamSupported()
+        ? { longPollSupported: true as const }
+        : {}),
       asOf: new Date().toISOString(),
     };
     return Response.json(response, {

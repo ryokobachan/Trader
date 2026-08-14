@@ -48,7 +48,8 @@ function validDailyBar(bar: MarketBar): DatedMarketBar | null {
     || bar.high <= 0
     || bar.low <= 0
     || bar.close <= 0
-    || bar.high < bar.low
+    || bar.high < Math.max(bar.open, bar.close, bar.low)
+    || bar.low > Math.min(bar.open, bar.close, bar.high)
     || bar.volume < 0
   ) {
     return null;

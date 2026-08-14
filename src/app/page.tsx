@@ -19,6 +19,8 @@ import {
   LineSeries,
   type CandlestickData,
   type HistogramData,
+  type IChartApi,
+  type ISeriesApi,
   type LineData,
   type LineWidth,
   type Time,
@@ -65,6 +67,7 @@ import { CompanyLogo } from "./components/CompanyLogo";
 import { companyLogoPathForUSStock } from "./platform/company-logo";
 import {
   formatSummaryAfterHoursPrice,
+  type SymbolSummaryIntelligence,
   type SymbolSummaryStock,
 } from "./platform/symbol-summary";
 import {
@@ -110,11 +113,26 @@ import {
   type StockDetailViewModel,
 } from "@api/stock-detail/metrics";
 import {
+  buildStockDetailTechnicalRatings,
+  type TechnicalRatingVerdict,
+} from "@api/stock-detail/technical-ratings";
+import {
   AnalystTargetHistoryChart,
   EarningsActualEstimateChart,
   analystRatingChangeTone,
   analystTargetChangeTone,
 } from "./features/stock-detail/StockDetailCharts";
+import { TechnicalRatingsPanel } from "./features/stock-detail/TechnicalRatingsPanel";
+import {
+  createLatestRequestCoordinator,
+  mergeFreshWorkspaceSection,
+  type WorkspaceRefreshSection,
+} from "./features/stock-detail/workspace-refresh";
+import {
+  canonicalStockDetailTabSelection,
+  resolveStockDetailTab,
+  type StockDetailTabSelection,
+} from "./features/stock-detail/tab-selection";
 import {
   SubIndicatorPanes,
   type SubIndicatorId,
@@ -158,6 +176,11 @@ import {
   type ChartTimeScaleSync,
 } from "./features/chart-sync/chart-time-scale-sync";
 import {
+  EMPTY_CHART_DATA_LIFECYCLE,
+  planChartDataUpdate,
+  type ChartDataLifecycleState,
+} from "./features/chart-sync/chart-data-lifecycle";
+import {
   CHART_TEMPLATE_STORAGE_KEY,
   MAX_CHART_TEMPLATE_NAME_LENGTH,
   createChartTemplate,
@@ -185,7 +208,11 @@ import {
 } from "./features/workspace-layout/panel-sizing";
 import {
   WATCHLIST_AFTER_HOURS_MAX_SYMBOLS,
+  WATCHLIST_AFTER_HOURS_POLL_SCHEMA_VERSION,
+  WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION,
+  WATCHLIST_QUOTES_SCHEMA_VERSION,
   WATCHLIST_QUOTES_MAX_SYMBOLS,
+  WATCHLIST_QUOTE_STREAM_SCHEMA_VERSION,
 } from "./platform/provider-contracts";
 import type {
   AnalystRatingHistory,
@@ -199,8 +226,10 @@ import type {
   MarketBarRange,
   MarketBarsResponse,
   Quote,
-  SyntheticLatestClose,
   SymbolWorkspace,
+  SyntheticLatestClose,
+  WatchlistAfterHoursPollCursor,
+  WatchlistAfterHoursPollResponse,
   WatchlistAfterHoursResponse,
   WatchlistQuoteItem,
   WatchlistQuotesResponse,
@@ -210,10 +239,33 @@ import {
   parseWatchlistQuoteStreamMessage,
 } from "./features/watchlist/quote-stream";
 import {
+  isEditableKeyboardTarget,
+  isWatchlistDeleteShortcut,
+  moveWatchlistItemIds,
+  nextWatchlistSymbolAfterRemoval,
+  type WatchlistDropEdge,
+} from "./features/watchlist/interactions";
+import {
+  isFreshSyntheticLatestClose,
   isNewerAfterHoursClose,
+  isNominalUsRegularSession,
+  millisecondsUntilNextUsSessionBoundary,
   parseWatchlistAfterHoursStreamMessage,
+  pruneStaleAfterHoursCloses,
+  SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS,
+  shouldReplaceMarketSessionObservation,
   shouldUseAfterHoursPrices,
+  type MarketSessionObservation,
 } from "./features/watchlist/after-hours-stream";
+import {
+  advanceMarketDataRequestGeneration,
+  didMarketDataRequestStayInNominalSession,
+  isCurrentMarketDataRequestGeneration,
+  isQuoteNewerThan,
+  marketBarsRefreshDelay,
+  mergeLiveQuoteIntoWorkspace,
+  prioritizedWatchlistQuoteSymbols,
+} from "./features/live-market-data";
 import type {
   Watchlist,
   WatchlistDeletionResponse,
@@ -269,8 +321,12 @@ type IndicatorLineStyle = "solid" | "dashed" | "dotted";
 
 const CHART_RANGE: MarketBarRange = "5y";
 const WATCHLIST_QUOTE_REFRESH_MS = 15_000;
-const WATCHLIST_AFTER_HOURS_REFRESH_MS = 60_000;
-const WATCHLIST_SESSION_STATE_REFRESH_MS = 60_000;
+const WATCHLIST_AFTER_HOURS_REFRESH_MS = 15_000;
+const WATCHLIST_AFTER_HOURS_PRESENT_TIMEOUT_MS = 30_000;
+const WATCHLIST_AFTER_HOURS_LIVENESS_TIMEOUT_MS = 45_000;
+const WATCHLIST_SESSION_STATE_REFRESH_MS = 15_000;
+const MARKET_SESSION_CLOCK_REFRESH_MS = 30_000;
+const ANALYST_HISTORY_REFRESH_MS = 5 * 60_000;
 
 const ENGLISH_INTERVAL_LABELS: Readonly<Record<MarketBarInterval, string>> = {
   "1m": "1m",
@@ -482,92 +538,6 @@ const STOCKS: Stock[] = [
   },
 ];
 
-const STOCK_CONTEXT: Record<string, {
-  country: string;
-  industry: string;
-  website: string;
-  employees: string;
-  nextEarnings: string;
-  earningsSession: string;
-  earningsEstimate: string;
-  revenueEstimate: string;
-  exDividend: string;
-  description: string;
-}> = {
-  AAPL: {
-    country: "United States · Cupertino",
-    industry: "Consumer electronics",
-    website: "apple.com",
-    employees: "164,000",
-    nextEarnings: "Oct 30 · Estimated",
-    earningsSession: "After market close",
-    earningsEstimate: "$1.74",
-    revenueEstimate: "$101.6B",
-    exDividend: "Nov 10 · Estimated",
-    description: "A global consumer technology company spanning devices, services, and payments.",
-  },
-  NVDA: {
-    country: "United States · Santa Clara",
-    industry: "Semiconductors",
-    website: "nvidia.com",
-    employees: "36,000",
-    nextEarnings: "Nov 19 · Estimated",
-    earningsSession: "After market close",
-    earningsEstimate: "$1.26",
-    revenueEstimate: "$54.9B",
-    exDividend: "Dec 4 · Estimated",
-    description: "Provides GPUs, AI accelerators, and computing platforms for data centers.",
-  },
-  MSFT: {
-    country: "United States · Redmond",
-    industry: "Software",
-    website: "microsoft.com",
-    employees: "228,000",
-    nextEarnings: "Oct 28 · Estimated",
-    earningsSession: "After market close",
-    earningsEstimate: "$3.67",
-    revenueEstimate: "$75.4B",
-    exDividend: "Nov 20 · Estimated",
-    description: "A platform company spanning cloud, business software, AI, and gaming.",
-  },
-  TSLA: {
-    country: "United States · Austin",
-    industry: "Automotive",
-    website: "tesla.com",
-    employees: "125,000",
-    nextEarnings: "Oct 22 · Estimated",
-    earningsSession: "After market close",
-    earningsEstimate: "$0.44",
-    revenueEstimate: "$25.8B",
-    exDividend: "—",
-    description: "Develops electric vehicles, energy storage, charging networks, AI, and robotics.",
-  },
-};
-
-const NEWS = [
-  {
-    time: "10:18",
-    title: "Sample: on-device AI features expand this fall",
-    summary: "Synthetic fixture copy for demonstrating the news layout.",
-    source: "Unicorn Sample News",
-    tag: "AI",
-  },
-  {
-    time: "08:35",
-    title: "Sample: analyst updates a target price",
-    summary: "Synthetic fixture copy; it is not an article from a real publisher.",
-    source: "Unicorn Sample News",
-    tag: "Rating",
-  },
-  {
-    time: "Yesterday",
-    title: "Sample: services revenue reaches a new high",
-    summary: "Synthetic fixture copy for the provider-empty fallback state.",
-    source: "Unicorn Sample News",
-    tag: "Earnings",
-  },
-];
-
 const INDICATORS: IndicatorDefinition[] = [
   { id: "sma20", shortName: "SMA 20", name: "単純移動平均", category: "トレンド", description: "20期間の終値平均", color: "#f4c44e", placement: "チャート上" },
   { id: "ema50", shortName: "EMA 50", name: "指数平滑移動平均", category: "トレンド", description: "直近価格を重視する50期間平均", color: "#8b7cff", placement: "チャート上" },
@@ -696,9 +666,59 @@ function instrumentPlaceholder(instrument: Instrument): Stock {
   };
 }
 
+function stockIdentityPlaceholder(stock: Stock): Stock {
+  return {
+    ...stock,
+    price: 0,
+    change: 0,
+    changeValue: 0,
+    open: 0,
+    high: 0,
+    low: 0,
+    volume: "—",
+    marketCap: "—",
+    target: 0,
+    targetLow: 0,
+    targetHigh: 0,
+    analysts: 0,
+    buy: 0,
+    neutral: 0,
+    sell: 0,
+    revenue: "—",
+    revenueGrowth: "—",
+    eps: "—",
+    epsGrowth: "—",
+    pe: "—",
+    dividend: "—",
+  };
+}
+
+function tickerIdentityPlaceholder(symbol: string): Stock {
+  const catalogStock = STOCKS.find((stock) => stock.ticker === symbol);
+  if (catalogStock) return stockIdentityPlaceholder(catalogStock);
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  return {
+    ...stockIdentityPlaceholder(STOCKS[0]),
+    ticker: normalizedSymbol,
+    name: normalizedSymbol,
+    logoPath: companyLogoPathForUSStock(normalizedSymbol),
+    logoFallback: normalizedSymbol.slice(0, 2),
+    market: "US",
+    sector: "—",
+    seed: normalizedSymbol.split("").reduce((sum, character) => sum + character.charCodeAt(0), 0),
+  };
+}
+
 function watchlistItemPlaceholder(item: WatchlistItem): Stock {
   const existing = STOCKS.find((stock) => stock.ticker === item.symbol);
-  if (existing) return { ...existing, logoPath: item.logoUrl ?? existing.logoPath };
+  if (existing) {
+    return {
+      ...stockIdentityPlaceholder(existing),
+      name: item.displayName ?? existing.name,
+      market: item.exchange ?? existing.market,
+      logoPath: item.logoUrl ?? existing.logoPath,
+    };
+  }
   return instrumentPlaceholder({
     instrumentId: item.instrumentId,
     symbol: item.symbol,
@@ -727,7 +747,7 @@ function workspaceStock(workspace: SymbolWorkspace): Stock {
   const buy = (consensus?.strongBuy ?? 0) + (consensus?.buy ?? 0);
   const neutral = consensus?.hold ?? 0;
   const sell = (consensus?.sell ?? 0) + (consensus?.strongSell ?? 0);
-  const target = consensus?.targetConsensus ?? workspace.quote.price;
+  const target = consensus?.targetConsensus ?? 0;
   return {
     ...stock,
     logoPath: profile?.logoUrl ?? stock.logoPath,
@@ -742,8 +762,8 @@ function workspaceStock(workspace: SymbolWorkspace): Stock {
     volume: compactNumber(workspace.quote.volume),
     marketCap: compactNumber(workspace.quote.marketCap ?? profile?.marketCap, "$"),
     target,
-    targetLow: consensus?.targetLow ?? target,
-    targetHigh: consensus?.targetHigh ?? target,
+    targetLow: consensus?.targetLow ?? 0,
+    targetHigh: consensus?.targetHigh ?? 0,
     analysts: consensus?.analystCount ?? buy + neutral + sell,
     buy,
     neutral,
@@ -807,81 +827,87 @@ const formatWatchlistPrice = (stock: Stock) =>
     maximumFractionDigits: stock.currency === "$" ? 2 : 0,
   });
 
-const pseudoRandom = (seed: number) => {
-  const value = Math.sin(seed * 12.9898) * 43758.5453;
-  return value - Math.floor(value);
+const summaryTechnicalVerdict = (verdict: TechnicalRatingVerdict) => {
+  const labels: Readonly<Record<TechnicalRatingVerdict, string>> = {
+    strong_sell: "strong sell",
+    sell: "sell",
+    neutral: "neutral",
+    buy: "buy",
+    strong_buy: "strong buy",
+    unavailable: "—",
+  };
+  return labels[verdict];
 };
 
-const scaledMetric = (seed: number, offset: number, min: number, max: number, digits = 1) =>
-  (min + pseudoRandom(seed + offset) * (max - min)).toFixed(digits);
-
-const signedPercentMetric = (seed: number, offset: number, min: number, max: number) => {
-  const value = Number(scaledMetric(seed, offset, min, max));
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
-};
-
-const technicalRating = (score: number) => {
-  if (score >= 78) return "強い買い";
-  if (score >= 62) return "買い";
-  if (score <= 28) return "強い売り";
-  if (score <= 43) return "売り";
-  return "中立";
-};
+function unavailableStockIntelligence(): SymbolSummaryIntelligence {
+  return {
+    country: "—",
+    industry: "—",
+    website: "—",
+    employees: "—",
+    nextEarnings: "—",
+    earningsSession: "—",
+    earningsEstimate: "—",
+    revenueEstimate: "—",
+    exDividend: "—",
+    description: "—",
+    averageVolume30d: "—",
+    dayRangePosition: null,
+    yearRangePosition: null,
+    yearLow: "—",
+    yearHigh: "—",
+    beta: "—",
+    dataFreshness: "—",
+    marketStatus: "—",
+    performance: {
+      week: "—",
+      month: "—",
+      threeMonths: "—",
+      yearToDate: "—",
+      year: "—",
+    },
+    technical: {
+      overall: "—",
+      movingAverages: "—",
+      oscillators: "—",
+      rsi: "—",
+    },
+  };
+}
 
 function getStockIntelligence(
   stock: Stock,
   workspace?: SymbolWorkspace | null,
   bars: readonly MarketBar[] = [],
   locale: Locale = "en",
-) {
+): SymbolSummaryIntelligence {
   const displayLocale = locale === "ja" ? "ja-JP" : "en-US";
-  const context = STOCK_CONTEXT[stock.ticker] ?? STOCK_CONTEXT.AAPL;
-  const beta = scaledMetric(stock.seed, 7, 0.72, 2.18, 2);
-  const yearLowValue = stock.price * Number(scaledMetric(stock.seed, 3, 0.64, 0.81, 2));
-  const yearHighValue = stock.price * Number(scaledMetric(stock.seed, 5, 1.08, 1.29, 2));
-  const technicalScore = Number(scaledMetric(stock.seed, 157, 24, 91, 0));
-  const movingAverageScore = Number(scaledMetric(stock.seed, 163, 24, 91, 0));
-  const oscillatorScore = Number(scaledMetric(stock.seed, 167, 24, 91, 0));
-
-  const fixture = {
-    ...context,
-    employees: (() => {
-      const count = /^([\d,]+)人$/.exec(context.employees)?.[1];
-      return count ? translate(locale, "detail.value.employees", { count }) : context.employees;
-    })(),
-    yearLow: formatPrice(stock, yearLowValue),
-    yearHigh: formatPrice(stock, yearHighValue),
-    dayRangePosition: Math.min(100, Math.max(0, ((stock.price - stock.low) / Math.max(stock.high - stock.low, 0.01)) * 100)),
-    yearRangePosition: Math.min(100, Math.max(0, ((stock.price - yearLowValue) / Math.max(yearHighValue - yearLowValue, 0.01)) * 100)),
-    averageVolume30d: `${scaledMetric(stock.seed, 151, 22, 168)}M`,
-    performance: {
-      week: signedPercentMetric(stock.seed, 173, -8, 13),
-      month: signedPercentMetric(stock.seed, 179, -14, 24),
-      threeMonths: signedPercentMetric(stock.seed, 181, -24, 48),
-      yearToDate: signedPercentMetric(stock.seed, 191, -31, 76),
-      year: signedPercentMetric(stock.seed, 193, -42, 112),
-    },
-    technical: {
-      overall: technicalRating(technicalScore),
-      movingAverages: technicalRating(movingAverageScore),
-      oscillators: technicalRating(oscillatorScore),
-      rsi: scaledMetric(stock.seed, 197, 28, 78),
-    },
-    beta,
-    dataFreshness: translate(locale, "summary.dataFreshnessFixture"),
-  };
-
-  if (!workspace || workspace.instrument.symbol !== stock.ticker) return fixture;
+  if (
+    !workspace
+    || workspace.dataMode !== "provider"
+    || workspace.instrument.symbol !== stock.ticker
+  ) return unavailableStockIntelligence();
 
   const profile = workspace.profile;
   const earnings = workspace.earnings[0];
+  const quote = workspace.quote;
   const dailyMetrics = buildSummaryDailyMarketMetrics(bars);
-  const closes = bars.map((item) => item.close).filter(Number.isFinite);
+  const technicalRatings = buildStockDetailTechnicalRatings(bars);
   const yearLow = dailyMetrics.range52Week?.low;
   const yearHigh = dailyMetrics.range52Week?.high;
   const rsi = dailyMetrics.rsi14;
-  const movingAverage20 = closes.slice(-20).reduce((sum, value) => sum + value, 0) / Math.max(1, Math.min(20, closes.length));
-  const liveTechnicalScore = closes.length < 20 ? null : stock.price > movingAverage20 ? 68 : 36;
+  const dayRangePosition = Number.isFinite(quote.price)
+    && Number.isFinite(quote.low)
+    && Number.isFinite(quote.high)
+    && quote.high > quote.low
+    ? Math.min(100, Math.max(0, ((quote.price - quote.low) / (quote.high - quote.low)) * 100))
+    : null;
+  const yearRangePosition = yearLow !== undefined
+    && yearHigh !== undefined
+    && yearHigh > yearLow
+    ? Math.min(100, Math.max(0, ((quote.price - yearLow) / (yearHigh - yearLow)) * 100))
+    : null;
+  const asOf = new Date(workspace.asOf);
   const sessionLabels = {
     pre_market: translate(locale, "summary.market.preMarket"),
     regular: translate(locale, "summary.marketOpen"),
@@ -890,7 +916,6 @@ function getStockIntelligence(
   } as const;
 
   return {
-    ...fixture,
     country: [profile?.country, profile?.city].filter(Boolean).join(" · ") || "—",
     industry: profile?.industry ?? workspace.instrument.industry ?? "—",
     website: profile?.website ?? "—",
@@ -905,10 +930,8 @@ function getStockIntelligence(
     description: profile?.description ?? "—",
     yearLow: yearLow === undefined ? "—" : formatPrice(stock, yearLow),
     yearHigh: yearHigh === undefined ? "—" : formatPrice(stock, yearHigh),
-    dayRangePosition: Math.min(100, Math.max(0, ((stock.price - stock.low) / Math.max(stock.high - stock.low, 0.01)) * 100)),
-    yearRangePosition: yearLow === undefined || yearHigh === undefined
-      ? 50
-      : Math.min(100, Math.max(0, ((stock.price - yearLow) / Math.max(yearHigh - yearLow, 0.01)) * 100)),
+    dayRangePosition,
+    yearRangePosition,
     averageVolume30d: compactNumber(dailyMetrics.averageVolume30 ?? undefined),
     performance: {
       week: percentValue(dailyMetrics.performance.week ?? undefined),
@@ -918,13 +941,15 @@ function getStockIntelligence(
       year: percentValue(dailyMetrics.performance.year ?? undefined),
     },
     technical: {
-      overall: liveTechnicalScore === null ? "—" : technicalRating(liveTechnicalScore),
-      movingAverages: liveTechnicalScore === null ? "—" : stock.price >= movingAverage20 ? "買い" : "売り",
-      oscillators: rsi === null ? "—" : rsi > 70 ? "売り" : rsi < 30 ? "買い" : "中立",
+      overall: summaryTechnicalVerdict(technicalRatings.overall.verdict),
+      movingAverages: summaryTechnicalVerdict(technicalRatings.movingAverages.verdict),
+      oscillators: summaryTechnicalVerdict(technicalRatings.oscillators.verdict),
       rsi: rsi === null ? "—" : rsi.toFixed(1),
     },
     beta: Number.isFinite(profile?.beta) ? profile!.beta!.toFixed(2) : "—",
-    dataFreshness: new Date(workspace.asOf).toLocaleString(displayLocale, { timeZone: "Asia/Tokyo", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+    dataFreshness: Number.isFinite(asOf.getTime())
+      ? asOf.toLocaleString(displayLocale, { timeZone: "Asia/Tokyo", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+      : "—",
     marketStatus: sessionLabels[workspace.quote.marketState],
   };
 }
@@ -1061,6 +1086,8 @@ function PriceChart({
   stock,
   marketBars,
   range,
+  interval,
+  candleCount,
   chartType,
   activeIndicators,
   indicatorSettings,
@@ -1068,7 +1095,9 @@ function PriceChart({
 }: {
   stock: Stock;
   marketBars: readonly MarketBar[];
-  range: string;
+  range: MarketBarRange;
+  interval: MarketBarInterval;
+  candleCount: number;
   chartType: ChartTypeId;
   activeIndicators: IndicatorId[];
   indicatorSettings: Record<IndicatorId, IndicatorSettings>;
@@ -1076,6 +1105,21 @@ function PriceChart({
 }) {
   const { locale, t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
+  const chartRuntimeRef = useRef<{
+    chart: IChartApi;
+    candleSeries: ISeriesApi<"Candlestick">;
+    priceLineSeries: ISeriesApi<"Line">;
+    priceAreaSeries: ISeriesApi<"Area">;
+    volumeSeries: ISeriesApi<"Histogram">;
+    smaSeries: ISeriesApi<"Line">;
+    emaSeries: ISeriesApi<"Line">;
+    bollingerUpperSeries: ISeriesApi<"Line">;
+    bollingerLowerSeries: ISeriesApi<"Line">;
+    vwapSeries: ISeriesApi<"Line">;
+  } | null>(null);
+  const chartDataLifecycleRef = useRef<ChartDataLifecycleState>(EMPTY_CHART_DATA_LIFECYCLE);
+  const initialLocaleRef = useRef(locale);
+  const timeScaleSyncRef = useRef(timeScaleSync);
   const fullData = useMemo(
     () => generateSeries(marketBars, indicatorSettings),
     [indicatorSettings, marketBars],
@@ -1102,6 +1146,11 @@ function PriceChart({
   const priceLineColor = latestCandle && latestCandle.close < latestCandle.open
     ? "#ef5350"
     : "#26a69a";
+  const dataIdentity = `${stock.ticker}:${range}:${interval}:${candleCount}`;
+
+  useEffect(() => {
+    timeScaleSyncRef.current = timeScaleSync;
+  }, [timeScaleSync]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1110,7 +1159,7 @@ function PriceChart({
       width: host.clientWidth,
       height: host.clientHeight,
       autoSize: true,
-      localization: { locale: chartLocaleTag(locale) },
+      localization: { locale: chartLocaleTag(initialLocaleRef.current) },
       layout: {
         attributionLogo: false,
         background: { type: ColorType.Solid, color: "#000000" },
@@ -1137,7 +1186,7 @@ function PriceChart({
         rightOffset: 3,
         barSpacing: 7,
         minBarSpacing: 3,
-        timeVisible: marketBars.some((item) => item.time.includes("T")),
+        timeVisible: false,
       },
       handleScroll: true,
       handleScale: true,
@@ -1149,32 +1198,26 @@ function PriceChart({
       borderVisible: false,
       wickUpColor: "#26a69a",
       wickDownColor: "#ef5350",
-      priceFormat: stock.currency === "$"
-        ? { type: "price", precision: 2, minMove: 0.01 }
-        : { type: "price", precision: 0, minMove: 1 },
-      priceLineColor,
+      priceFormat: { type: "price", precision: 2, minMove: 0.01 },
+      priceLineColor: "#26a69a",
       priceLineWidth: 1,
       lastValueVisible: true,
-      visible: chartType === "candles" || chartType === "heikin-ashi",
+      visible: true,
     });
     const priceLineSeries = chart.addSeries(LineSeries, {
       color: "#66a3ff",
       lineWidth: 2,
-      priceFormat: stock.currency === "$"
-        ? { type: "price", precision: 2, minMove: 0.01 }
-        : { type: "price", precision: 0, minMove: 1 },
+      priceFormat: { type: "price", precision: 2, minMove: 0.01 },
       priceLineVisible: true,
-      visible: chartType === "line",
+      visible: false,
     });
     const priceAreaSeries = chart.addSeries(AreaSeries, {
       lineColor: "#66a3ff",
       topColor: "rgba(41, 98, 255, 0.34)",
       bottomColor: "rgba(41, 98, 255, 0.01)",
       lineWidth: 2,
-      priceFormat: stock.currency === "$"
-        ? { type: "price", precision: 2, minMove: 0.01 }
-        : { type: "price", precision: 0, minMove: 1 },
-      visible: chartType === "area",
+      priceFormat: { type: "price", precision: 2, minMove: 0.01 },
+      visible: false,
     });
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
@@ -1186,73 +1229,157 @@ function PriceChart({
       scaleMargins: { top: 0.82, bottom: 0 },
     });
     const smaSeries = chart.addSeries(LineSeries, {
+      color: DEFAULT_INDICATOR_SETTINGS.sma20.color,
+      lineWidth: DEFAULT_INDICATOR_SETTINGS.sma20.lineWidth,
+      lineStyle: getChartLineStyle(DEFAULT_INDICATOR_SETTINGS.sma20.lineStyle),
+      priceLineVisible: false,
+      lastValueVisible: false,
+      visible: false,
+    });
+    const emaSeries = chart.addSeries(LineSeries, {
+      color: DEFAULT_INDICATOR_SETTINGS.ema50.color,
+      lineWidth: DEFAULT_INDICATOR_SETTINGS.ema50.lineWidth,
+      lineStyle: getChartLineStyle(DEFAULT_INDICATOR_SETTINGS.ema50.lineStyle),
+      priceLineVisible: false,
+      lastValueVisible: false,
+      visible: false,
+    });
+    const bollingerUpperSeries = chart.addSeries(LineSeries, {
+      color: DEFAULT_INDICATOR_SETTINGS.bollinger.color,
+      lineWidth: DEFAULT_INDICATOR_SETTINGS.bollinger.lineWidth,
+      lineStyle: getChartLineStyle(DEFAULT_INDICATOR_SETTINGS.bollinger.lineStyle),
+      priceLineVisible: false,
+      lastValueVisible: false,
+      visible: false,
+    });
+    const bollingerLowerSeries = chart.addSeries(LineSeries, {
+      color: DEFAULT_INDICATOR_SETTINGS.bollinger.color,
+      lineWidth: DEFAULT_INDICATOR_SETTINGS.bollinger.lineWidth,
+      lineStyle: getChartLineStyle(DEFAULT_INDICATOR_SETTINGS.bollinger.lineStyle),
+      priceLineVisible: false,
+      lastValueVisible: false,
+      visible: false,
+    });
+    const vwapSeries = chart.addSeries(LineSeries, {
+      color: DEFAULT_INDICATOR_SETTINGS.vwap.color,
+      lineWidth: DEFAULT_INDICATOR_SETTINGS.vwap.lineWidth,
+      lineStyle: getChartLineStyle(DEFAULT_INDICATOR_SETTINGS.vwap.lineStyle),
+      priceLineVisible: false,
+      lastValueVisible: false,
+      visible: false,
+    });
+
+    chartDataLifecycleRef.current = EMPTY_CHART_DATA_LIFECYCLE;
+    chartRuntimeRef.current = {
+      chart,
+      candleSeries,
+      priceLineSeries,
+      priceAreaSeries,
+      volumeSeries,
+      smaSeries,
+      emaSeries,
+      bollingerUpperSeries,
+      bollingerLowerSeries,
+      vwapSeries,
+    };
+
+    return () => {
+      chartRuntimeRef.current = null;
+      chart.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const runtime = chartRuntimeRef.current;
+    if (!runtime) return;
+    const priceFormat = stock.currency === "$"
+      ? { type: "price" as const, precision: 2, minMove: 0.01 }
+      : { type: "price" as const, precision: 0, minMove: 1 };
+    runtime.chart.applyOptions({
+      localization: { locale: chartLocaleTag(locale) },
+      timeScale: { timeVisible: marketBars.some((item) => item.time.includes("T")) },
+    });
+    runtime.candleSeries.applyOptions({
+      priceFormat,
+      priceLineColor,
+      visible: chartType === "candles" || chartType === "heikin-ashi",
+    });
+    runtime.priceLineSeries.applyOptions({ priceFormat, visible: chartType === "line" });
+    runtime.priceAreaSeries.applyOptions({ priceFormat, visible: chartType === "area" });
+    runtime.smaSeries.applyOptions({
       color: indicatorSettings.sma20.color,
       lineWidth: indicatorSettings.sma20.lineWidth,
       lineStyle: getChartLineStyle(indicatorSettings.sma20.lineStyle),
-      priceLineVisible: false,
-      lastValueVisible: false,
       visible: activeIndicators.includes("sma20"),
     });
-    const emaSeries = chart.addSeries(LineSeries, {
+    runtime.emaSeries.applyOptions({
       color: indicatorSettings.ema50.color,
       lineWidth: indicatorSettings.ema50.lineWidth,
       lineStyle: getChartLineStyle(indicatorSettings.ema50.lineStyle),
-      priceLineVisible: false,
-      lastValueVisible: false,
       visible: activeIndicators.includes("ema50"),
     });
-    const bollingerUpperSeries = chart.addSeries(LineSeries, {
+    const bollingerOptions = {
       color: indicatorSettings.bollinger.color,
       lineWidth: indicatorSettings.bollinger.lineWidth,
       lineStyle: getChartLineStyle(indicatorSettings.bollinger.lineStyle),
-      priceLineVisible: false,
-      lastValueVisible: false,
       visible: activeIndicators.includes("bollinger"),
-    });
-    const bollingerLowerSeries = chart.addSeries(LineSeries, {
-      color: indicatorSettings.bollinger.color,
-      lineWidth: indicatorSettings.bollinger.lineWidth,
-      lineStyle: getChartLineStyle(indicatorSettings.bollinger.lineStyle),
-      priceLineVisible: false,
-      lastValueVisible: false,
-      visible: activeIndicators.includes("bollinger"),
-    });
-    const vwapSeries = chart.addSeries(LineSeries, {
+    };
+    runtime.bollingerUpperSeries.applyOptions(bollingerOptions);
+    runtime.bollingerLowerSeries.applyOptions(bollingerOptions);
+    runtime.vwapSeries.applyOptions({
       color: indicatorSettings.vwap.color,
       lineWidth: indicatorSettings.vwap.lineWidth,
       lineStyle: getChartLineStyle(indicatorSettings.vwap.lineStyle),
-      priceLineVisible: false,
-      lastValueVisible: false,
       visible: activeIndicators.includes("vwap"),
     });
+  }, [activeIndicators, chartType, indicatorSettings, locale, marketBars, priceLineColor, stock.currency]);
 
-    const count = fullData.candles.length;
-    candleSeries.setData(displayCandles.slice(-count));
+  useEffect(() => {
+    const runtime = chartRuntimeRef.current;
+    if (!runtime) return;
+    const timeScale = runtime.chart.timeScale();
+    const updatePlan = planChartDataUpdate({
+      previous: chartDataLifecycleRef.current,
+      identity: dataIdentity,
+      pointCount: fullData.candles.length,
+      visibleLogicalRange: timeScale.getVisibleLogicalRange(),
+    });
     const closeData = fullData.candles.map((point) => ({ time: point.time, value: point.close }));
-    priceLineSeries.setData(closeData.slice(-count));
-    priceAreaSeries.setData(closeData.slice(-count));
-    volumeSeries.setData(displayVolumes.slice(-count));
-    smaSeries.setData(fullData.sma20.slice(-count));
-    emaSeries.setData(fullData.ema50.slice(-count));
-    bollingerUpperSeries.setData(fullData.bollingerUpper.slice(-count));
-    bollingerLowerSeries.setData(fullData.bollingerLower.slice(-count));
-    vwapSeries.setData(fullData.vwap.slice(-count));
-    const timeScale = chart.timeScale();
-    const publishVisibleRange = timeScaleSync
-      ? (logicalRange: Parameters<ChartTimeScaleSync["publish"]>[0]) => timeScaleSync.publish(logicalRange)
-      : null;
-    if (publishVisibleRange) timeScale.subscribeVisibleLogicalRangeChange(publishVisibleRange);
-    timeScale.fitContent();
-    if (timeScaleSync) timeScaleSync.publish(timeScale.getVisibleLogicalRange());
+    runtime.candleSeries.setData(displayCandles);
+    runtime.priceLineSeries.setData(closeData);
+    runtime.priceAreaSeries.setData(closeData);
+    runtime.volumeSeries.setData(displayVolumes);
+    runtime.smaSeries.setData(fullData.sma20);
+    runtime.emaSeries.setData(fullData.ema50);
+    runtime.bollingerUpperSeries.setData(fullData.bollingerUpper);
+    runtime.bollingerLowerSeries.setData(fullData.bollingerLower);
+    runtime.vwapSeries.setData(fullData.vwap);
+    chartDataLifecycleRef.current = updatePlan.nextState;
 
-    return () => {
-      if (publishVisibleRange) timeScale.unsubscribeVisibleLogicalRangeChange(publishVisibleRange);
-      chart.remove();
+    if (updatePlan.fitContent) timeScale.fitContent();
+    else if (updatePlan.visibleLogicalRange) timeScale.setVisibleLogicalRange(updatePlan.visibleLogicalRange);
+    timeScaleSyncRef.current?.publish(timeScale.getVisibleLogicalRange());
+  }, [dataIdentity, displayCandles, displayVolumes, fullData]);
+
+  useEffect(() => {
+    const runtime = chartRuntimeRef.current;
+    if (!runtime || !timeScaleSync) return;
+    const timeScale = runtime.chart.timeScale();
+    const publishVisibleRange = (logicalRange: Parameters<ChartTimeScaleSync["publish"]>[0]) => {
+      timeScaleSync.publish(logicalRange);
     };
-  }, [activeIndicators, chartType, displayCandles, displayVolumes, fullData, indicatorSettings, locale, marketBars, priceLineColor, range, stock.currency, timeScaleSync]);
+    timeScale.subscribeVisibleLogicalRangeChange(publishVisibleRange);
+    timeScaleSync.publish(timeScale.getVisibleLogicalRange());
+    return () => timeScale.unsubscribeVisibleLogicalRangeChange(publishVisibleRange);
+  }, [timeScaleSync]);
 
   return <div className="chart-canvas" ref={containerRef} aria-label={t("chart.priceAria", { symbol: stock.ticker })} />;
 }
+
+const illustrativePseudoRandom = (seed: number) => {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
+};
 
 function PortfolioValueChart({
   mode,
@@ -1282,8 +1409,8 @@ function PortfolioValueChart({
       const date = new Date(start);
       date.setUTCDate(start.getUTCDate() + index * 2);
       const time = date.toISOString().slice(0, 10) as Time;
-      const drift = 0.00078 + Math.sin(index / 13 + seed) * 0.0011 + (pseudoRandom(seed * 13 + index) - 0.48) * 0.012;
-      const benchmarkDrift = 0.00048 + Math.sin(index / 17) * 0.0007 + (pseudoRandom(seed * 7 + index) - 0.49) * 0.007;
+      const drift = 0.00078 + Math.sin(index / 13 + seed) * 0.0011 + (illustrativePseudoRandom(seed * 13 + index) - 0.48) * 0.012;
+      const benchmarkDrift = 0.00048 + Math.sin(index / 17) * 0.0007 + (illustrativePseudoRandom(seed * 7 + index) - 0.49) * 0.007;
       portfolioValue *= 1 + drift;
       benchmarkValue *= 1 + benchmarkDrift;
       values.push({ time, value: mode === "資産額" ? portfolioValue : ((portfolioValue / (208400 + seed * 780)) - 1) * 100 });
@@ -1340,7 +1467,7 @@ function PortfolioProfitChart({ seed, ariaLabel }: { seed: number; ariaLabel: st
     const data: HistogramData<Time>[] = Array.from({ length: 12 }, (_, index) => {
       const date = new Date(start);
       date.setUTCMonth(start.getUTCMonth() + index);
-      const raw = (pseudoRandom(seed * 11 + index) - 0.38) * 9.5;
+      const raw = (illustrativePseudoRandom(seed * 11 + index) - 0.38) * 9.5;
       return {
         time: date.toISOString().slice(0, 10) as Time,
         value: Number(raw.toFixed(2)),
@@ -1641,7 +1768,7 @@ function StockDetailEmptyState({ message }: { message: string }) {
 }
 
 function formatAnalystTarget(value: number | undefined, locale: Locale) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "—";
   return new Intl.NumberFormat(locale === "ja" ? "ja-JP" : "en-US", {
     style: "currency",
     currency: "USD",
@@ -1664,12 +1791,11 @@ function AnalystRatingHistoryTable({
   return (
     <div className="analyst-history-table-shell">
       <table className="analyst-rating-history-table">
-        <thead><tr><th>{t("detail.analyst.table.date")}</th><th>{t("detail.analyst.table.firm")}</th><th>{t("detail.analyst.table.rating")}</th><th>{t("detail.analyst.table.targetPrevious")}</th><th>{t("detail.analyst.table.targetCurrent")}</th><th>{t("detail.analyst.table.accuracy")}</th></tr></thead>
+        <thead><tr><th>{t("detail.analyst.table.date")}</th><th>{t("detail.analyst.table.firm")}</th><th>{t("detail.analyst.table.ratingPrevious")}</th><th>{t("detail.analyst.table.ratingCurrent")}</th><th>{t("detail.analyst.table.targetPrevious")}</th><th>{t("detail.analyst.table.targetCurrent")}</th><th>{t("detail.analyst.table.accuracy")}</th></tr></thead>
         <tbody>
           {rows.map((event) => {
             const previousTarget = event.adjustedPreviousPriceTarget ?? event.previousPriceTarget;
             const ratingCurrent = event.ratingCurrent ?? event.rating;
-            const ratingChange = [event.ratingPrior, ratingCurrent].filter(Boolean).join(" → ") || "—";
             const targetChangeTone = analystTargetChangeTone(event);
             const success = typeof event.overallSuccessRate === "number"
               ? `${(Math.abs(event.overallSuccessRate) <= 1 ? event.overallSuccessRate * 100 : event.overallSuccessRate).toFixed(1)}%`
@@ -1678,7 +1804,8 @@ function AnalystRatingHistoryTable({
               <tr key={event.eventId}>
                 <td><strong>{event.sourceEventDate}</strong><small>{event.actionPriceTarget ?? event.action ?? t("detail.analyst.updated")}</small></td>
                 <td><strong>{event.analystFirm ?? "—"}</strong><small>{event.analystName ?? "—"}</small></td>
-                <td className={`analyst-change-${analystRatingChangeTone(event)}`}>{ratingChange}</td>
+                <td className="analyst-rating-cell analyst-rating-previous">{event.ratingPrior ?? "—"}</td>
+                <td className={`analyst-rating-cell analyst-change-${analystRatingChangeTone(event)}`}>{ratingCurrent ?? "—"}</td>
                 <td className="analyst-target-cell analyst-target-previous">{formatAnalystTarget(previousTarget, locale)}</td>
                 <td className={`analyst-target-cell analyst-change-${targetChangeTone}`}>{formatAnalystTarget(event.effectivePriceTarget, locale)}</td>
                 <td><strong>{event.smartScore !== undefined ? event.smartScore.toFixed(1) : "—"}</strong><small>{success}</small></td>
@@ -1999,7 +2126,9 @@ function StockDetailPage({
   workspaceStatus,
   barsStatus,
   watched,
+  activeSection,
   onBack,
+  onActiveSectionChange,
   onToggleWatched,
 }: {
   stock: Stock;
@@ -2012,15 +2141,13 @@ function StockDetailPage({
   workspaceStatus: MarketDataStatus;
   barsStatus: MarketDataStatus;
   watched: boolean;
+  activeSection: StockDetailTabId;
   onBack: () => void;
+  onActiveSectionChange: (section: StockDetailTabId) => void;
   onToggleWatched: () => void;
 }) {
   const { t } = useI18n();
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const [tabSelection, setTabSelection] = useState<Readonly<{ ticker: string; tab: StockDetailTabId }>>({ ticker: stock.ticker, tab: DEFAULT_STOCK_DETAIL_TAB });
-  const activeSection = tabSelection.ticker === stock.ticker && unicornConfig.ui.symbolDetail.tabs.includes(tabSelection.tab)
-    ? tabSelection.tab
-    : DEFAULT_STOCK_DETAIL_TAB;
   const identity = detail.identity;
   const quote = detail.quote;
   const identityMeta = [identity?.exchange ?? stock.market, identity?.sector].filter(Boolean).join(" · ");
@@ -2050,7 +2177,9 @@ function StockDetailPage({
         <button type="button" className={`stock-detail-watch ${watched ? "watched" : ""}`} onClick={onToggleWatched}><Star size={17} weight={watched ? "fill" : "regular"} /> {t(watched ? "detail.watching" : "detail.watch")}</button>
       </header>
       <nav className="stock-detail-nav" role="tablist" aria-label={t("detail.navAria")}>
-        {STOCK_DETAIL_TABS.map(({ id, labelKey }) => <button type="button" role="tab" id={`stock-detail-tab-${id}`} aria-controls={`stock-detail-panel-${id}`} aria-selected={activeSection === id} className={activeSection === id ? "active" : ""} key={id} onClick={() => setTabSelection({ ticker: stock.ticker, tab: id })}>{t(labelKey)}</button>)}
+        {STOCK_DETAIL_TABS.map(({ id, labelKey }) => <button type="button" role="tab" id={`stock-detail-tab-${id}`} aria-controls={`stock-detail-panel-${id}`} aria-selected={activeSection === id} className={activeSection === id ? "active" : ""} key={id} onClick={() => {
+          onActiveSectionChange(id);
+        }}>{t(labelKey)}</button>)}
       </nav>
       <div className="stock-detail-body">
         <div className="stock-detail-content stock-detail-content-one-column">
@@ -2074,6 +2203,7 @@ function StockDetailPage({
 
           {activeSection === "technicals" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-technicals" role="tabpanel" aria-labelledby="stock-detail-tab-technicals">
             <header className="stock-detail-section-heading"><div><span className="eyebrow">MARKET & TECHNICALS</span><h2>{t("detail.section.technicals")}</h2></div></header>
+            <TechnicalRatingsPanel summary={detail.technicalRatings} />
             <div className="stock-detail-card-grid two-columns">
               <MetricSection eyebrow="QUOTE" title={t("detail.section.marketSnapshot")} source={detail.market.source} context={detail.market.context} metrics={configuredStockDetailMetrics(detail.market.metrics, unicornConfig.ui.symbolDetail.marketMetrics)} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.market", t)} />
               <MetricSection eyebrow="CALCULATED FROM OHLCV" title={t("detail.section.technicalMetrics")} source={detail.technicals.source} context={detail.technicals.context} metrics={configuredStockDetailMetrics(detail.technicals.metrics, unicornConfig.ui.symbolDetail.technicalMetrics)} emptyMessage={detailEmptyMessage(barsStatus, "detail.subject.technicals", t)} />
@@ -2371,7 +2501,7 @@ function StrategyHome({
   const strategyCatalogReadEpochRef = useRef(0);
   const [strategyMarketMarks, setStrategyMarketMarks] = useState<Readonly<Record<string, StrategyMarketMark>>>({});
   const [strategyStockModels, setStrategyStockModels] = useState<Readonly<Record<string, Stock>>>(() => (
-    Object.fromEntries(STOCKS.map((item) => [item.ticker, item]))
+    Object.fromEntries(STOCKS.map((item) => [item.ticker, stockIdentityPlaceholder(item)]))
   ));
   const [settingsName, setSettingsName] = useState("");
   const [settingsHeadline, setSettingsHeadline] = useState("");
@@ -2413,7 +2543,7 @@ function StrategyHome({
   const [transactionTicker, setTransactionTicker] = useState("AAPL");
   const [transactionSide, setTransactionSide] = useState<PortfolioTransaction["side"]>("買付");
   const [transactionShares, setTransactionShares] = useState("10");
-  const [transactionPrice, setTransactionPrice] = useState("231.41");
+  const [transactionPrice, setTransactionPrice] = useState("");
   const activeStrategyDurationLabel = strategyDurationLabel(locale, strategyDuration);
   const selected = strategies.find((strategy) => strategy.id === selectedId) ?? strategies[0] ?? fallbackStrategy;
   const strategyCatalogReady = strategyRecords !== null;
@@ -2499,8 +2629,7 @@ function StrategyHome({
     return { profit, maxDrawdown, recoveryFactor, sharpe, winRate };
   };
   const strategyStockFor = (ticker: string) => strategyStockModels[ticker]
-    ?? STOCKS.find((item) => item.ticker === ticker)
-    ?? { ...STOCKS[0], ticker, name: ticker, logoFallback: ticker.slice(0, 2), logoPath: "" };
+    ?? tickerIdentityPlaceholder(ticker);
   const portfolioMoney = (value: number | null) => value === null
     ? "—"
     : `$${Math.round(value).toLocaleString("en-US")}`;
@@ -2563,11 +2692,14 @@ function StrategyHome({
   };
 
   const openTransaction = (ticker = "AAPL") => {
-    const stock = strategyStockModels[ticker]
-      ?? STOCKS.find((item) => item.ticker === ticker)
-      ?? STOCKS[0];
+    const providerPrice = strategyMarketMarks[ticker]?.price
+      ?? strategyStockModels[ticker]?.price;
     setTransactionTicker(ticker);
-    setTransactionPrice(String(strategyMarketMarks[ticker]?.price ?? stock.price));
+    setTransactionPrice(
+      Number.isFinite(providerPrice) && (providerPrice ?? 0) > 0
+        ? String(providerPrice)
+        : "",
+    );
     setDialog("transaction");
   };
 
@@ -2667,7 +2799,10 @@ function StrategyHome({
         );
         if (!response.ok) return [symbol, []] as const;
         const payload = await response.json() as MarketBarsResponse;
-        return [symbol, payload.bars.items] as const;
+        return [
+          symbol,
+          payload.dataMode === "provider" ? payload.bars.items : [],
+        ] as const;
       } catch {
         return [symbol, []] as const;
       }
@@ -2676,7 +2811,8 @@ function StrategyHome({
     void Promise.all([quoteRequest, barsRequest]).then(([quoteResponse, barEntries]) => {
       if (controller.signal.aborted) return;
       const quoteItems = new Map(
-        (quoteResponse?.items ?? []).map((item) => [item.symbol, item] as const),
+        (quoteResponse?.dataMode === "provider" ? quoteResponse.items : [])
+          .map((item) => [item.symbol, item] as const),
       );
       const barsBySymbol = new Map(barEntries);
       const nextMarks: Record<string, StrategyMarketMark> = {};
@@ -2686,7 +2822,7 @@ function StrategyHome({
         const mark = strategyMarketMark(item?.quote ?? null, barsBySymbol.get(symbol) ?? []);
         if (!mark) continue;
         nextMarks[symbol] = mark;
-        const staticStock = STOCKS.find((candidate) => candidate.ticker === symbol) ?? STOCKS[0];
+        const staticStock = tickerIdentityPlaceholder(symbol);
         const quoteStock = item ? watchlistQuoteStock(item, staticStock) : null;
         const identityStock = item?.instrument
           ? instrumentPlaceholder(item.instrument)
@@ -2761,7 +2897,13 @@ function StrategyHome({
     if (transactionSavingRef.current) return;
     const shares = Number(transactionShares);
     const price = Number(transactionPrice);
-    if (!Number.isFinite(shares) || shares <= 0 || !Number.isFinite(price) || price < 0) {
+    if (
+      !Number.isFinite(shares)
+      || shares <= 0
+      || !transactionPrice.trim()
+      || !Number.isFinite(price)
+      || price < 0
+    ) {
       onAction(st("toast.invalidTransaction"));
       return;
     }
@@ -3150,7 +3292,7 @@ function StrategyHome({
       </div>
       <footer className="strategy-status-bar"><span><span /> {st("status.transactions", { status: transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("common.error") : transactionLoadStatus === "loading" ? st("common.loading") : st("common.connected") })}</span><span>{st("status.catalog", { status: strategyCatalogStatus === "ready" ? st("common.connected") : strategyCatalogStatus === "error" ? st("common.error") : st("common.loading") })}</span><span>{st("status.strategyDisclaimer")}</span></footer>
 
-      {dialog === "transaction" && <DialogShell title={st("transaction.dialogTitle")} eyebrow={selected.name} onClose={() => setDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={submitTransaction}><label><span>{st("transaction.symbol")}</span><select value={transactionTicker} onChange={(event) => { const ticker = event.target.value; setTransactionTicker(ticker); const next = strategyMarketMarks[ticker]?.price ?? strategyStockModels[ticker]?.price; if (next) setTransactionPrice(String(next)); }}>{STOCKS.map((item) => <option value={item.ticker} key={item.ticker}>{item.ticker} · {item.name}</option>)}</select></label><label><span>{st("transaction.type")}</span><select value={transactionSide} onChange={(event) => setTransactionSide(event.target.value as PortfolioTransaction["side"])}><option value="買付">{st("transaction.buy")}</option><option value="売却">{st("transaction.sell")}</option><option value="配当">{st("transaction.dividend")}</option></select></label><label><span>{st("transaction.quantity")}</span><input type="number" min="0.01" step="0.01" value={transactionShares} onChange={(event) => setTransactionShares(event.target.value)} /></label><label><span>{st("transaction.price")}</span><input type="number" min="0" step="0.01" value={transactionPrice} onChange={(event) => setTransactionPrice(event.target.value)} /></label><footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={transactionMutationStatus === "saving"}>{transactionMutationStatus === "saving" ? st("transaction.saving") : st("transaction.save")}</button></footer></form></DialogShell>}
+      {dialog === "transaction" && <DialogShell title={st("transaction.dialogTitle")} eyebrow={selected.name} onClose={() => setDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={submitTransaction}><label><span>{st("transaction.symbol")}</span><select value={transactionTicker} onChange={(event) => { const ticker = event.target.value; setTransactionTicker(ticker); const next = strategyMarketMarks[ticker]?.price ?? strategyStockModels[ticker]?.price; setTransactionPrice(Number.isFinite(next) && (next ?? 0) > 0 ? String(next) : ""); }}>{STOCKS.map((item) => <option value={item.ticker} key={item.ticker}>{item.ticker} · {item.name}</option>)}</select></label><label><span>{st("transaction.type")}</span><select value={transactionSide} onChange={(event) => setTransactionSide(event.target.value as PortfolioTransaction["side"])}><option value="買付">{st("transaction.buy")}</option><option value="売却">{st("transaction.sell")}</option><option value="配当">{st("transaction.dividend")}</option></select></label><label><span>{st("transaction.quantity")}</span><input type="number" min="0.01" step="0.01" value={transactionShares} onChange={(event) => setTransactionShares(event.target.value)} /></label><label><span>{st("transaction.price")}</span><input type="number" min="0" step="0.01" value={transactionPrice} onChange={(event) => setTransactionPrice(event.target.value)} /></label><footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={transactionMutationStatus === "saving"}>{transactionMutationStatus === "saving" ? st("transaction.saving") : st("transaction.save")}</button></footer></form></DialogShell>}
       {dialog === "import" && <DialogShell title={st("import.title")} eyebrow="CSV IMPORT" onClose={() => setDialog(null)}><div className="dialog-body"><label className="file-drop"><UploadSimple size={24} /><strong>{st("import.dropCsv")}</strong><span>{st("import.description")}</span><input type="file" accept=".csv" /></label></div><footer className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="button" className="primary-action" onClick={() => { setDialog(null); onAction(st("toast.transactionsImported", { count: 5 })); }}>{st("import.action")}</button></footer></DialogShell>}
       {dialog === "settings" && <DialogShell title={st("settings.title")} eyebrow="STRATEGY SETTINGS" onClose={() => setDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={saveStrategySettings}><label><span>{st("settings.name")}</span><input value={settingsName} required maxLength={120} onChange={(event) => setSettingsName(event.target.value)} autoFocus /></label><label><span>{st("settings.description")}</span><textarea value={settingsHeadline} required maxLength={500} onChange={(event) => setSettingsHeadline(event.target.value)} /></label>{strategyMutationError && <small className="strategy-dialog-error" role="alert">{st(strategyMutationError === "conflict" ? "notice.conflictDescription" : "notice.errorDescription")}</small>}<footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={strategyMutationStatus !== "idle" || !settingsName.trim() || !settingsHeadline.trim()}>{strategyMutationStatus === "saving" ? st("settings.saving") : st("common.save")}</button></footer></form></DialogShell>}
       {dialog === "delete" && <DialogShell title={st("delete.title")} eyebrow={st("delete.confirm")} onClose={() => setDialog(null)}><div className="dialog-body confirm-copy"><Trash size={28} /><p>{st("delete.description", { name: selected.name })}</p>{strategyMutationError && <small className="strategy-dialog-error" role="alert">{st(strategyMutationError === "conflict" ? "notice.conflictDescription" : "notice.errorDescription")}</small>}</div><footer className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="button" className="danger-action" disabled={strategyMutationStatus !== "idle" || strategies.length <= 1} onClick={() => { void deleteSelectedStrategy(); }}>{strategyMutationStatus === "deleting" ? st("delete.deleting") : st("common.delete")}</button></footer></DialogShell>}
@@ -3170,6 +3312,7 @@ function WatchlistPanel({
   activeWatchlistId,
   onSelectWatchlist,
   onDelete,
+  onReorder,
   persistenceStatus,
   afterHours,
   afterHoursEnabled,
@@ -3185,6 +3328,7 @@ function WatchlistPanel({
   activeWatchlistId: string;
   onSelectWatchlist: (watchlistId: string) => void;
   onDelete: (ticker: string) => void | Promise<void>;
+  onReorder: (itemIds: readonly string[]) => void | Promise<void>;
   persistenceStatus: "loading" | "ready" | "saving" | "error";
   afterHours: Readonly<Record<string, SyntheticLatestClose>>;
   afterHoursEnabled: boolean;
@@ -3193,6 +3337,11 @@ function WatchlistPanel({
   const [menu, setMenu] = useState<"lists" | "more" | null>(null);
   const [listActionsId, setListActionsId] = useState<string | null>(null);
   const [sort, setSort] = useState<"manual" | "ticker" | "change">("manual");
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<Readonly<{
+    itemId: string;
+    edge: WatchlistDropEdge;
+  }> | null>(null);
   const [rowContextMenu, setRowContextMenu] = useState<{
     ticker: string;
     left: number;
@@ -3200,16 +3349,60 @@ function WatchlistPanel({
   } | null>(null);
   const rowContextMenuRef = useRef<HTMLDivElement>(null);
   const rowContextActionRef = useRef<HTMLButtonElement>(null);
-  const rowContextTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const rowContextTriggerRef = useRef<HTMLElement | null>(null);
   const listsMenuHostRef = useRef<HTMLDivElement>(null);
   const moreMenuHostRef = useRef<HTMLDivElement>(null);
   const listsMenuBoundaries = useMemo(() => [listsMenuHostRef] as const, []);
   const moreMenuBoundaries = useMemo(() => [moreMenuHostRef] as const, []);
   const rowContextMenuBoundaries = useMemo(() => [rowContextMenuRef] as const, []);
   const activeWatchlist = watchlists.find((watchlist) => watchlist.id === activeWatchlistId) ?? watchlists[0];
-  const sortedStocks = [...stocks].sort((a, b) => sort === "ticker" ? a.ticker.localeCompare(b.ticker) : sort === "change" ? b.change - a.change : 0);
+  const sortedStocks = sort === "manual"
+    ? stocks
+    : [...stocks].sort((a, b) => sort === "ticker" ? a.ticker.localeCompare(b.ticker) : b.change - a.change);
+  const activeItemBySymbol = useMemo(
+    () => new Map(activeWatchlist?.items.map((item) => [item.symbol, item]) ?? []),
+    [activeWatchlist],
+  );
 
-  const openRowContextMenu = useCallback((ticker: string, trigger: HTMLButtonElement, left: number, top: number) => {
+  const clearDragState = useCallback(() => {
+    setDraggedItemId(null);
+    setDropTarget(null);
+  }, []);
+
+  const completeDrop = useCallback((targetId: string, edge: WatchlistDropEdge) => {
+    if (!activeWatchlist || !draggedItemId || persistenceStatus === "saving") {
+      clearDragState();
+      return;
+    }
+    const currentIds = activeWatchlist.items
+      .slice()
+      .sort((left, right) => left.position - right.position)
+      .map((item) => item.id);
+    const itemIds = moveWatchlistItemIds(currentIds, draggedItemId, targetId, edge);
+    clearDragState();
+    setSort("manual");
+    if (itemIds.some((itemId, index) => itemId !== currentIds[index])) void onReorder(itemIds);
+  }, [activeWatchlist, clearDragState, draggedItemId, onReorder, persistenceStatus]);
+
+  const moveWithKeyboard = useCallback((sourceId: string, direction: "up" | "down") => {
+    if (!activeWatchlist || sort !== "manual" || persistenceStatus === "saving") return;
+    const currentIds = activeWatchlist.items
+      .slice()
+      .sort((left, right) => left.position - right.position)
+      .map((item) => item.id);
+    const sourceIndex = currentIds.indexOf(sourceId);
+    const targetIndex = direction === "up" ? sourceIndex - 1 : sourceIndex + 1;
+    const targetId = currentIds[targetIndex];
+    if (sourceIndex < 0 || !targetId) return;
+    void onReorder(moveWatchlistItemIds(
+      currentIds,
+      sourceId,
+      targetId,
+      direction === "up" ? "before" : "after",
+    ));
+  }, [activeWatchlist, onReorder, persistenceStatus, sort]);
+
+  const openRowContextMenu = useCallback((ticker: string, trigger: HTMLElement, left: number, top: number) => {
     const menuWidth = 176;
     const menuHeight = 52;
     rowContextTriggerRef.current = trigger;
@@ -3246,14 +3439,28 @@ function WatchlistPanel({
   }, [rowContextMenu]);
 
   return (
-    <div className="watchlist-panel">
+    <div
+      className="watchlist-panel"
+      onKeyDownCapture={(event) => {
+        if (
+          !activeItemBySymbol.has(selectedTicker)
+          || persistenceStatus === "saving"
+          || event.defaultPrevented
+          || !isWatchlistDeleteShortcut(event)
+          || isEditableKeyboardTarget(event.target)
+        ) return;
+        event.preventDefault();
+        setRowContextMenu(null);
+        void onDelete(selectedTicker);
+      }}
+    >
       <div className="right-panel-heading">
         <div className="watch-menu-host" ref={listsMenuHostRef}><button type="button" className="panel-title-button" aria-haspopup="menu" aria-expanded={menu === "lists"} aria-controls="watchlist-selector-menu" onClick={() => { setListActionsId(null); setMenu((current) => current === "lists" ? null : "lists"); }}>
           {activeWatchlist?.name ?? t("watchlist.defaultName")} <CaretDown size={13} weight="bold" />
         </button>{menu === "lists" && <div id="watchlist-selector-menu" className="watch-popover watchlist-selector-menu" role="menu">{watchlists.map((watchlist) => <div className="watchlist-selector-row" role="none" key={watchlist.id}><button type="button" role="menuitemradio" aria-checked={activeWatchlist?.id === watchlist.id} className={`watchlist-selector-choice ${activeWatchlist?.id === watchlist.id ? "active" : ""}`} onClick={() => { onSelectWatchlist(watchlist.id); setListActionsId(null); setMenu(null); }}>{activeWatchlist?.id === watchlist.id && <Check size={13} />}{watchlist.name}</button><button type="button" role="menuitem" className="watchlist-selector-more" aria-label={t("watchlist.listActions", { name: watchlist.name })} aria-haspopup="menu" aria-expanded={listActionsId === watchlist.id} onClick={(event) => { event.stopPropagation(); setListActionsId((current) => current === watchlist.id ? null : watchlist.id); }}><DotsThree size={17} /></button>{listActionsId === watchlist.id && <div className="watchlist-selector-actions" role="menu" aria-label={t("watchlist.listActions", { name: watchlist.name })}><button type="button" role="menuitem" disabled={persistenceStatus === "saving"} onClick={() => { setListActionsId(null); setMenu(null); onRename(watchlist.id); }}><PencilLine size={13} />{t("watchlist.rename")}</button><button type="button" role="menuitem" className="watchlist-delete-action" disabled={watchlists.length <= 1 || persistenceStatus === "saving"} title={watchlists.length <= 1 ? t("watchlist.deleteLastRequired") : undefined} onClick={() => { setListActionsId(null); setMenu(null); onDeleteWatchlist(watchlist.id); }}><Trash size={13} />{t("watchlist.delete")}</button></div>}</div>)}<button type="button" role="menuitem" onClick={() => { setListActionsId(null); setMenu(null); onCreate(); }}><Plus size={13} />{t("watchlist.newList")}</button></div>}</div>
         <div className="heading-actions">
           <IconButton label={t("watchlist.addSymbol")} onClick={onAdd}><Plus size={17} /></IconButton>
-          <div className="watch-menu-host" ref={moreMenuHostRef}><IconButton label={t("watchlist.more")} hasPopup="menu" expanded={menu === "more"} controls="watchlist-options-menu" onClick={() => setMenu((current) => current === "more" ? null : "more")}><DotsThree size={18} /></IconButton>{menu === "more" && <div id="watchlist-options-menu" className="watch-popover align-right" role="menu"><span>{t("watchlist.sort")}</span>{[["manual", "watchlist.sort.manual"], ["ticker", "watchlist.sort.ticker"], ["change", "watchlist.sort.change"]].map(([value, labelKey]) => <button type="button" className={sort === value ? "active" : ""} key={value} onClick={() => { setSort(value as typeof sort); setMenu(null); }}>{sort === value && <Check size={13} />}{t(labelKey)}</button>)}<button type="button" role="menuitem" onClick={() => { setMenu(null); onCreate(); }}><Plus size={13} />{t("watchlist.newList")}</button></div>}</div>
+          <div className="watch-menu-host" ref={moreMenuHostRef}><IconButton label={t("watchlist.more")} hasPopup="menu" expanded={menu === "more"} controls="watchlist-options-menu" onClick={() => setMenu((current) => current === "more" ? null : "more")}><DotsThree size={18} /></IconButton>{menu === "more" && <div id="watchlist-options-menu" className="watch-popover align-right" role="menu"><span>{t("watchlist.sort")}</span>{[["manual", "watchlist.sort.manual"], ["ticker", "watchlist.sort.ticker"], ["change", "watchlist.sort.change"]].map(([value, labelKey]) => <button type="button" className={sort === value ? "active" : ""} key={value} onClick={() => { clearDragState(); setSort(value as typeof sort); setMenu(null); }}>{sort === value && <Check size={13} />}{t(labelKey)}</button>)}<button type="button" role="menuitem" onClick={() => { setMenu(null); onCreate(); }}><Plus size={13} />{t("watchlist.newList")}</button></div>}</div>
         </div>
       </div>
       <div className="watchlist-columns">
@@ -3261,8 +3468,14 @@ function WatchlistPanel({
       </div>
       <div className="watchlist-rows">
         {sortedStocks.map((item) => {
-          const afterHoursClose = afterHoursEnabled ? afterHours[item.ticker]?.close : undefined;
+          const watchlistItem = activeItemBySymbol.get(item.ticker);
+          const canDrag = Boolean(watchlistItem) && sort === "manual" && persistenceStatus !== "saving";
+          const afterHoursItem = afterHoursEnabled ? afterHours[item.ticker] : undefined;
+          const afterHoursClose = isFreshSyntheticLatestClose(afterHoursItem)
+            ? afterHoursItem.close
+            : undefined;
           const hasCurrentPrice = Number.isFinite(item.price) && item.price > 0;
+          const hasCurrentChange = hasCurrentPrice && Number.isFinite(item.change);
           const hasAfterHoursPrice = typeof afterHoursClose === "number" && Number.isFinite(afterHoursClose) && afterHoursClose > 0;
           const afterHoursTone = !hasAfterHoursPrice
             ? "is-missing"
@@ -3272,24 +3485,76 @@ function WatchlistPanel({
                 ? "is-higher"
                 : afterHoursClose < item.price ? "is-lower" : "is-equal";
           return (
-            <button
-              type="button"
+            <div
               key={item.ticker}
-              className={`watch-row ${selectedTicker === item.ticker ? "selected" : ""}`}
-              aria-haspopup="menu"
+              className={`watch-row ${selectedTicker === item.ticker ? "selected" : ""} ${canDrag ? "is-draggable" : ""} ${draggedItemId === watchlistItem?.id ? "is-dragging" : ""} ${dropTarget && dropTarget.itemId === watchlistItem?.id ? `is-drop-${dropTarget.edge}` : ""}`}
+              role="group"
+              tabIndex={0}
+              draggable={canDrag}
+              aria-current={selectedTicker === item.ticker ? "true" : undefined}
+              aria-label={`${item.ticker} · ${item.name}${sort === "manual" ? `. ${t("watchlist.dragSymbol", { symbol: item.ticker })}` : ""}`}
+              aria-keyshortcuts={sort === "manual" ? "ArrowUp ArrowDown" : undefined}
               aria-controls={rowContextMenu?.ticker === item.ticker ? "watchlist-row-context-menu" : undefined}
+              title={sort === "manual" ? t("watchlist.dragSymbol", { symbol: item.ticker }) : undefined}
               onClick={() => onSelect(item.ticker)}
+              onDragStart={(event) => {
+                if (!watchlistItem || !canDrag) {
+                  event.preventDefault();
+                  return;
+                }
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", watchlistItem.id);
+                event.dataTransfer.setDragImage(event.currentTarget, 24, event.currentTarget.clientHeight / 2);
+                setDraggedItemId(watchlistItem.id);
+                setDropTarget(null);
+              }}
+              onDragEnd={clearDragState}
+              onDragOver={(event) => {
+                if (!watchlistItem || !draggedItemId || draggedItemId === watchlistItem.id) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                const bounds = event.currentTarget.getBoundingClientRect();
+                setDropTarget({
+                  itemId: watchlistItem.id,
+                  edge: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after",
+                });
+              }}
+              onDrop={(event) => {
+                if (!watchlistItem || !draggedItemId || draggedItemId === watchlistItem.id) return;
+                event.preventDefault();
+                const bounds = event.currentTarget.getBoundingClientRect();
+                completeDrop(
+                  watchlistItem.id,
+                  event.clientY < bounds.top + bounds.height / 2 ? "before" : "after",
+                );
+              }}
               onContextMenu={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 openRowContextMenu(item.ticker, event.currentTarget, event.clientX, event.clientY);
               }}
               onKeyDown={(event) => {
-                if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
-                event.preventDefault();
-                event.stopPropagation();
-                const bounds = event.currentTarget.getBoundingClientRect();
-                openRowContextMenu(item.ticker, event.currentTarget, bounds.left + 24, bounds.top + bounds.height - 4);
+                if (
+                  watchlistItem
+                  && sort === "manual"
+                  && (event.key === "ArrowUp" || event.key === "ArrowDown")
+                ) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  moveWithKeyboard(watchlistItem.id, event.key === "ArrowUp" ? "up" : "down");
+                  return;
+                }
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelect(item.ticker);
+                  return;
+                }
+                if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  openRowContextMenu(item.ticker, event.currentTarget, bounds.left + 24, bounds.top + bounds.height - 4);
+                }
               }}
             >
               <span className="watch-symbol">
@@ -3297,13 +3562,13 @@ function WatchlistPanel({
                 <span><b>{item.ticker}</b><small>{item.market}</small></span>
               </span>
               <span className="watch-price">{formatWatchlistPrice(item)}</span>
-              <span className={item.price > 0 ? (item.change >= 0 ? "positive" : "negative-text") : "muted-value"}>
-                {item.price > 0 && Number.isFinite(item.price) ? `${item.change >= 0 ? "+" : ""}${item.change.toFixed(2)}%` : "-"}
+              <span className={hasCurrentChange ? (item.change >= 0 ? "positive" : "negative-text") : "muted-value"}>
+                {hasCurrentChange ? `${item.change >= 0 ? "+" : ""}${item.change.toFixed(2)}%` : "-"}
               </span>
               <span className={`watch-after-hours ${afterHoursTone}`} title={afterHoursEnabled ? t("watchlist.afterHoursTooltip", { symbol: item.ticker }) : undefined}>
                 {hasAfterHoursPrice ? formatSummaryAfterHoursPrice(afterHoursClose) : "-"}
               </span>
-            </button>
+            </div>
           );
         })}
         {sortedStocks.length === 0 && <div className="empty-watchlist">{t("watchlist.empty")}</div>}
@@ -3345,7 +3610,9 @@ export default function Home() {
   const numberLocale = locale === "ja" ? "ja-JP" : "en-US";
   const chartTimeScaleSync = useMemo(() => createChartTimeScaleSync(), []);
   const [selectedTicker, setSelectedTicker] = useState("AAPL");
-  const [stockModels, setStockModels] = useState<Record<string, Stock>>(() => Object.fromEntries(STOCKS.map((item) => [item.ticker, item])));
+  const [stockModels, setStockModels] = useState<Record<string, Stock>>(() => Object.fromEntries(
+    STOCKS.map((item) => [item.ticker, stockIdentityPlaceholder(item)]),
+  ));
   const [workspace, setWorkspace] = useState<SymbolWorkspace | null>(null);
   const [marketBars, setMarketBars] = useState<readonly MarketBar[]>([]);
   const [marketBarsSymbol, setMarketBarsSymbol] = useState("");
@@ -3354,6 +3621,8 @@ export default function Home() {
   const [barsStatus, setBarsStatus] = useState<MarketDataStatus>("loading");
   const [analystHistoryResponse, setAnalystHistoryResponse] = useState<AnalystRatingHistoryResponse | null>(null);
   const [analystHistoryStatus, setAnalystHistoryStatus] = useState<AnalystHistoryStatus>("idle");
+  const analystHistoryResponseRef = useRef<AnalystRatingHistoryResponse | null>(null);
+  const [analystHistoryRefreshNonce, setAnalystHistoryRefreshNonce] = useState(0);
   const [dailyMarketBars, setDailyMarketBars] = useState<readonly MarketBar[]>([]);
   const [dailyMarketBarsSymbol, setDailyMarketBarsSymbol] = useState("");
   const [dailyMarketBarsProvenance, setDailyMarketBarsProvenance] = useState<DataProvenance | undefined>();
@@ -3370,6 +3639,17 @@ export default function Home() {
     ) as Record<IndicatorId, IndicatorSettings>,
   );
   const [primaryView, setPrimaryView] = useState<PrimaryView>("chart");
+  const [stockDetailTabSelection, setStockDetailTabSelection] = useState<StockDetailTabSelection<StockDetailTabId>>({
+    ticker: "AAPL",
+    tab: DEFAULT_STOCK_DETAIL_TAB,
+  });
+  const activeStockDetailSection = resolveStockDetailTab(
+    stockDetailTabSelection,
+    selectedTicker,
+    unicornConfig.ui.symbolDetail.tabs,
+    DEFAULT_STOCK_DETAIL_TAB,
+  );
+  const [workspaceSectionRefreshNonce, setWorkspaceSectionRefreshNonce] = useState(0);
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanelId | null>("watchlist");
   const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_RIGHT_PANEL_WIDTH);
   const [rightPanelMaxWidth, setRightPanelMaxWidth] = useState(MAX_RIGHT_PANEL_WIDTH);
@@ -3385,6 +3665,7 @@ export default function Home() {
   const [watchlistStatus, setWatchlistStatus] = useState<"loading" | "ready" | "saving" | "error">("loading");
   const [afterHoursBySymbol, setAfterHoursBySymbol] = useState<Readonly<Record<string, SyntheticLatestClose>>>({});
   const [marketSessionClock, setMarketSessionClock] = useState<number | null>(null);
+  const [marketSessionObservations, setMarketSessionObservations] = useState<Readonly<Record<string, MarketSessionObservation>>>({});
   const [newWatchlistName, setNewWatchlistName] = useState("");
   const [renameWatchlistName, setRenameWatchlistName] = useState("");
   const [managedWatchlistId, setManagedWatchlistId] = useState("");
@@ -3428,18 +3709,129 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const toastTimerRef = useRef<number | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const stock = stockModels[selectedTicker] ?? STOCKS[0];
+  const marketSessionObservationRef = useRef<Readonly<Record<string, MarketSessionObservation>>>({});
+  const forceWatchlistQuoteSnapshotRef = useRef<(() => void) | null>(null);
+  const forceChartBarsRefreshRef = useRef<(() => void) | null>(null);
+  const forceDailyBarsRefreshRef = useRef<(() => void) | null>(null);
+  const selectedTickerRef = useRef(selectedTicker);
+  const workspaceRef = useRef<SymbolWorkspace | null>(workspace);
+  const workspaceRequestCoordinator = useMemo(() => createLatestRequestCoordinator(), []);
+  const liveQuoteByInstrumentRef = useRef(new Map<string, Quote>());
+  useEffect(() => {
+    selectedTickerRef.current = selectedTicker;
+  }, [selectedTicker]);
+  useEffect(() => {
+    workspaceRef.current = workspace;
+  }, [workspace]);
+  const mergeLiveQuote = useCallback((quote: Quote) => {
+    const current = liveQuoteByInstrumentRef.current.get(quote.instrumentId);
+    if (current && !isQuoteNewerThan(quote, current)) return;
+    liveQuoteByInstrumentRef.current.set(quote.instrumentId, quote);
+    setWorkspace((snapshot) => {
+      const next = snapshot ? mergeLiveQuoteIntoWorkspace(snapshot, quote) : snapshot;
+      workspaceRef.current = next;
+      return next;
+    });
+  }, []);
+  const observeMarketSession = useCallback((
+    symbol: string,
+    state: Quote["marketState"],
+    ingestedAt: string,
+  ) => {
+    const observedAt = Date.parse(ingestedAt);
+    const normalizedSymbol = symbol.trim().toUpperCase();
+    if (!normalizedSymbol || !Number.isFinite(observedAt)) return;
+    const current = marketSessionObservationRef.current[normalizedSymbol];
+    const observation = Object.freeze({ state, observedAt });
+    if (!shouldReplaceMarketSessionObservation(current, observation)) return;
+    const next = Object.freeze({
+      ...marketSessionObservationRef.current,
+      [normalizedSymbol]: observation,
+    });
+    marketSessionObservationRef.current = next;
+    setMarketSessionObservations(next);
+    if (
+      normalizedSymbol === selectedTickerRef.current
+      && current
+      && current.state !== state
+    ) {
+      forceChartBarsRefreshRef.current?.();
+      forceDailyBarsRefreshRef.current?.();
+    }
+  }, []);
+  const requestWorkspace = useCallback(async (
+    symbol: string,
+    refreshSection: WorkspaceRefreshSection | null = null,
+  ) => {
+    const canMergeSection = refreshSection !== null
+      && workspaceRef.current?.instrument.symbol === symbol;
+    const query = canMergeSection
+      ? `?section=${encodeURIComponent(refreshSection)}&fresh=1`
+      : refreshSection ? "?fresh=1" : "";
+    const result = await workspaceRequestCoordinator.run(
+      `${symbol}:${query || "initial"}`,
+      async (signal) => {
+        const response = await fetch(
+          `/api/v1/symbols/${encodeURIComponent(symbol)}/workspace${query}`,
+          { signal, cache: "no-store" },
+        );
+        if (!response.ok) throw new Error("workspace request failed");
+        return response.json() as Promise<SymbolWorkspace>;
+      },
+    );
+    if (result.status === "aborted" || !result.current) return;
+    if (result.status === "error") {
+      if (!canMergeSection) setWorkspaceStatus("error");
+      return;
+    }
+    const snapshot = result.value;
+    if (snapshot.instrument.symbol !== selectedTickerRef.current) return;
+    const current = workspaceRef.current;
+    const mergedSnapshot = canMergeSection && current && refreshSection
+      ? mergeFreshWorkspaceSection(current, snapshot, refreshSection)
+      : snapshot;
+    const latestLiveQuote = liveQuoteByInstrumentRef.current.get(
+      mergedSnapshot.instrument.instrumentId,
+    );
+    const liveSnapshot = latestLiveQuote
+      ? mergeLiveQuoteIntoWorkspace(mergedSnapshot, latestLiveQuote)
+      : mergedSnapshot;
+    workspaceRef.current = liveSnapshot;
+    setWorkspace(liveSnapshot);
+    setWorkspaceStatus(liveSnapshot.dataMode);
+    if (liveSnapshot.dataMode === "provider") {
+      observeMarketSession(
+        liveSnapshot.instrument.symbol,
+        liveSnapshot.quote.marketState,
+        liveSnapshot.quote.provenance.ingestedAt,
+      );
+      setStockModels((currentModels) => ({
+        ...currentModels,
+        [liveSnapshot.instrument.symbol]: workspaceStock(liveSnapshot),
+      }));
+    }
+  }, [observeMarketSession, workspaceRequestCoordinator]);
+  const stock = stockModels[selectedTicker] ?? tickerIdentityPlaceholder(selectedTicker);
   const activeWatchlist = watchlists?.find((watchlist) => watchlist.id === activeWatchlistId) ?? watchlists?.[0] ?? null;
   const managedWatchlist = watchlists?.find((watchlist) => watchlist.id === managedWatchlistId) ?? activeWatchlist;
   const watchedTickers = activeWatchlist
     ? activeWatchlist.items.map((item) => item.symbol)
     : watchlists === null ? ["AAPL", "NVDA", "MSFT", "TSLA"] : [];
   const watchedStocks = watchedTickers.map((ticker) => stockModels[ticker]).filter((item): item is Stock => Boolean(item));
-  const watchedTickerKey = watchedTickers.join("\u0000");
+  const quoteTickerKey = prioritizedWatchlistQuoteSymbols(
+    watchedTickers,
+    selectedTicker,
+    WATCHLIST_QUOTES_MAX_SYMBOLS,
+  )
+    .join("\u0000");
+  const marketDataSurfaceVisible = primaryView !== "strategy";
   const afterHoursTickers = Array.from(new Set([...watchedTickers, selectedTicker]))
     .slice(0, WATCHLIST_AFTER_HOURS_MAX_SYMBOLS);
   const afterHoursEnabled = shouldUseAfterHoursPrices(
-    afterHoursTickers.map((ticker) => stockModels[ticker]?.marketState),
+    afterHoursTickers.flatMap((ticker) => {
+      const observation = marketSessionObservations[ticker];
+      return observation ? [observation] : [];
+    }),
     marketSessionClock === null ? undefined : new Date(marketSessionClock),
   );
   const afterHoursTickerKey = afterHoursEnabled ? afterHoursTickers.join("\u0000") : "";
@@ -3449,23 +3841,30 @@ export default function Home() {
     ? "error"
     : workspaceStatus === "loading" || barsStatus === "loading"
       ? "loading"
-      : workspaceStatus === "provider" || barsStatus === "provider" ? "provider" : "fixture";
+      : workspaceStatus === "provider" && barsStatus === "provider" ? "provider" : "fixture";
   const researchDataStatus: MarketDataStatus = workspaceStatus === "error" || dailyBarsStatus === "error"
     ? "error"
     : workspaceStatus === "loading" || dailyBarsStatus === "loading"
       ? "loading"
-      : workspaceStatus === "provider" || dailyBarsStatus === "provider" ? "provider" : "fixture";
-  const detailWorkspace = workspace?.instrument.symbol === selectedTicker ? workspace : null;
+      : workspaceStatus === "provider" && dailyBarsStatus === "provider" ? "provider" : "fixture";
+  const detailWorkspace = workspaceStatus === "provider"
+    && workspace?.dataMode === "provider"
+    && workspace.instrument.symbol === selectedTicker
+    ? workspace
+    : null;
   const detailMarketBars = useMemo<readonly MarketBar[]>(
-    () => marketBarsSymbol === selectedTicker ? marketBars : [],
-    [marketBars, marketBarsSymbol, selectedTicker],
+    () => barsStatus === "provider" && marketBarsSymbol === selectedTicker ? marketBars : [],
+    [barsStatus, marketBars, marketBarsSymbol, selectedTicker],
   );
-  const detailBarsProvenance = marketBarsSymbol === selectedTicker ? marketBarsProvenance : undefined;
+  const detailBarsProvenance = barsStatus === "provider" && marketBarsSymbol === selectedTicker
+    ? marketBarsProvenance
+    : undefined;
   const detailDailyMarketBars = useMemo<readonly MarketBar[]>(
-    () => dailyMarketBarsSymbol === selectedTicker ? dailyMarketBars : [],
-    [dailyMarketBars, dailyMarketBarsSymbol, selectedTicker],
+    () => dailyBarsStatus === "provider" && dailyMarketBarsSymbol === selectedTicker ? dailyMarketBars : [],
+    [dailyBarsStatus, dailyMarketBars, dailyMarketBarsSymbol, selectedTicker],
   );
-  const detailDailyBarsProvenance = dailyMarketBarsSymbol === selectedTicker
+  const detailDailyBarsProvenance = dailyBarsStatus === "provider"
+    && dailyMarketBarsSymbol === selectedTicker
     ? dailyMarketBarsProvenance
     : undefined;
   const stockDetailViewModel = useMemo(
@@ -3474,17 +3873,35 @@ export default function Home() {
   );
   const stockIntelligence = useMemo(
     () => {
-      const intelligence = getStockIntelligence(stock, detailWorkspace, detailDailyMarketBars, locale);
-      if (!detailWorkspace || dailyBarsStatus === "provider" || dailyBarsStatus === "fixture") return intelligence;
+      const intelligence = getStockIntelligence(
+        stock,
+        detailWorkspace,
+        dailyBarsStatus === "provider" ? detailDailyMarketBars : [],
+        locale,
+      );
+      if (!detailWorkspace) {
+        if (workspaceStatus === "loading") {
+          return { ...intelligence, dataFreshness: t("status.fetching") };
+        }
+        if (workspaceStatus === "error" || workspaceStatus === "fixture") {
+          return { ...intelligence, dataFreshness: t("status.connectionError") };
+        }
+        return intelligence;
+      }
+      if (dailyBarsStatus === "provider") return intelligence;
       return {
         ...intelligence,
-        dataFreshness: t(dailyBarsStatus === "error" ? "status.connectionError" : "status.fetching"),
+        dataFreshness: t(dailyBarsStatus === "loading" ? "status.fetching" : "status.connectionError"),
       };
     },
-    [dailyBarsStatus, detailDailyMarketBars, detailWorkspace, locale, stock, t],
+    [dailyBarsStatus, detailDailyMarketBars, detailWorkspace, locale, stock, t, workspaceStatus],
   );
   const visibleNews = useMemo(() => {
-    if (workspace?.instrument.symbol === stock.ticker && workspace.dataMode === "provider") {
+    if (
+      workspaceStatus === "provider"
+      && workspace?.dataMode === "provider"
+      && workspace.instrument.symbol === stock.ticker
+    ) {
       return workspace.news.map((item) => ({
         time: new Date(item.publishedAt).toLocaleString(numberLocale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
         title: item.title,
@@ -3494,15 +3911,14 @@ export default function Home() {
         url: item.url,
       }));
     }
-    return NEWS.map((item) => ({
-      ...item,
-      url: `https://finance.yahoo.com/quote/${encodeURIComponent(stock.ticker)}/news/`,
-    }));
-  }, [numberLocale, stock.ticker, t, workspace]);
-  const selectedAnalystHistory = analystHistoryResponse?.instrument.symbol === selectedTicker
+    return [];
+  }, [numberLocale, stock.ticker, t, workspace, workspaceStatus]);
+  const selectedAnalystHistory = analystHistoryResponse?.dataMode === "provider"
+    && analystHistoryResponse.instrument.symbol === selectedTicker
     ? analystHistoryResponse.history
     : null;
-  const shouldLoadAnalystHistory = primaryView === "stock-detail";
+  const shouldLoadAnalystHistory = primaryView === "stock-detail"
+    && activeStockDetailSection === "analyst";
   const activeIndicatorDefinitions = useMemo(
     () => INDICATORS.filter((indicator) => activeIndicators.includes(indicator.id)),
     [activeIndicators],
@@ -3739,6 +4155,10 @@ export default function Home() {
       showToast(t("watchlist.notFound", { symbol: ticker, name: activeWatchlist.name }));
       return;
     }
+    const nextSelectedTicker = nextWatchlistSymbolAfterRemoval(
+      activeWatchlist.items,
+      ticker,
+    );
     setWatchlistStatus("saving");
     try {
       const response = await fetch(`/api/v1/watchlists/${encodeURIComponent(activeWatchlist.id)}/items/${encodeURIComponent(existing.id)}`, { method: "DELETE" });
@@ -3746,6 +4166,10 @@ export default function Home() {
       setWatchlists((current) => current?.map((watchlist) => watchlist.id !== activeWatchlist.id
         ? watchlist
         : { ...watchlist, items: watchlist.items.filter((item) => item.id !== existing.id) }) ?? current);
+      if (selectedTickerRef.current === ticker && nextSelectedTicker) {
+        selectedTickerRef.current = nextSelectedTicker;
+        setSelectedTicker(nextSelectedTicker);
+      }
       setWatchlistStatus("ready");
       showToast(t("watchlist.removeSuccess", { symbol: ticker, name: activeWatchlist.name }));
     } catch {
@@ -3753,6 +4177,50 @@ export default function Home() {
       showToast(t("watchlist.removeError", { symbol: ticker }));
     }
   }, [activeWatchlist, showToast, t]);
+
+  const reorderWatchlistItems = useCallback(async (itemIds: readonly string[]) => {
+    if (!activeWatchlist || watchlistStatus === "saving") return;
+    const currentItems = activeWatchlist.items.slice().sort((left, right) => left.position - right.position);
+    if (
+      itemIds.length !== currentItems.length
+      || itemIds.some((itemId) => !currentItems.some((item) => item.id === itemId))
+    ) {
+      setWatchlistStatus("error");
+      showToast(t("watchlist.reorderError"));
+      return;
+    }
+
+    const itemById = new Map(currentItems.map((item) => [item.id, item]));
+    const optimisticItems = itemIds.map((itemId, position) => ({
+      ...itemById.get(itemId)!,
+      position,
+    }));
+    const watchlistId = activeWatchlist.id;
+    setWatchlists((current) => current?.map((watchlist) => watchlist.id === watchlistId
+      ? { ...watchlist, items: optimisticItems }
+      : watchlist) ?? current);
+    setWatchlistStatus("saving");
+    try {
+      const response = await fetch(`/api/v1/watchlists/${encodeURIComponent(watchlistId)}/items/reorder`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds }),
+      });
+      if (!response.ok) throw new Error("watchlist reorder request failed");
+      const payload = await response.json() as WatchlistMutationResponse;
+      setWatchlists((current) => current?.map((watchlist) => watchlist.id === payload.watchlist.id
+        ? payload.watchlist
+        : watchlist) ?? current);
+      setWatchlistStatus("ready");
+      showToast(t("watchlist.reorderSuccess"));
+    } catch {
+      setWatchlists((current) => current?.map((watchlist) => watchlist.id === watchlistId
+        ? { ...watchlist, items: currentItems }
+        : watchlist) ?? current);
+      setWatchlistStatus("error");
+      showToast(t("watchlist.reorderError"));
+    }
+  }, [activeWatchlist, showToast, t, watchlistStatus]);
 
   const toggleWatched = useCallback(async (ticker: string) => {
     if (!activeWatchlist) {
@@ -3800,9 +4268,20 @@ export default function Home() {
   }, [stockModels]);
 
   const openStockDetails = useCallback(() => {
+    setStockDetailTabSelection({ ticker: selectedTicker, tab: DEFAULT_STOCK_DETAIL_TAB });
     setPrimaryView("stock-detail");
     setToolbarMenu(null);
-  }, []);
+  }, [selectedTicker]);
+
+  const selectStockDetailSection = useCallback((section: StockDetailTabId) => {
+    setStockDetailTabSelection({ ticker: selectedTicker, tab: section });
+    if (section === "financials" || section === "analyst") {
+      setWorkspaceSectionRefreshNonce((current) => current + 1);
+    }
+    if (section === "analyst") {
+      setAnalystHistoryRefreshNonce((current) => current + 1);
+    }
+  }, [selectedTicker]);
 
   const selectChartInterval = useCallback((nextInterval: MarketBarInterval) => {
     setInterval(nextInterval);
@@ -4059,17 +4538,57 @@ export default function Home() {
   }, [activeWatchlistId, managedWatchlist, selectWatchlist, showToast, t, watchlists]);
 
   useEffect(() => {
-    const updateMarketSessionClock = () => setMarketSessionClock(Date.now());
+    const updateMarketSessionClock = () => {
+      const observedAt = Date.now();
+      setMarketSessionClock(observedAt);
+      // Clear the backing values at the opening boundary itself. Waiting for
+      // the derived ticker-key effect leaves hosted tabs vulnerable to a late
+      // provider response or a throttled effect cleanup briefly restoring a
+      // pre-open value after 09:30 New York.
+      if (isNominalUsRegularSession(new Date(observedAt))) {
+        setAfterHoursBySymbol((current) => (
+          Object.keys(current).length === 0 ? current : Object.freeze({})
+        ));
+      }
+    };
+    let boundaryTimer: number | undefined;
+    const scheduleBoundary = () => {
+      if (boundaryTimer !== undefined) window.clearTimeout(boundaryTimer);
+      const delay = millisecondsUntilNextUsSessionBoundary(new Date());
+      boundaryTimer = window.setTimeout(() => {
+        boundaryTimer = undefined;
+        updateMarketSessionClock();
+        if (!document.hidden) {
+          forceWatchlistQuoteSnapshotRef.current?.();
+          forceChartBarsRefreshRef.current?.();
+          forceDailyBarsRefreshRef.current?.();
+        }
+        scheduleBoundary();
+      }, delay + 25);
+    };
+    const recheckVisibleSession = () => {
+      updateMarketSessionClock();
+      if (!document.hidden) {
+        forceWatchlistQuoteSnapshotRef.current?.();
+        forceChartBarsRefreshRef.current?.();
+        forceDailyBarsRefreshRef.current?.();
+      }
+      scheduleBoundary();
+    };
     const handleVisibilityChange = () => {
-      if (!document.hidden) updateMarketSessionClock();
+      if (!document.hidden) recheckVisibleSession();
     };
     updateMarketSessionClock();
-    const timer = window.setInterval(updateMarketSessionClock, WATCHLIST_SESSION_STATE_REFRESH_MS);
-    window.addEventListener("focus", updateMarketSessionClock);
+    scheduleBoundary();
+    const timer = window.setInterval(updateMarketSessionClock, MARKET_SESSION_CLOCK_REFRESH_MS);
+    window.addEventListener("focus", recheckVisibleSession);
+    window.addEventListener("pageshow", recheckVisibleSession);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("focus", updateMarketSessionClock);
+      if (boundaryTimer !== undefined) window.clearTimeout(boundaryTimer);
+      window.removeEventListener("focus", recheckVisibleSession);
+      window.removeEventListener("pageshow", recheckVisibleSession);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
@@ -4105,24 +4624,34 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const symbols = watchedTickerKey
-      ? watchedTickerKey.split("\u0000").slice(0, WATCHLIST_QUOTES_MAX_SYMBOLS)
+    const symbols = quoteTickerKey
+      ? quoteTickerKey.split("\u0000").slice(0, WATCHLIST_QUOTES_MAX_SYMBOLS)
       : [];
     if (symbols.length === 0) return;
     const symbolSet = new Set(symbols);
     const controller = new AbortController();
     let disposed = false;
     let requestInFlight = false;
+    let forceRefreshPending = false;
+    let lastRefreshStartedAt = 0;
     let refreshTimer: number | undefined;
     let sessionStateTimer: number | undefined;
     let reconnectTimer: number | undefined;
     let streamReadyTimer: number | undefined;
     let flushTimer: number | undefined;
     let eventSource: EventSource | undefined;
+    let longPollController: AbortController | undefined;
+    let longPollRetryTimer: number | undefined;
     let streamConnected = false;
+    let streamSupported: boolean | undefined;
+    let longPollSupported = false;
+    let providerQuotesEnabled = false;
     let reconnectDelay = 1_000;
+    let longPollRetryDelay = 1_000;
+    let longPollGeneration = 0;
     const pendingQuotes = new Map<string, Quote>();
     const latestAsOf = new Map<string, string>();
+    const latestQuotes = new Map<string, Quote>();
     const resolvedSymbols = new Set<string>();
 
     const scheduleNext = () => {
@@ -4154,17 +4683,32 @@ export default function Home() {
     };
 
     const queueQuote = (symbol: string, quote: Quote) => {
-      if (!symbolSet.has(symbol)) return;
+      if (!providerQuotesEnabled || !symbolSet.has(symbol)) return;
       resolvedSymbols.add(symbol);
       const previousAsOf = latestAsOf.get(symbol);
       if (!isNewerWatchlistQuote(quote, previousAsOf)) return;
       latestAsOf.set(symbol, quote.provenance.asOf);
+      latestQuotes.set(symbol, quote);
+      observeMarketSession(symbol, quote.marketState, quote.provenance.ingestedAt);
+      mergeLiveQuote(quote);
       pendingQuotes.set(symbol, quote);
       if (flushTimer === undefined) flushTimer = window.setTimeout(flushQuotes, 100);
     };
 
-    function refresh() {
-      if (disposed || document.hidden || requestInFlight) return;
+    function refresh(force = false) {
+      if (disposed || document.hidden) return;
+      if (requestInFlight) {
+        if (force) forceRefreshPending = true;
+        return;
+      }
+      if (force) forceRefreshPending = false;
+      const startedAt = Date.now();
+      if (!force && startedAt - lastRefreshStartedAt < WATCHLIST_QUOTE_REFRESH_MS - 1_000) {
+        scheduleNext();
+        return;
+      }
+      lastRefreshStartedAt = startedAt;
+      const requestStartedAt = new Date(startedAt);
       requestInFlight = true;
       void fetch("/api/v1/watchlists/quotes", {
         method: "POST",
@@ -4178,6 +4722,43 @@ export default function Home() {
         })
         .then((response) => {
           if (disposed) return;
+          providerQuotesEnabled = response.dataMode === "provider";
+          streamSupported = providerQuotesEnabled && response.streamSupported === true;
+          longPollSupported = providerQuotesEnabled
+            && response.longPollSupported === true
+            && !streamSupported;
+          if (!streamSupported) {
+            if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+            reconnectTimer = undefined;
+            disconnectStream();
+          } else {
+            connectStream();
+          }
+          if (longPollSupported) startQuoteLongPoll();
+          else disconnectQuoteLongPoll();
+          if (!providerQuotesEnabled) return;
+          const requestStayedInsideTheSameNominalSession =
+            didMarketDataRequestStayInNominalSession(requestStartedAt, new Date());
+          // A quote snapshot begun before 09:30 or 16:00 belongs to the old
+          // session. Discard the entire response; the boundary callback has
+          // queued a forced snapshot whose price and state are both current.
+          if (!requestStayedInsideTheSameNominalSession) return;
+          for (const item of response.items) {
+            if (item.quote) {
+              const previousAsOf = latestAsOf.get(item.symbol);
+              if (isNewerWatchlistQuote(item.quote, previousAsOf)) {
+                latestQuotes.set(item.symbol, item.quote);
+              }
+              observeMarketSession(
+                item.symbol,
+                item.quote.marketState,
+                item.quote.provenance.ingestedAt,
+              );
+            }
+          }
+          for (const item of response.items) {
+            if (item.quote) mergeLiveQuote(item.quote);
+          }
           setStockModels((current) => {
             const next = { ...current };
             for (const item of response.items) {
@@ -4198,14 +4779,115 @@ export default function Home() {
         })
         .finally(() => {
           requestInFlight = false;
+          if (forceRefreshPending && !disposed && !document.hidden) {
+            forceRefreshPending = false;
+            refresh(true);
+            return;
+          }
           scheduleNext();
         });
     }
 
+    const disconnectQuoteLongPoll = () => {
+      longPollGeneration += 1;
+      longPollController?.abort("quote long poll stopped");
+      longPollController = undefined;
+      if (longPollRetryTimer !== undefined) window.clearTimeout(longPollRetryTimer);
+      longPollRetryTimer = undefined;
+    };
+
+    const quoteLongPollCursors = () => Object.fromEntries(
+      symbols.flatMap((symbol) => {
+        const quote = latestQuotes.get(symbol);
+        return quote
+          ? [[symbol, { asOf: quote.provenance.asOf, price: quote.price }] as const]
+          : [];
+      }),
+    );
+
+    const scheduleQuoteLongPoll = (delay: number) => {
+      if (
+        disposed
+        || document.hidden
+        || !longPollSupported
+        || longPollController
+        || longPollRetryTimer !== undefined
+      ) return;
+      longPollRetryTimer = window.setTimeout(() => {
+        longPollRetryTimer = undefined;
+        startQuoteLongPoll();
+      }, Math.max(0, delay));
+    };
+
+    const startQuoteLongPoll = () => {
+      if (
+        disposed
+        || document.hidden
+        || !longPollSupported
+        || longPollController
+      ) return;
+      const generation = longPollGeneration;
+      const pollController = new AbortController();
+      longPollController = pollController;
+      void fetch("/api/v1/watchlists/quotes/poll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbols, cursors: quoteLongPollCursors() }),
+        signal: pollController.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("watchlist quote long poll failed");
+          return response.json() as Promise<WatchlistQuotesResponse>;
+        })
+        .then((response) => {
+          if (
+            disposed
+            || generation !== longPollGeneration
+            || response.schemaVersion !== WATCHLIST_QUOTES_SCHEMA_VERSION
+            || response.dataMode !== "provider"
+            || !Array.isArray(response.items)
+          ) return;
+          for (const item of response.items) {
+            if (!item.quote || !symbolSet.has(item.symbol)) continue;
+            const parsed = parseWatchlistQuoteStreamMessage(JSON.stringify({
+              schemaVersion: WATCHLIST_QUOTE_STREAM_SCHEMA_VERSION,
+              type: "quote",
+              symbol: item.symbol,
+              quote: item.quote,
+            }));
+            if (!parsed) continue;
+            const current = latestQuotes.get(parsed.symbol);
+            if (
+              current?.price === parsed.quote.price
+              && current.provenance.asOf === parsed.quote.provenance.asOf
+            ) continue;
+            queueQuote(parsed.symbol, parsed.quote);
+          }
+          longPollRetryDelay = 1_000;
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          if (pollController.signal.aborted) return;
+          longPollRetryDelay = Math.min(30_000, longPollRetryDelay * 2);
+        })
+        .finally(() => {
+          if (longPollController === pollController) longPollController = undefined;
+          if (disposed || generation !== longPollGeneration) return;
+          scheduleQuoteLongPoll(longPollRetryDelay === 1_000 ? 0 : longPollRetryDelay);
+        });
+    };
+
     const scheduleSessionStateRefresh = () => {
-      if (disposed || document.hidden || sessionStateTimer !== undefined) return;
+      if (disposed || document.hidden) return;
+      if (!isNominalUsRegularSession(new Date())) {
+        if (sessionStateTimer !== undefined) window.clearTimeout(sessionStateTimer);
+        sessionStateTimer = undefined;
+        return;
+      }
+      if (sessionStateTimer !== undefined) return;
       sessionStateTimer = window.setTimeout(() => {
         sessionStateTimer = undefined;
+        if (disposed || document.hidden || !isNominalUsRegularSession(new Date())) return;
         refresh();
         scheduleSessionStateRefresh();
       }, WATCHLIST_SESSION_STATE_REFRESH_MS);
@@ -4220,7 +4902,13 @@ export default function Home() {
     };
 
     const connectStream = () => {
-      if (disposed || document.hidden || eventSource || typeof EventSource === "undefined") return;
+      if (
+        disposed
+        || document.hidden
+        || streamSupported !== true
+        || eventSource
+        || typeof EventSource === "undefined"
+      ) return;
       const query = new URLSearchParams({ symbols: symbols.join(",") });
       const source = new EventSource(`/api/v1/watchlists/quotes/stream?${query}`);
       eventSource = source;
@@ -4242,6 +4930,10 @@ export default function Home() {
         if (disposed || eventSource !== source) return;
         disconnectStream();
         refresh();
+        if (streamSupported !== true) {
+          scheduleNext();
+          return;
+        }
         if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
         reconnectTimer = window.setTimeout(() => {
           reconnectTimer = undefined;
@@ -4261,10 +4953,15 @@ export default function Home() {
       if (disposed || document.hidden) return;
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
       refreshTimer = undefined;
-      if (!streamConnected || resolvedSymbols.size < symbols.length) refresh();
-      connectStream();
+      // Focus, pageshow, and exact market boundaries always require a fresh
+      // provider session even if the price SSE has not emitted a new trade.
+      refresh(true);
+      if (streamSupported === true) connectStream();
+      if (longPollSupported) startQuoteLongPoll();
       scheduleSessionStateRefresh();
     };
+
+    forceWatchlistQuoteSnapshotRef.current = refreshNow;
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
@@ -4275,16 +4972,17 @@ export default function Home() {
         sessionStateTimer = undefined;
         reconnectTimer = undefined;
         disconnectStream();
+        disconnectQuoteLongPoll();
         return;
       }
       refreshNow();
     };
 
     refresh();
-    connectStream();
     scheduleSessionStateRefresh();
     window.addEventListener("focus", refreshNow);
     window.addEventListener("online", refreshNow);
+    window.addEventListener("pageshow", refreshNow);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       disposed = true;
@@ -4295,11 +4993,16 @@ export default function Home() {
       if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
       if (flushTimer !== undefined) window.clearTimeout(flushTimer);
       disconnectStream();
+      disconnectQuoteLongPoll();
+      if (forceWatchlistQuoteSnapshotRef.current === refreshNow) {
+        forceWatchlistQuoteSnapshotRef.current = null;
+      }
       window.removeEventListener("focus", refreshNow);
       window.removeEventListener("online", refreshNow);
+      window.removeEventListener("pageshow", refreshNow);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [watchedTickerKey]);
+  }, [mergeLiveQuote, observeMarketSession, quoteTickerKey]);
 
   useEffect(() => {
     const symbols = afterHoursTickerKey
@@ -4310,28 +5013,95 @@ export default function Home() {
       return;
     }
     const symbolSet = new Set(symbols);
-    queueMicrotask(() => setAfterHoursBySymbol((current) => {
-      const next = Object.fromEntries(
-        Object.entries(current).filter(([symbol]) => symbolSet.has(symbol)),
-      );
-      return Object.keys(next).length === Object.keys(current).length ? current : next;
-    }));
     const controller = new AbortController();
     let disposed = false;
     let requestInFlight = false;
     let refreshTimer: number | undefined;
     let reconnectTimer: number | undefined;
     let streamReadyTimer: number | undefined;
+    let streamLivenessTimer: number | undefined;
     let flushTimer: number | undefined;
+    let freshnessTimer: number | undefined;
     let eventSource: EventSource | undefined;
+    let webSocket: WebSocket | undefined;
+    let longPollController: AbortController | undefined;
+    let longPollRetryTimer: number | undefined;
+    let activeStreamTransport: "websocket" | "sse" | undefined;
     let streamConnected = false;
+    let streamSupported: boolean | undefined;
+    let streamTransport: "websocket" | "sse" | undefined;
+    let longPollSupported = false;
+    let longPollRetryDelay = 1_000;
+    let longPollGeneration = 0;
     let reconnectDelay = 1_000;
+    let reconnectNotBefore = 0;
     const pendingCloses = new Map<string, SyntheticLatestClose>();
-    const latestUpdatedAt = new Map<string, string>();
+    const latestCloses = new Map<string, SyntheticLatestClose>();
+
+    function scheduleFreshnessPrune() {
+      if (disposed) return;
+      if (freshnessTimer !== undefined) window.clearTimeout(freshnessTimer);
+      freshnessTimer = undefined;
+      const nextExpiration = Math.min(...[...latestCloses.values()].flatMap((item) => {
+        if (!item.updatedAt) return [];
+        const updatedAt = Date.parse(item.updatedAt);
+        return Number.isFinite(updatedAt)
+          ? [updatedAt + SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS + 1]
+          : [];
+      }));
+      if (!Number.isFinite(nextExpiration)) return;
+      freshnessTimer = window.setTimeout(() => {
+        freshnessTimer = undefined;
+        pruneExpiredCloses();
+      }, Math.max(1, Math.min(2_147_483_647, nextExpiration - Date.now())));
+    }
+
+    function pruneExpiredCloses() {
+      if (disposed) return;
+      const observedAt = Date.now();
+      for (const [symbol, item] of pendingCloses) {
+        if (!isFreshSyntheticLatestClose(item, observedAt)) pendingCloses.delete(symbol);
+      }
+      for (const [symbol, item] of latestCloses) {
+        if (!isFreshSyntheticLatestClose(item, observedAt)) latestCloses.delete(symbol);
+      }
+      setAfterHoursBySymbol((current) => pruneStaleAfterHoursCloses(current, observedAt));
+      scheduleFreshnessPrune();
+    }
+
+    function clearClose(symbol: string) {
+      pendingCloses.delete(symbol);
+      latestCloses.delete(symbol);
+      setAfterHoursBySymbol((current) => {
+        if (!(symbol in current)) return current;
+        const next = { ...current };
+        delete next[symbol];
+        return next;
+      });
+      scheduleFreshnessPrune();
+    }
+
+    queueMicrotask(() => {
+      if (disposed) return;
+      setAfterHoursBySymbol((current) => {
+        const observedAt = Date.now();
+        const next = Object.fromEntries(
+          Object.entries(current).filter(([symbol, item]) => (
+            symbolSet.has(symbol) && isFreshSyntheticLatestClose(item, observedAt)
+          )),
+        );
+        for (const [symbol, item] of Object.entries(next)) latestCloses.set(symbol, item);
+        scheduleFreshnessPrune();
+        return Object.keys(next).length === Object.keys(current).length ? current : next;
+      });
+    });
 
     const scheduleNext = () => {
-      if (disposed || document.hidden || streamConnected) return;
-      refreshTimer = window.setTimeout(refresh, WATCHLIST_AFTER_HOURS_REFRESH_MS);
+      if (disposed || document.hidden || refreshTimer !== undefined) return;
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = undefined;
+        refresh();
+      }, WATCHLIST_AFTER_HOURS_REFRESH_MS);
     };
 
     const flushCloses = () => {
@@ -4342,22 +5112,35 @@ export default function Home() {
       setAfterHoursBySymbol((current) => {
         const next = { ...current };
         for (const [symbol, item] of updates) {
-          if (isNewerAfterHoursClose(item, current[symbol]?.updatedAt)) next[symbol] = item;
+          if (
+            isFreshSyntheticLatestClose(item)
+            && isNewerAfterHoursClose(item, current[symbol]?.updatedAt)
+          ) next[symbol] = item;
         }
         return next;
       });
+      scheduleFreshnessPrune();
     };
 
     const queueClose = (item: SyntheticLatestClose) => {
-      const previousUpdatedAt = latestUpdatedAt.get(item.symbol);
-      if (
-        !symbolSet.has(item.symbol)
-        || !item.updatedAt
-        || !isNewerAfterHoursClose(item, previousUpdatedAt)
-      ) return false;
-      latestUpdatedAt.set(item.symbol, item.updatedAt);
+      if (!symbolSet.has(item.symbol)) return false;
+      const previous = latestCloses.get(item.symbol);
+      if (item.close === null && item.updatedAt === null) {
+        if (isFreshSyntheticLatestClose(previous)) return true;
+        clearClose(item.symbol);
+        return true;
+      }
+      if (!isFreshSyntheticLatestClose(item)) {
+        if (isFreshSyntheticLatestClose(previous)) return true;
+        clearClose(item.symbol);
+        return true;
+      }
+      const previousUpdatedAt = previous?.updatedAt;
+      if (!isNewerAfterHoursClose(item, previousUpdatedAt)) return false;
+      latestCloses.set(item.symbol, item);
       pendingCloses.set(item.symbol, item);
       if (flushTimer === undefined) flushTimer = window.setTimeout(flushCloses, 100);
+      scheduleFreshnessPrune();
       return true;
     };
 
@@ -4376,11 +5159,34 @@ export default function Home() {
         })
         .then((response) => {
           if (disposed) return;
+          const nextTransport = response.streamTransport;
+          streamSupported = response.streamSupported === true
+            && nextTransport !== undefined;
+          if (
+            activeStreamTransport
+            && nextTransport
+            && activeStreamTransport !== nextTransport
+          ) disconnectStream();
+          streamTransport = nextTransport;
+          longPollSupported = response.longPollSupported === true
+            && !streamSupported;
+          if (!streamSupported) {
+            if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+            reconnectTimer = undefined;
+            reconnectNotBefore = 0;
+            disconnectStream();
+          } else {
+            connectStream();
+          }
           for (const item of response.items) queueClose(item);
+          if (longPollSupported) startLongPoll();
+          else disconnectLongPoll();
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") return;
-          // Keep the last successful values visible and retry automatically.
+          // A transient failure may retain only a still-fresh last value. The
+          // independent expiry timer removes it at the five-minute boundary.
+          pruneExpiredCloses();
         })
         .finally(() => {
           requestInFlight = false;
@@ -4388,55 +5194,248 @@ export default function Home() {
         });
     }
 
+    const disconnectLongPoll = () => {
+      longPollGeneration += 1;
+      longPollController?.abort("long poll stopped");
+      longPollController = undefined;
+      if (longPollRetryTimer !== undefined) window.clearTimeout(longPollRetryTimer);
+      longPollRetryTimer = undefined;
+    };
+
+    const longPollCursors = (): readonly WatchlistAfterHoursPollCursor[] => {
+      const observedAt = Date.now();
+      return symbols.flatMap((symbol) => {
+        const item = latestCloses.get(symbol);
+        if (
+          !isFreshSyntheticLatestClose(item, observedAt)
+          || item.close === null
+          || item.updatedAt === null
+        ) return [];
+        return [Object.freeze({
+          symbol,
+          sourceSymbol: item.sourceSymbol,
+          close: item.close,
+          updatedAt: item.updatedAt,
+        })];
+      });
+    };
+
+    const scheduleLongPoll = (delay: number) => {
+      if (
+        disposed
+        || document.hidden
+        || !longPollSupported
+        || longPollController
+        || longPollRetryTimer !== undefined
+      ) return;
+      longPollRetryTimer = window.setTimeout(() => {
+        longPollRetryTimer = undefined;
+        startLongPoll();
+      }, Math.max(0, delay));
+    };
+
+    const startLongPoll = () => {
+      if (
+        disposed
+        || document.hidden
+        || !longPollSupported
+        || longPollController
+      ) return;
+      const generation = longPollGeneration;
+      const pollController = new AbortController();
+      longPollController = pollController;
+      void fetch("/api/v1/watchlists/after-hours/poll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbols, cursors: longPollCursors() }),
+        signal: pollController.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("after-hours long poll failed");
+          return response.json() as Promise<WatchlistAfterHoursPollResponse>;
+        })
+        .then((response) => {
+          if (
+            disposed
+            || generation !== longPollGeneration
+            || response.schemaVersion !== WATCHLIST_AFTER_HOURS_POLL_SCHEMA_VERSION
+            || !Array.isArray(response.items)
+          ) return;
+          for (const item of response.items) {
+            const parsed = parseWatchlistAfterHoursStreamMessage(JSON.stringify({
+              schemaVersion: WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION,
+              type: "quote",
+              item,
+            }));
+            if (parsed) queueClose(parsed.item);
+          }
+          longPollRetryDelay = 1_000;
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          if (pollController.signal.aborted) return;
+          longPollRetryDelay = Math.min(30_000, longPollRetryDelay * 2);
+        })
+        .finally(() => {
+          if (longPollController === pollController) longPollController = undefined;
+          if (disposed || generation !== longPollGeneration) return;
+          scheduleLongPoll(longPollRetryDelay === 1_000 ? 0 : longPollRetryDelay);
+        });
+    };
+
     const disconnectStream = () => {
       streamConnected = false;
       if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
+      if (streamLivenessTimer !== undefined) window.clearTimeout(streamLivenessTimer);
       streamReadyTimer = undefined;
+      streamLivenessTimer = undefined;
       eventSource?.close();
       eventSource = undefined;
+      if (webSocket) {
+        const socket = webSocket;
+        webSocket = undefined;
+        socket.onopen = null;
+        socket.onmessage = null;
+        socket.onerror = null;
+        socket.onclose = null;
+        if (socket.readyState < WebSocket.CLOSING) socket.close(1000, "stream ended");
+      }
+      activeStreamTransport = undefined;
     };
 
     const connectStream = () => {
-      if (disposed || document.hidden || eventSource || typeof EventSource === "undefined") return;
+      if (
+        disposed
+        || document.hidden
+        || streamSupported !== true
+        || eventSource
+        || webSocket
+        || reconnectTimer !== undefined
+        || Date.now() < reconnectNotBefore
+      ) return;
       const query = new URLSearchParams({ symbols: symbols.join(",") });
-      const source = new EventSource(`/api/v1/watchlists/after-hours/stream?${query}`);
-      eventSource = source;
-      source.onmessage = (event) => {
-        if (disposed || eventSource !== source) return;
-        const message = parseWatchlistAfterHoursStreamMessage(event.data);
-        if (!message || !queueClose(message.item)) return;
+      const markPresent = (
+        message: ReturnType<typeof parseWatchlistAfterHoursStreamMessage>,
+      ) => {
+        if (!message || !queueClose(message.item)) return false;
+        if (!isFreshSyntheticLatestClose(message.item)) return false;
         streamConnected = true;
         reconnectDelay = 1_000;
+        reconnectNotBefore = 0;
         if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
         streamReadyTimer = undefined;
+        return true;
+      };
+      let failureHandled = false;
+      const handleStreamFailure = () => {
+        if (disposed || failureHandled) return;
+        failureHandled = true;
+        disconnectStream();
+        if (streamSupported === false) {
+          reconnectNotBefore = 0;
+        } else {
+          if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+          const delay = reconnectDelay;
+          reconnectNotBefore = Date.now() + delay;
+          const reconnectAfterBackoff = () => {
+            if (disposed) return;
+            const remaining = reconnectNotBefore - Date.now();
+            if (remaining > 0) {
+              reconnectTimer = window.setTimeout(reconnectAfterBackoff, remaining);
+              return;
+            }
+            reconnectTimer = undefined;
+            reconnectNotBefore = 0;
+            connectStream();
+          };
+          reconnectTimer = window.setTimeout(reconnectAfterBackoff, delay);
+          reconnectDelay = Math.min(30_000, reconnectDelay * 2);
+        }
+        // One failed transport gets one immediate snapshot. Resetting the
+        // normal poll timer prevents a nearly-due poll from duplicating it,
+        // while the reconnect gate keeps the snapshot response from skipping
+        // the WebSocket backoff.
         if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
         refreshTimer = undefined;
-      };
-      const handleStreamFailure = () => {
-        if (disposed || eventSource !== source) return;
-        disconnectStream();
         refresh();
-        if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
-        reconnectTimer = window.setTimeout(() => {
-          reconnectTimer = undefined;
-          connectStream();
-        }, reconnectDelay);
-        reconnectDelay = Math.min(30_000, reconnectDelay * 2);
       };
-      source.onerror = handleStreamFailure;
+
+      if (streamTransport === "websocket" && typeof WebSocket !== "undefined") {
+        const socketUrl = new URL(
+          `/api/v1/watchlists/after-hours/stream?${query}`,
+          window.location.href,
+        );
+        socketUrl.protocol = socketUrl.protocol === "https:" ? "wss:" : "ws:";
+        let socket: WebSocket;
+        try {
+          socket = new WebSocket(socketUrl);
+        } catch {
+          handleStreamFailure();
+          return;
+        }
+        webSocket = socket;
+        activeStreamTransport = "websocket";
+        const resetLivenessTimer = () => {
+          if (streamLivenessTimer !== undefined) {
+            window.clearTimeout(streamLivenessTimer);
+          }
+          streamLivenessTimer = window.setTimeout(() => {
+            streamLivenessTimer = undefined;
+            if (disposed || webSocket !== socket) return;
+            handleStreamFailure();
+          }, WATCHLIST_AFTER_HOURS_LIVENESS_TIMEOUT_MS);
+        };
+        socket.onopen = () => {
+          if (disposed || webSocket !== socket) return;
+          resetLivenessTimer();
+        };
+        socket.onmessage = (event) => {
+          if (disposed || webSocket !== socket || typeof event.data !== "string") return;
+          const message = parseWatchlistAfterHoursStreamMessage(event.data);
+          if (markPresent(message)) resetLivenessTimer();
+        };
+        const handleSocketFailure = () => {
+          if (disposed || webSocket !== socket) return;
+          handleStreamFailure();
+        };
+        socket.onerror = handleSocketFailure;
+        socket.onclose = handleSocketFailure;
+        streamReadyTimer = window.setTimeout(() => {
+          streamReadyTimer = undefined;
+          if (disposed || webSocket !== socket || streamConnected) return;
+          handleStreamFailure();
+        }, WATCHLIST_AFTER_HOURS_PRESENT_TIMEOUT_MS);
+        return;
+      }
+
+      if (streamTransport !== "sse" || typeof EventSource === "undefined") return;
+      const source = new EventSource(`/api/v1/watchlists/after-hours/stream?${query}`);
+      eventSource = source;
+      activeStreamTransport = "sse";
+      source.onmessage = (event) => {
+        if (disposed || eventSource !== source) return;
+        markPresent(parseWatchlistAfterHoursStreamMessage(event.data));
+      };
+      const handleEventSourceFailure = () => {
+        if (disposed || eventSource !== source) return;
+        handleStreamFailure();
+      };
+      source.onerror = handleEventSourceFailure;
       streamReadyTimer = window.setTimeout(() => {
         streamReadyTimer = undefined;
         if (disposed || eventSource !== source || streamConnected) return;
-        handleStreamFailure();
-      }, 15_000);
+        handleEventSourceFailure();
+      }, WATCHLIST_AFTER_HOURS_PRESENT_TIMEOUT_MS);
     };
 
     const refreshNow = () => {
       if (disposed || document.hidden) return;
+      pruneExpiredCloses();
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
       refreshTimer = undefined;
-      if (!streamConnected) refresh();
-      connectStream();
+      refresh();
+      if (streamSupported === true) connectStream();
+      if (longPollSupported) startLongPoll();
     };
 
     const handleVisibilityChange = () => {
@@ -4445,14 +5444,15 @@ export default function Home() {
         if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
         refreshTimer = undefined;
         reconnectTimer = undefined;
+        reconnectNotBefore = 0;
         disconnectStream();
+        disconnectLongPoll();
         return;
       }
       refreshNow();
     };
 
     refresh();
-    connectStream();
     window.addEventListener("focus", refreshNow);
     window.addEventListener("online", refreshNow);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -4462,8 +5462,11 @@ export default function Home() {
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
       if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
       if (streamReadyTimer !== undefined) window.clearTimeout(streamReadyTimer);
+      if (streamLivenessTimer !== undefined) window.clearTimeout(streamLivenessTimer);
       if (flushTimer !== undefined) window.clearTimeout(flushTimer);
+      if (freshnessTimer !== undefined) window.clearTimeout(freshnessTimer);
       disconnectStream();
+      disconnectLongPoll();
       window.removeEventListener("focus", refreshNow);
       window.removeEventListener("online", refreshNow);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -4576,37 +5579,60 @@ export default function Home() {
   }, [rightPanelWidth, watchlistSplitPercent, workspaceLayoutReady]);
 
   useEffect(() => {
-    const controller = new AbortController();
     queueMicrotask(() => {
-      if (!controller.signal.aborted) {
+      if (selectedTickerRef.current === selectedTicker) {
         setWorkspaceStatus("loading");
+        workspaceRef.current = null;
         setWorkspace(null);
       }
     });
-    void fetch(`/api/v1/symbols/${encodeURIComponent(selectedTicker)}/workspace`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("workspace request failed");
-        return response.json() as Promise<SymbolWorkspace>;
-      })
-      .then((snapshot) => {
-        if (snapshot.instrument.symbol !== selectedTicker) return;
-        setWorkspace(snapshot);
-        setWorkspaceStatus(snapshot.dataMode);
-        if (snapshot.dataMode === "provider") {
-          setStockModels((current) => ({ ...current, [snapshot.instrument.symbol]: workspaceStock(snapshot) }));
-        }
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setWorkspaceStatus("error");
-      });
-    return () => controller.abort();
+    void requestWorkspace(selectedTicker);
+  }, [requestWorkspace, selectedTicker]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setStockDetailTabSelection((current) => canonicalStockDetailTabSelection(
+          current,
+          selectedTicker,
+          unicornConfig.ui.symbolDetail.tabs,
+          DEFAULT_STOCK_DETAIL_TAB,
+        ));
+      }
+    });
+    return () => { cancelled = true; };
   }, [selectedTicker]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    if (
+      primaryView !== "stock-detail"
+      || (activeStockDetailSection !== "financials" && activeStockDetailSection !== "analyst")
+    ) return;
+    void requestWorkspace(selectedTicker, activeStockDetailSection);
+  }, [activeStockDetailSection, primaryView, requestWorkspace, selectedTicker, workspaceSectionRefreshNonce]);
+
+  useEffect(() => {
+    if (primaryView !== "chart" || utilityPanel !== "news" || focusMode) return;
+    void requestWorkspace(selectedTicker, "news");
+  }, [focusMode, primaryView, requestWorkspace, selectedTicker, utilityPanel]);
+
+  useEffect(
+    () => () => workspaceRequestCoordinator.abort(),
+    [workspaceRequestCoordinator],
+  );
+
+  useEffect(() => {
+    if (!marketDataSurfaceVisible) return;
+    let disposed = false;
+    let requestInFlight = false;
+    let forceRefreshPending = false;
+    let latestRequestGeneration = 0;
+    let hasSuccessfulSnapshot = false;
+    let refreshTimer: number | undefined;
+    let activeController: AbortController | undefined;
     queueMicrotask(() => {
-      if (!controller.signal.aborted) {
+      if (!disposed) {
         setBarsStatus("loading");
         setMarketBars([]);
         setMarketBarsSymbol("");
@@ -4617,101 +5643,356 @@ export default function Home() {
       range: CHART_RANGE,
       interval,
       count: String(chartCandleCount),
+      fresh: "1",
     });
-    void fetch(`/api/v1/symbols/${encodeURIComponent(selectedTicker)}/bars?${params}`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("bars request failed");
-        return response.json() as Promise<MarketBarsResponse>;
+    const requestUrl = `/api/v1/symbols/${encodeURIComponent(selectedTicker)}/bars?${params}`;
+
+    const clearRefreshTimer = () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+      refreshTimer = undefined;
+    };
+
+    const scheduleNext = () => {
+      if (disposed || document.hidden || refreshTimer !== undefined) return;
+      const delay = marketBarsRefreshDelay(
+        interval,
+        marketSessionObservationRef.current[selectedTicker],
+        new Date(),
+      );
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = undefined;
+        refresh();
+      }, delay);
+    };
+
+    function refresh(force = false) {
+      if (disposed || document.hidden) return;
+      if (requestInFlight) {
+        if (force) {
+          forceRefreshPending = true;
+          latestRequestGeneration = advanceMarketDataRequestGeneration(
+            latestRequestGeneration,
+          );
+        }
+        return;
+      }
+      if (force) forceRefreshPending = false;
+      const requestGeneration = advanceMarketDataRequestGeneration(
+        latestRequestGeneration,
+      );
+      latestRequestGeneration = requestGeneration;
+      requestInFlight = true;
+      const requestController = new AbortController();
+      activeController = requestController;
+      void fetch(requestUrl, {
+        signal: requestController.signal,
+        cache: "no-store",
       })
-      .then((snapshot) => {
-        if (snapshot.instrument.symbol !== selectedTicker) return;
-        setMarketBars(snapshot.bars.items);
-        setMarketBarsSymbol(snapshot.instrument.symbol);
-        setMarketBarsProvenance(snapshot.bars.provenance);
-        setBarsStatus(snapshot.dataMode);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setBarsStatus("error");
-      });
-    return () => controller.abort();
-  }, [chartCandleCount, interval, selectedTicker]);
+        .then(async (response) => {
+          if (!response.ok) throw new Error("bars request failed");
+          return response.json() as Promise<MarketBarsResponse>;
+        })
+        .then((snapshot) => {
+          if (
+            disposed
+            || !isCurrentMarketDataRequestGeneration(
+              requestGeneration,
+              latestRequestGeneration,
+            )
+            || snapshot.instrument.symbol !== selectedTicker
+          ) return;
+          hasSuccessfulSnapshot = true;
+          setMarketBars(snapshot.bars.items);
+          setMarketBarsSymbol(snapshot.instrument.symbol);
+          setMarketBarsProvenance(snapshot.bars.provenance);
+          setBarsStatus(snapshot.dataMode);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          if (!isCurrentMarketDataRequestGeneration(
+            requestGeneration,
+            latestRequestGeneration,
+          )) return;
+          if (!hasSuccessfulSnapshot) setBarsStatus("error");
+        })
+        .finally(() => {
+          if (activeController === requestController) activeController = undefined;
+          requestInFlight = false;
+          if (disposed) return;
+          if (forceRefreshPending && !document.hidden) {
+            forceRefreshPending = false;
+            refresh(true);
+            return;
+          }
+          scheduleNext();
+        });
+    }
+
+    const refreshNow = () => {
+      if (disposed || document.hidden) return;
+      clearRefreshTimer();
+      refresh(true);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearRefreshTimer();
+        activeController?.abort();
+      } else {
+        refreshNow();
+      }
+    };
+
+    forceChartBarsRefreshRef.current = refreshNow;
+    refresh(true);
+    window.addEventListener("online", refreshNow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      disposed = true;
+      clearRefreshTimer();
+      activeController?.abort();
+      if (forceChartBarsRefreshRef.current === refreshNow) {
+        forceChartBarsRefreshRef.current = null;
+      }
+      window.removeEventListener("online", refreshNow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [chartCandleCount, interval, marketDataSurfaceVisible, selectedTicker]);
 
   useEffect(() => {
     if (!shouldLoadAnalystHistory) return;
-    const controller = new AbortController();
-    const today = new Date();
-    const dateTo = today.toISOString().slice(0, 10);
-    const dateFrom = `${today.getUTCFullYear() - 2}-01-01`;
-    const params = new URLSearchParams({
-      pagesize: "1000",
-      "parameters[date_from]": dateFrom,
-      "parameters[date_to]": dateTo,
-      "parameters[tickers]": selectedTicker,
-    });
+    let disposed = false;
+    let activeController: AbortController | undefined;
+    let refreshTimer: number | undefined;
+    const hasCurrentHistory = () => (
+      analystHistoryResponseRef.current?.dataMode === "provider"
+      && analystHistoryResponseRef.current.instrument.symbol === selectedTicker
+    );
     queueMicrotask(() => {
-      if (!controller.signal.aborted) {
+      if (!disposed && !hasCurrentHistory()) {
         setAnalystHistoryStatus("loading");
+        analystHistoryResponseRef.current = null;
         setAnalystHistoryResponse(null);
       }
     });
-    void fetch(`/api/v1/symbols/${encodeURIComponent(selectedTicker)}/analyst-ratings?${params}`, {
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("analyst rating history request failed");
-        return response.json() as Promise<AnalystRatingHistoryResponse>;
-      })
-      .then((response) => {
-        if (response.instrument.symbol !== selectedTicker) return;
-        setAnalystHistoryResponse(response);
-        setAnalystHistoryStatus("ready");
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setAnalystHistoryStatus("error");
+
+    const clearRefreshTimer = () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+      refreshTimer = undefined;
+    };
+    const scheduleNext = () => {
+      if (disposed || document.hidden || refreshTimer !== undefined) return;
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = undefined;
+        void refresh();
+      }, ANALYST_HISTORY_REFRESH_MS);
+    };
+    async function refresh() {
+      if (disposed || document.hidden) return;
+      clearRefreshTimer();
+      activeController?.abort();
+      const controller = new AbortController();
+      activeController = controller;
+      const today = new Date();
+      const dateTo = today.toISOString().slice(0, 10);
+      const dateFrom = `${today.getUTCFullYear() - 2}-01-01`;
+      const params = new URLSearchParams({
+        pagesize: "1000",
+        fresh: "1",
+        "parameters[date_from]": dateFrom,
+        "parameters[date_to]": dateTo,
+        "parameters[tickers]": selectedTicker,
       });
-    return () => controller.abort();
-  }, [selectedTicker, shouldLoadAnalystHistory]);
+      try {
+        const response = await fetch(
+          `/api/v1/symbols/${encodeURIComponent(selectedTicker)}/analyst-ratings?${params}`,
+          { signal: controller.signal, cache: "no-store" },
+        );
+        if (!response.ok) throw new Error("analyst rating history request failed");
+        const snapshot = await response.json() as AnalystRatingHistoryResponse;
+        if (
+          disposed
+          || controller.signal.aborted
+          || snapshot.dataMode !== "provider"
+          || snapshot.instrument.symbol !== selectedTickerRef.current
+        ) {
+          if (!disposed && !controller.signal.aborted && snapshot.dataMode !== "provider") {
+            analystHistoryResponseRef.current = null;
+            setAnalystHistoryResponse(null);
+            setAnalystHistoryStatus("error");
+          }
+          return;
+        }
+        analystHistoryResponseRef.current = snapshot;
+        setAnalystHistoryResponse(snapshot);
+        setAnalystHistoryStatus("ready");
+      } catch (error: unknown) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (!disposed) setAnalystHistoryStatus(hasCurrentHistory() ? "ready" : "error");
+      } finally {
+        if (activeController === controller) activeController = undefined;
+        scheduleNext();
+      }
+    }
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearRefreshTimer();
+        activeController?.abort();
+        return;
+      }
+      void refresh();
+    };
+    void refresh();
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      disposed = true;
+      clearRefreshTimer();
+      activeController?.abort();
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [analystHistoryRefreshNonce, selectedTicker, shouldLoadAnalystHistory]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    if (!marketDataSurfaceVisible) return;
+    let disposed = false;
+    let requestInFlight = false;
+    let forceRefreshPending = false;
+    let latestRequestGeneration = 0;
+    let hasSuccessfulSnapshot = false;
+    let refreshTimer: number | undefined;
+    let activeController: AbortController | undefined;
     const params = new URLSearchParams({
       range: CHART_RANGE,
       interval: "1d",
       count: String(DEFAULT_CHART_CANDLE_COUNT),
+      fresh: "1",
     });
     queueMicrotask(() => {
-      if (!controller.signal.aborted) {
+      if (!disposed) {
         setDailyBarsStatus("loading");
         setDailyMarketBars([]);
         setDailyMarketBarsSymbol("");
         setDailyMarketBarsProvenance(undefined);
       }
     });
-    void fetch(`/api/v1/symbols/${encodeURIComponent(selectedTicker)}/bars?${params}`, {
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("daily bars request failed");
-        return response.json() as Promise<MarketBarsResponse>;
+    const requestUrl = `/api/v1/symbols/${encodeURIComponent(selectedTicker)}/bars?${params}`;
+
+    const clearRefreshTimer = () => {
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+      refreshTimer = undefined;
+    };
+
+    const scheduleNext = () => {
+      if (disposed || document.hidden || refreshTimer !== undefined) return;
+      const delay = marketBarsRefreshDelay(
+        "1d",
+        marketSessionObservationRef.current[selectedTicker],
+        new Date(),
+      );
+      refreshTimer = window.setTimeout(() => {
+        refreshTimer = undefined;
+        refresh();
+      }, delay);
+    };
+
+    function refresh(force = false) {
+      if (disposed || document.hidden) return;
+      if (requestInFlight) {
+        if (force) {
+          forceRefreshPending = true;
+          latestRequestGeneration = advanceMarketDataRequestGeneration(
+            latestRequestGeneration,
+          );
+        }
+        return;
+      }
+      if (force) forceRefreshPending = false;
+      const requestGeneration = advanceMarketDataRequestGeneration(
+        latestRequestGeneration,
+      );
+      latestRequestGeneration = requestGeneration;
+      requestInFlight = true;
+      const requestController = new AbortController();
+      activeController = requestController;
+      void fetch(requestUrl, {
+        signal: requestController.signal,
+        cache: "no-store",
       })
-      .then((response) => {
-        if (response.instrument.symbol !== selectedTicker) return;
-        setDailyMarketBars(response.bars.items);
-        setDailyMarketBarsSymbol(response.instrument.symbol);
-        setDailyMarketBarsProvenance(response.bars.provenance);
-        setDailyBarsStatus(response.dataMode);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setDailyMarketBars([]);
-        setDailyMarketBarsSymbol("");
-        setDailyMarketBarsProvenance(undefined);
-        setDailyBarsStatus("error");
-      });
-    return () => controller.abort();
-  }, [selectedTicker]);
+        .then(async (response) => {
+          if (!response.ok) throw new Error("daily bars request failed");
+          return response.json() as Promise<MarketBarsResponse>;
+        })
+        .then((response) => {
+          if (
+            disposed
+            || !isCurrentMarketDataRequestGeneration(
+              requestGeneration,
+              latestRequestGeneration,
+            )
+            || response.instrument.symbol !== selectedTicker
+          ) return;
+          hasSuccessfulSnapshot = true;
+          setDailyMarketBars(response.bars.items);
+          setDailyMarketBarsSymbol(response.instrument.symbol);
+          setDailyMarketBarsProvenance(response.bars.provenance);
+          setDailyBarsStatus(response.dataMode);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          if (!isCurrentMarketDataRequestGeneration(
+            requestGeneration,
+            latestRequestGeneration,
+          )) return;
+          if (!hasSuccessfulSnapshot) {
+            setDailyMarketBars([]);
+            setDailyMarketBarsSymbol("");
+            setDailyMarketBarsProvenance(undefined);
+            setDailyBarsStatus("error");
+          }
+        })
+        .finally(() => {
+          if (activeController === requestController) activeController = undefined;
+          requestInFlight = false;
+          if (disposed) return;
+          if (forceRefreshPending && !document.hidden) {
+            forceRefreshPending = false;
+            refresh(true);
+            return;
+          }
+          scheduleNext();
+        });
+    }
+
+    const refreshNow = () => {
+      if (disposed || document.hidden) return;
+      clearRefreshTimer();
+      refresh(true);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearRefreshTimer();
+        activeController?.abort();
+      } else {
+        refreshNow();
+      }
+    };
+
+    forceDailyBarsRefreshRef.current = refreshNow;
+    refresh(true);
+    window.addEventListener("online", refreshNow);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      disposed = true;
+      clearRefreshTimer();
+      activeController?.abort();
+      if (forceDailyBarsRefreshRef.current === refreshNow) {
+        forceDailyBarsRefreshRef.current = null;
+      }
+      window.removeEventListener("online", refreshNow);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [marketDataSurfaceVisible, selectedTicker]);
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -4890,9 +6171,13 @@ export default function Home() {
             </button>
             <div className="quote-summary">
               <strong>{formatPrice(stock)}</strong>
-              <span className={stock.change >= 0 ? "positive" : "negative-text"}>
-                {stock.changeValue >= 0 ? "+" : ""}{stock.changeValue.toFixed(stock.currency === "$" ? 2 : 1)} ({stock.change >= 0 ? "+" : ""}{stock.change.toFixed(2)}%)
-              </span>
+              {Number.isFinite(stock.price) && stock.price > 0
+                && Number.isFinite(stock.change)
+                && Number.isFinite(stock.changeValue) ? (
+                  <span className={stock.change >= 0 ? "positive" : "negative-text"}>
+                    {stock.changeValue >= 0 ? "+" : ""}{stock.changeValue.toFixed(stock.currency === "$" ? 2 : 1)} ({stock.change >= 0 ? "+" : ""}{stock.change.toFixed(2)}%)
+                  </span>
+                ) : <span>—</span>}
             </div>
             <div className="ohlc-summary hide-mid">
               <span>O <b>{formatPrice(stock, stock.open)}</b></span>
@@ -4908,7 +6193,7 @@ export default function Home() {
           </div>
           <div className={`chart-stack ${subIndicatorSpecs.length > 0 ? "has-subindicators" : ""}`}>
             <div className="chart-stage">
-              <PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} timeScaleSync={chartTimeScaleSync} />
+              <PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} interval={interval} candleCount={chartCandleCount} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} timeScaleSync={chartTimeScaleSync} />
               {barsStatus === "loading" && <div className="chart-data-state" role="status">{t("chart.historyLoading")}</div>}
               {barsStatus === "error" && <div className="chart-data-state is-error" role="alert">{t("chart.historyError")}</div>}
               <div className="chart-watermark">{stock.ticker}</div>
@@ -4930,7 +6215,7 @@ export default function Home() {
                 })}
               </div>
             </div>
-            <SubIndicatorPanes bars={detailMarketBars} indicators={subIndicatorSpecs} timeScaleSync={chartTimeScaleSync} />
+            <SubIndicatorPanes bars={detailMarketBars} indicators={subIndicatorSpecs} dataIdentity={`${stock.ticker}:${CHART_RANGE}:${interval}:${chartCandleCount}`} timeScaleSync={chartTimeScaleSync} />
           </div>
         </section>
 
@@ -4961,6 +6246,7 @@ export default function Home() {
                 activeWatchlistId={activeWatchlist?.id ?? ""}
                 onSelectWatchlist={selectWatchlist}
                 onDelete={removeWatchlistItem}
+                onReorder={reorderWatchlistItems}
                 persistenceStatus={watchlistStatus}
                 afterHours={afterHoursBySymbol}
                 afterHoursEnabled={afterHoursEnabled}
@@ -4999,14 +6285,22 @@ export default function Home() {
           {utilityPanel === "news" && (
             <div className="right-news-panel right-tab-content" role="tabpanel" aria-label={t("sidebar.news")}>
               <div className="right-panel-heading"><strong>{stock.ticker} · {t("sidebar.news")}</strong><button type="button" className="text-action" onClick={() => setShowAllNews((value) => !value)}>{showAllNews ? t("news.primaryOnly") : t("news.all")}</button></div>
-              {(showAllNews ? visibleNews.concat(visibleNews.slice(0, 2)) : visibleNews).map((item, index) => (
+              {(showAllNews ? visibleNews : visibleNews.slice(0, 3)).map((item, index) => (
                 <a className="right-news-row" href={item.url} target="_blank" rel="noopener noreferrer" key={`${item.title}-${index}`}>
                   <span>{item.time} · {item.source}</span>
                   <strong>{item.title}</strong>
                   {item.summary && <small>{item.summary}</small>}
                 </a>
               ))}
-              {visibleNews.length === 0 && <div className="empty-state">{t("news.empty")}</div>}
+              {visibleNews.length === 0 && (
+                <div className="empty-state">
+                  {t(workspaceStatus === "loading"
+                    ? "status.fetching"
+                    : workspaceStatus === "provider"
+                      ? "news.empty"
+                      : "status.connectionError")}
+                </div>
+              )}
             </div>
           )}
         </aside>
@@ -5026,7 +6320,7 @@ export default function Home() {
           <span className="connection-state status-connection"><span /> {t(dataStatus === "error" ? "status.connectionError" : dataStatus === "loading" ? "status.fetching" : "status.connected")}</span>
           <span className="status-disclaimer">{dataStatus === "provider" ? t("status.providerAsOf", { time: workspace?.asOf ? new Date(workspace.asOf).toLocaleString(numberLocale) : "—" }) : t("status.fixtureDisclaimer")}</span>
         </footer>
-      </div> : primaryView === "stock-detail" ? <StockDetailPage stock={stock} targetPriceMarketBars={detailDailyMarketBars} earnings={detailWorkspace?.earnings ?? []} analystHistory={selectedAnalystHistory} analystHistoryStatus={analystHistoryStatus} detail={stockDetailViewModel} dataStatus={researchDataStatus} workspaceStatus={workspaceStatus} barsStatus={dailyBarsStatus} watched={watched} onBack={() => setPrimaryView("chart")} onToggleWatched={() => toggleWatched(stock.ticker)} /> : <StrategyHome onOpenChart={openChartFromStrategy} onAction={showToast} />}
+      </div> : primaryView === "stock-detail" ? <StockDetailPage stock={stock} targetPriceMarketBars={detailDailyMarketBars} earnings={detailWorkspace?.earnings ?? []} analystHistory={selectedAnalystHistory} analystHistoryStatus={analystHistoryStatus} detail={stockDetailViewModel} dataStatus={researchDataStatus} workspaceStatus={workspaceStatus} barsStatus={dailyBarsStatus} watched={watched} activeSection={activeStockDetailSection} onBack={() => setPrimaryView("chart")} onActiveSectionChange={selectStockDetailSection} onToggleWatched={() => toggleWatched(stock.ticker)} /> : <StrategyHome onOpenChart={openChartFromStrategy} onAction={showToast} />}
 
       {searchOpen && (
         <div className="search-backdrop" onMouseDown={() => setSearchOpen(false)}>
@@ -5075,7 +6369,7 @@ export default function Home() {
 
       {appDialog === "settings" && <DialogShell title={t("settings.workspace.title")} eyebrow={t("settings.workspace.eyebrow")} onClose={() => setAppDialog(null)}><div className="dialog-body settings-list"><label><span><strong>{t("settings.candles.title")}</strong><small>{t("settings.candles.help", { min: MIN_CHART_CANDLE_COUNT.toLocaleString(numberLocale), max: MAX_CHART_CANDLE_COUNT.toLocaleString(numberLocale) })}</small></span><input type="number" inputMode="numeric" min={MIN_CHART_CANDLE_COUNT} max={MAX_CHART_CANDLE_COUNT} step={1} value={chartCandleCountDraft} aria-label={t("settings.candles.title")} aria-invalid={parseChartCandleCount(chartCandleCountDraft) === null} onChange={(event) => setChartCandleCountDraft(event.target.value)} /></label><label><span><strong>{t("settings.priceGrid.title")}</strong><small>{t("settings.priceGrid.help")}</small></span><input type="checkbox" defaultChecked /></label><label><span><strong>{t("settings.watermark.title")}</strong><small>{t("settings.watermark.help")}</small></span><input type="checkbox" defaultChecked /></label><label><span><strong>{t("settings.extendedHours.title")}</strong><small>{t("settings.extendedHours.help")}</small></span><input type="checkbox" /></label><label><span><strong>{t("settings.language.title")}</strong><small>{t("settings.language.description")} {t("settings.language.storageNote")}</small></span><select value={localeDraft} aria-label={t("settings.language.title")} onChange={(event) => setLocaleDraft(event.target.value as Locale)}>{supportedLocales.map((option) => <option key={option.code} value={option.code}>{option.nativeLabel}{option.code === "en" ? ` · ${t("settings.language.default")}` : ""}</option>)}</select></label></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="button" className="primary-action" onClick={applyWorkspaceSettings}>{t("common.apply")}</button></footer></DialogShell>}
 
-      {appDialog === "snapshot" && <DialogShell title={t("snapshot.title")} eyebrow={`${stock.ticker} · ${localizedIntervalLabel(interval, locale)}`} onClose={() => setAppDialog(null)} wide><div className="dialog-body snapshot-dialog"><div className="snapshot-preview"><PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} /></div><div className="snapshot-meta"><span>1280 × 720</span><span>Unicorn watermark</span><span>{barsStatus === "provider" ? `${detailBarsProvenance?.providerId ?? "Provider"} data` : "Fixture data"}</span></div></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.close")}</button><button type="button" className="primary-action" onClick={() => { setAppDialog(null); showToast(t("snapshot.prepared")); }}><DownloadSimple size={15} /> {t("snapshot.save")}</button></footer></DialogShell>}
+      {appDialog === "snapshot" && <DialogShell title={t("snapshot.title")} eyebrow={`${stock.ticker} · ${localizedIntervalLabel(interval, locale)}`} onClose={() => setAppDialog(null)} wide><div className="dialog-body snapshot-dialog"><div className="snapshot-preview"><PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} interval={interval} candleCount={chartCandleCount} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} /></div><div className="snapshot-meta"><span>1280 × 720</span><span>Unicorn watermark</span><span>{barsStatus === "provider" ? `${detailBarsProvenance?.providerId ?? "Provider"} data` : "Fixture data"}</span></div></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.close")}</button><button type="button" className="primary-action" onClick={() => { setAppDialog(null); showToast(t("snapshot.prepared")); }}><DownloadSimple size={15} /> {t("snapshot.save")}</button></footer></DialogShell>}
 
       {appDialog === "watchlist-create" && <DialogShell title={t("watchlist.createDialogTitle")} eyebrow={t("watchlist.createDialogEyebrow")} onClose={() => setAppDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={(event) => { event.preventDefault(); void createWatchlist(); }}><label><span>{t("watchlist.name")}</span><input value={newWatchlistName} maxLength={60} onChange={(event) => setNewWatchlistName(event.target.value)} placeholder={t("watchlist.namePlaceholder")} autoFocus /></label><p className="dialog-helper-copy">{t("watchlist.createHelp")}</p><footer className="dialog-actions form-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="submit" className="primary-action" disabled={!newWatchlistName.trim() || watchlistStatus === "saving"}>{t(watchlistStatus === "saving" ? "watchlist.creating" : "common.create")}</button></footer></form></DialogShell>}
 

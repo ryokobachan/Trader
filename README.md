@@ -52,12 +52,56 @@ _The built-in strategy catalog is deterministic sample data, not a verified back
 1. Press `Command + F` or click the symbol selector to search U.S. stocks.
 2. Select a timeframe and choose candles, Heikin Ashi, line, or area, then use **Indicators** to add or configure studies.
 3. Use **Templates** to apply a built-in setup or save, rename, and delete your own indicator setup.
-4. Use `+` in the watchlist to add a symbol. Direct-listing prices and the optional `{symbol}USDT.P` reference prices stream while the tab is visible; snapshot polling takes over if either stream is unavailable. Actual freshness depends on TradingView access and exchange entitlements. Right-click a row to remove it.
+4. Use `+` in the watchlist to add a symbol. Direct-listing prices and the optional `{symbol}USDT.P` reference prices stream while the tab is visible; snapshot polling takes over if either stream is unavailable. A USDT.P tick older than five minutes is cleared instead of being shown as current. Actual availability depends on TradingView access and exchange entitlements. Right-click a row to remove it.
 5. Open the watchlist selector and use each list's `…` menu to rename or delete it. The final list is protected from deletion.
 6. Drag the right-panel edge or the divider between the watchlist and symbol overview to resize the workspace. Both separators also support arrow keys.
 7. Select **Details** in the symbol overview to open financials, analysts, and technicals.
 8. Open **Strategies** to inspect samples or create a custom strategy. In a strategy detail screen, use `…` to duplicate, edit, or delete it.
 9. Use **Settings** in the top bar to change the candle count or switch between English and Japanese.
+
+## Desktop app (Apple Silicon macOS)
+
+The desktop build targets Apple Silicon Macs running macOS 14 or newer. The
+installed `Unicorn.app` is self-contained: it bundles the application runtime
+and market-data helper and uses the macOS system WebView. Opening the app starts
+and stops its private loopback services automatically, so users do not need a
+terminal, Bun, Python, or a separately started `localhost` server. An internet
+connection is still required for live market and company data.
+
+Building from source requires the Xcode Command Line Tools, stable Rust,
+Node.js 22.13 or newer, Bun, and an Apple Silicon Python 3.12 interpreter:
+
+```bash
+npm install
+npm run desktop:build
+```
+
+The finished application is written to `build/Unicorn.app`. Temporary native,
+frontend, and sidecar build directories are removed automatically after the app
+has been copied and verified.
+
+Open the local application build with:
+
+```bash
+open build/Unicorn.app
+```
+
+`npm run desktop:dev` prepares the same bundled helpers and launches a debug
+build. `npm run desktop:build` creates an ad-hoc signed local build whose code
+signature is verifiable, but it is not Developer ID-signed or notarized. A copy
+downloaded onto another Mac may therefore be blocked by Gatekeeper. A separate
+Developer ID signing and notarization pipeline is required before public
+distribution.
+
+Desktop state is stored under
+`~/Library/Application Support/com.ryokobachan.unicorn/`. The
+`unicorn.sqlite3` database contains watchlists, strategy changes, and
+transactions; `unicorn-desktop.log` contains startup/runtime diagnostics. Quit
+Unicorn before copying this directory as a backup. To reset the SQLite-backed
+state, quit the app and move `unicorn.sqlite3` plus any matching `-wal` and
+`-shm` files out of the directory; the next launch creates a fresh database.
+Chart templates and other interface preferences use WebView storage and are
+not reset by replacing only the SQLite file.
 
 ## Run locally
 
@@ -84,7 +128,7 @@ Open <http://localhost:3001>.
 
 `dev:yahoo` uses the local TradingView websocket sidecar for direct USD-listing current quotes and chart bars. Yahoo-compatible endpoints provide U.S. stock search, company data, fundamentals, earnings, and news; the same authenticated sidecar can use pinned `yfinance` as a profile/earnings fallback when Yahoo's anonymous cookie/crumb path is unavailable. The Midas-compatible Benzinga adapter supplies analyst ratings. These are unofficial or provider-controlled data paths. Review the applicable access, display, and redistribution terms before enabling them outside personal development.
 
-The browser connects only to Unicorn's same-origin SSE route; it never receives the sidecar bearer token. A hosted Sites deployment cannot reach a developer machine's loopback sidecar. Configure an externally reachable **HTTPS** sidecar URL and a server-side token for hosted use. Transport-level streaming does not itself guarantee exchange real-time entitlements.
+The browser connects only to Unicorn's same-origin routes; it never receives the sidecar bearer token or chooses raw TradingView symbols. A hosted Sites deployment cannot reach a developer machine's loopback sidecar. Without an external sidecar it therefore keeps ordinary HTTPS requests open while the Worker waits on the same TradingView guest websocket used locally, returning each direct-USD quote or ordered `{EXCHANGE}:{symbol}USDT.P` change as completed JSON. The scanner snapshot remains a 15-second safety fallback. An optional external sidecar must use **HTTPS** and a server-side token. Transport-level streaming or polling does not itself guarantee exchange real-time entitlements.
 
 To reuse only the allow-listed FMP/Benzinga values from a local Midas environment file:
 
@@ -131,7 +175,7 @@ The repository includes [`$manage-unicorn-strategies`](skills/manage-unicorn-str
 | Direct-listing USD current quotes | Mock; local `tradingview-websocket` optional | Provider response only |
 | Company profile, fundamentals, earnings, news | Disabled by default; Yahoo/FMP optional | Provider response only |
 | Chart OHLCV | Mock; local `tradingview-websocket` optional | Not stored in D1 |
-| Optional `{symbol}USDT.P` reference price (SSE with snapshot fallback) | Local `tradingview-websocket` | Provider response only |
+| Optional `{symbol}USDT.P` reference price (local sidecar SSE or hosted Worker websocket-over-HTTPS long poll, with scanner snapshot fallback) | `tradingview-websocket` | Provider response only |
 | Analyst ratings and targets | Disabled by default; Benzinga-compatible adapter optional | Provider response only |
 | Watchlists and ordered items | User actions | D1 `DB` binding |
 | Built-in strategy overrides, custom strategies, and tombstones | User actions | D1 `DB` binding |
@@ -227,6 +271,7 @@ extensions/          trusted developer-installed frontend modules
 strategies/          sample strategy definitions, metrics, holdings, seed trades
 src/app/             UI, internal HTTP routes, and Core contracts
 src/db/              D1 schema, migrations, and Drizzle configuration
+src/desktop/         desktop frontend, runtime, native shell, icons, and build config
 src/worker/          Cloudflare/Vinext worker entry
 src/tooling/         build-only internal tooling
 public/              brand artwork and README screenshots
@@ -239,8 +284,10 @@ One small service-owned root folder stays in its conventional location:
 |---|---|
 | `.openai/` | Sites hosting and the D1 `DB` binding |
 
-`.vinext/`, `.wrangler/`, `var/`, `dist/`, `node_modules/`, and
-`tsconfig.tsbuildinfo` are ignored local outputs, not repository source.
+`.vinext/`, `.wrangler/`, `var/`, `dist/`, `build/`,
+`src/desktop/frontend-dist/`, `src/desktop/tauri/target/`, `node_modules/`,
+and `tsconfig.tsbuildinfo` are ignored
+local outputs, not repository source.
 Local D1 state lives under ignored `var/cloudflare/`; deleting it resets local
 watchlists, strategy preferences, and transactions without deleting the schema.
 Mutable runtime data never belongs under `src/`, where it could be bundled or

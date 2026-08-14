@@ -196,6 +196,15 @@ test("returns the complete Midas-compatible rating history as a canonical DTO", 
             adjusted_pt_current: null,
           }),
           rating({ id: "wrong-symbol", ticker: "AAPL", date: "2026-01-01" }),
+          rating({
+            id: "zero-target",
+            ticker: "MU",
+            date: "2025-01-02",
+            pt_current: 0,
+            pt_prior: "0",
+            adjusted_pt_current: 0,
+            adjusted_pt_prior: "0",
+          }),
           rating({ id: "out-of-range", ticker: "MU", date: "2023-12-31" }),
         ],
       });
@@ -232,7 +241,7 @@ test("returns the complete Midas-compatible rating history as a canonical DTO", 
   assert.equal(history.dateFrom, "2024-01-01");
   assert.equal(history.dateTo, "2026-07-11");
   assert.equal(history.pageSize, 777);
-  assert.equal(history.items.length, 2);
+  assert.equal(history.items.length, 3);
   assert.equal(history.items[0].eventId, "mu-new");
   assert.equal(history.items[0].eventTime, "2026-07-10T14:15:30.000Z");
   assert.equal(history.items[0].analystFirm, "North Star Securities");
@@ -248,10 +257,47 @@ test("returns the complete Midas-compatible rating history as a canonical DTO", 
   assert.equal(history.items[0].smartScore, 4.5);
   assert.equal(history.items[0].overallSuccessRate, 68.2);
   assert.equal(history.items[0].totalRatings, 124);
-  assert.equal(history.items[1].effectivePriceTarget, 90);
+  assert.equal(history.items[1].eventId, "zero-target");
+  assert.equal(history.items[1].priceTarget, undefined);
+  assert.equal(history.items[1].previousPriceTarget, undefined);
+  assert.equal(history.items[1].adjustedPriceTarget, undefined);
+  assert.equal(history.items[1].adjustedPreviousPriceTarget, undefined);
+  assert.equal(history.items[1].effectivePriceTarget, undefined);
+  assert.equal(history.items[2].eventId, "mu-old");
+  assert.equal(history.items[2].effectivePriceTarget, 90);
   assert.equal(history.provenance.sourceUrl, ENDPOINT);
   assert.equal(history.provenance.sourceUrl?.includes(SECRET), false);
   assert.equal("rawJson" in history.items[0], false);
+});
+
+test("keeps a non-USD rating event but never relabels its targets as USD", async () => {
+  const provider = providerWithRows([rating({
+    id: "eur-history",
+    currency: "EUR",
+    rating_current: "Outperform",
+    rating_prior: "Neutral",
+    pt_current: 999,
+    pt_prior: 888,
+    adjusted_pt_current: 1_001,
+    adjusted_pt_prior: 889,
+  })]);
+
+  const history = await provider.analyst?.getRatingHistory?.(
+    INSTRUMENT,
+    { dateFrom: "2026-01-01", dateTo: "2026-08-09", pageSize: 20 },
+    CONTEXT,
+  );
+
+  assert.ok(history);
+  assert.equal(history.items.length, 1);
+  assert.equal(history.items[0].currency, "EUR");
+  assert.equal(history.items[0].ratingCurrent, "Outperform");
+  assert.equal(history.items[0].ratingPrior, "Neutral");
+  assert.equal(history.items[0].priceTarget, undefined);
+  assert.equal(history.items[0].previousPriceTarget, undefined);
+  assert.equal(history.items[0].adjustedPriceTarget, undefined);
+  assert.equal(history.items[0].adjustedPreviousPriceTarget, undefined);
+  assert.equal(history.items[0].effectivePriceTarget, undefined);
 });
 
 test("rejects invalid history dates without making an upstream request", async () => {

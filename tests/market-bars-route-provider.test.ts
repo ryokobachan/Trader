@@ -64,3 +64,19 @@ test("bars route continues to fail closed for unknown resolutions", async () => 
   const payload = await response.json() as { error: { code: string } };
   assert.equal(payload.error.code, "invalid_request");
 });
+
+test("bars route exposes an explicit cache-bypassing refresh control", async () => {
+  const response = await GET(
+    new Request("http://localhost/api/v1/symbols/AAPL/bars?range=1d&interval=1d&fresh=1"),
+    context(),
+  );
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("cache-control"), "private, no-store");
+
+  const invalid = await GET(
+    new Request("http://localhost/api/v1/symbols/AAPL/bars?range=1d&interval=1d&fresh=true"),
+    context(),
+  );
+  assert.equal(invalid.status, 400);
+  assert.equal((await invalid.json() as { error: { code: string } }).error.code, "invalid_fresh");
+});

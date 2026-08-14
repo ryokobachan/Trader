@@ -10,6 +10,7 @@ import {
   compareSummaryPrices,
   formatSummaryAfterHoursPrice,
   formatSummaryCurrentPrice,
+  formatSymbolPrice,
   type SymbolSummaryIntelligence,
   type SymbolSummaryModuleProps,
   type SymbolSummaryStock,
@@ -77,7 +78,7 @@ function latestClose(close: number | null, symbol = "AAPL"): SyntheticLatestClos
     close,
     currency: "USDT",
     source: "tradingview-websocket",
-    updatedAt: close === null ? null : "2026-08-09T10:04:00Z",
+    updatedAt: close === null ? null : new Date().toISOString(),
   };
 }
 
@@ -113,14 +114,62 @@ test("compares the selected symbol current and after-hours prices with semantic 
   assert.equal(validSummaryAfterHoursClose(stock, latestClose(201, "MSFT")), null);
   assert.equal(validSummaryAfterHoursClose(stock, latestClose(0)), null);
   assert.equal(validSummaryAfterHoursClose(stock, latestClose(null)), null);
+  assert.equal(validSummaryAfterHoursClose(
+    stock,
+    { ...latestClose(201), updatedAt: "2026-08-09T10:04:00Z" },
+    Date.parse("2026-08-09T10:09:00.001Z"),
+  ), null);
 });
 
 test("formats the summary after-hours value without a currency prefix", () => {
   assert.equal(formatSummaryAfterHoursPrice(312.28), "312.28");
   assert.equal(formatSummaryAfterHoursPrice(313.3), "313.30");
   assert.equal(formatSummaryAfterHoursPrice(1.23456), "1.23");
-  assert.equal(formatSummaryAfterHoursPrice(null), "-");
+  assert.equal(formatSummaryAfterHoursPrice(null), "—");
   assert.equal(formatSummaryCurrentPrice(stock), "200.00");
+  assert.equal(formatSummaryCurrentPrice({ ...stock, price: 0 }), "—");
+  assert.equal(formatSymbolPrice(stock, Number.NaN), "—");
+  assert.equal(formatSymbolPrice(stock, 0), "—");
+});
+
+test("unavailable summary data never renders invented zero, NaN, open, or neutral values", () => {
+  const unavailableStock: SymbolSummaryStock = {
+    ...stock,
+    assetTypeLabel: undefined,
+    price: 0,
+    change: Number.NaN,
+    changeValue: Number.NaN,
+    high: 0,
+    low: 0,
+    target: 0,
+    targetLow: 0,
+    targetHigh: 0,
+    analysts: 0,
+    buy: 0,
+    neutral: 0,
+    sell: 0,
+  };
+  const unavailableIntelligence: SymbolSummaryIntelligence = {
+    ...intelligence,
+    dayRangePosition: null,
+    yearRangePosition: null,
+    yearLow: "—",
+    yearHigh: "—",
+    dataFreshness: "—",
+    marketStatus: undefined,
+    technical: { overall: "—", movingAverages: "—", oscillators: "—", rsi: "—" },
+  };
+  const html = renderSummary("en", {
+    stock: unavailableStock,
+    intelligence: unavailableIntelligence,
+  });
+
+  assert.doesNotMatch(html, /NaN|\$0\.00|0 analysts|US market · Open|>Common stock</);
+  assert.doesNotMatch(html, /<strong[^>]*>Neutral<\/strong>/);
+  assert.doesNotMatch(html, /summary-range-track"><i/);
+  assert.doesNotMatch(html, /summary-consensus-bar/);
+  assert.match(html, /summary-quote[\s\S]*?<strong>—<\/strong>[\s\S]*?<span>—<\/span>/);
+  assert.match(html, /summary-market-status">—<span>—<\/span>/);
 });
 
 test("fixed identity module renders after-hours value and exposes it to generic module props", () => {
@@ -137,8 +186,8 @@ test("fixed identity module renders after-hours value and exposes it to generic 
   assert.match(html, />After hours</);
   assert.match(html, /class="summary-after-hours-value"><strong class="positive">201\.25<\/strong><small>USD<\/small>/);
   assert.match(html, /class="positive">201\.25</);
-  assert.match(html, />USD</);
   assert.doesNotMatch(html, />USDT</);
+  assert.match(html, /class="summary-current-price"><strong>200\.00<\/strong><small>USD<\/small><\/div>/);
   assert.doesNotMatch(html, />\$200\.00</);
   assert.doesNotMatch(html, />\$201\.25</);
   assert.ok(html.indexOf("data-module-id=\"core.identity_quote\"") < html.indexOf("Open AAPL details"));

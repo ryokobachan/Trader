@@ -5,12 +5,16 @@ import {
 } from "../../../../platform/provider-contracts";
 import { providerEnvironment } from "../../../../platform/provider-environment.server";
 import { ProviderRegistryError } from "../../../../platform/provider-registry";
-import { loadWatchlistQuotes } from "../../../../platform/watchlist-quotes.server";
+import {
+  loadWatchlistQuotes,
+  watchlistQuoteDataMode,
+} from "../../../../platform/watchlist-quotes.server";
 import {
   requestOwnerErrorResponse,
   requestOwnerId,
 } from "../../../../platform/request-owner.server";
 import { createProviderRuntime } from "@api/index.server";
+import { tradingViewWorkerLatestCloseStreamSupported } from "@api/tradingview-websocket/index.server";
 
 const SYMBOL_PATTERN = /^[A-Z][A-Z0-9.-]{0,9}$/;
 const MAX_BODY_BYTES = 8_192;
@@ -83,6 +87,10 @@ export async function POST(request: Request) {
   try {
     const runtime = createProviderRuntime(providerEnvironment());
     const items = await loadWatchlistQuotes(symbols, runtime, { requestId });
+    const dataMode = watchlistQuoteDataMode(
+      runtime.selectedProviderIds.instrument,
+      runtime.selectedProviderIds.market,
+    );
     const response: WatchlistQuotesResponse = {
       schemaVersion: WATCHLIST_QUOTES_SCHEMA_VERSION,
       items,
@@ -90,6 +98,13 @@ export async function POST(request: Request) {
         instrument: runtime.selectedProviderIds.instrument,
         market: runtime.selectedProviderIds.market,
       },
+      dataMode,
+      streamSupported: dataMode === "provider" && Boolean(runtime.market.getQuoteStream),
+      ...(dataMode === "provider"
+        && !runtime.market.getQuoteStream
+        && tradingViewWorkerLatestCloseStreamSupported()
+        ? { longPollSupported: true as const }
+        : {}),
       asOf: new Date().toISOString(),
     };
     return Response.json(response, {

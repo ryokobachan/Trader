@@ -3,8 +3,17 @@ import type {
   MarketBar,
   SymbolWorkspace,
 } from "@/app/platform/provider-contracts";
-import { latestWilderRsiValue } from "@/app/features/chart-indicators/indicator-calculations";
+import {
+  computeIndicatorSeries,
+  latestIndicatorValue,
+  latestWilderRsiValue,
+} from "@/app/features/chart-indicators/indicator-calculations";
 import type { StockDetailMetricId } from "./ids";
+import {
+  buildStockDetailTechnicalRatings,
+  normalizeTechnicalRatingBars,
+  type TechnicalRatingSummary,
+} from "./technical-ratings";
 
 export type StockDetailMetric = Readonly<{
   id: StockDetailMetricId;
@@ -57,6 +66,7 @@ export type StockDetailViewModel = Readonly<{
   }>;
   analyst: StockDetailSection;
   technicals: StockDetailSection;
+  technicalRatings: TechnicalRatingSummary;
   warnings: readonly string[];
 }>;
 
@@ -276,18 +286,6 @@ function quoteMarketState(value: SymbolWorkspace["quote"]["marketState"]) {
   return labels[value];
 }
 
-function normalizeBars(bars: readonly MarketBar[]) {
-  return bars.filter((bar) => (
-    isFiniteNumber(bar.open)
-    && isFiniteNumber(bar.high)
-    && isFiniteNumber(bar.low)
-    && isFiniteNumber(bar.close)
-    && isFiniteNumber(bar.volume)
-    && bar.high >= bar.low
-    && bar.volume >= 0
-  ));
-}
-
 function average(values: readonly number[]) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
@@ -296,7 +294,7 @@ function average(values: readonly number[]) {
 export function buildStockDetailTechnicalMetrics(
   bars: readonly MarketBar[],
 ): readonly StockDetailMetric[] {
-  const validBars = normalizeBars(bars);
+  const validBars = normalizeTechnicalRatingBars(bars);
   if (validBars.length === 0) return [];
 
   const closes = validBars.map((bar) => bar.close);
@@ -342,14 +340,14 @@ export function buildStockDetailTechnicalMetrics(
   }
 
   if (validBars.length >= 50) {
-    const multiplier = 2 / 51;
-    const ema50 = closes.reduce(
-      (current, close, index) => index === 0
-        ? close
-        : close * multiplier + current * (1 - multiplier),
-      closes[0],
-    );
-    metrics.push(identifiedMetric("technical.ema50", { value: formatCurrency(ema50), note: "終値・日足50本以上" }));
+    const ema50 = latestIndicatorValue(computeIndicatorSeries(validBars, {
+      id: "ema50",
+      length: 50,
+      source: "終値",
+    }), "ema");
+    if (ema50 !== undefined) {
+      metrics.push(identifiedMetric("technical.ema50", { value: formatCurrency(ema50), note: "終値・日足50本以上" }));
+    }
   }
 
   if (validBars.length >= 15) {
@@ -358,16 +356,13 @@ export function buildStockDetailTechnicalMetrics(
       metrics.push(identifiedMetric("technical.rsi14", { value: rsi.toFixed(1), note: "終値・日足14期間" }));
     }
 
-    const atrWindow = validBars.slice(-15);
-    const trueRanges = atrWindow.slice(1).map((bar, index) => {
-      const previousClose = atrWindow[index].close;
-      return Math.max(
-        bar.high - bar.low,
-        Math.abs(bar.high - previousClose),
-        Math.abs(bar.low - previousClose),
-      );
-    });
-    metrics.push(identifiedMetric("technical.atr14", { value: formatCurrency(average(trueRanges)), note: "日足14期間" }));
+    const atr = latestIndicatorValue(computeIndicatorSeries(validBars, {
+      id: "atr14",
+      length: 14,
+    }), "atr");
+    if (atr !== undefined) {
+      metrics.push(identifiedMetric("technical.atr14", { value: formatCurrency(atr), note: "Wilder平滑・日足14期間" }));
+    }
   }
 
   if (validBars.length >= 31) {
@@ -529,6 +524,8 @@ export function buildStockDetailViewModel(
       : null,
   ]) : [];
 
+  const technicalRatings = buildStockDetailTechnicalRatings(bars);
+
   return {
     identity: instrument ? {
       symbol: instrument.symbol,
@@ -572,8 +569,9 @@ export function buildStockDetailViewModel(
     technicals: {
       metrics: buildStockDetailTechnicalMetrics(bars),
       source: sourceFrom([barsProvenance], selected?.market),
-      context: bars.length > 0 ? `${bars.length.toLocaleString("ja-JP")}本` : undefined,
+      context: technicalRatings.barCount > 0 ? `${technicalRatings.barCount.toLocaleString("ja-JP")}本` : undefined,
     },
+    technicalRatings,
     warnings: workspace?.warnings ?? [],
   };
 }

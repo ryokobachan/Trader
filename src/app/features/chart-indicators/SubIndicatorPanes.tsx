@@ -8,6 +8,8 @@ import {
   LineSeries,
   LineStyle,
   type HistogramData,
+  type IChartApi,
+  type ISeriesApi,
   type LineData,
   type LineWidth,
   type Time,
@@ -28,6 +30,11 @@ import {
   createChartTimeScaleSync,
   type ChartTimeScaleSync,
 } from "../chart-sync/chart-time-scale-sync";
+import {
+  EMPTY_CHART_DATA_LIFECYCLE,
+  planChartDataUpdate,
+  type ChartDataLifecycleState,
+} from "../chart-sync/chart-data-lifecycle";
 
 export type SubIndicatorId = CanonicalSubIndicatorId;
 
@@ -66,6 +73,34 @@ const SECONDARY_SERIES_COLORS: Readonly<Record<SubIndicatorId, Readonly<Record<s
   adx14: { adx: "#ab47bc" },
   obv: { obv: "#78909c" },
 };
+
+type SubIndicatorSeriesKind = "line" | "histogram";
+
+const SUB_INDICATOR_SERIES_LAYOUT: Readonly<Record<SubIndicatorId, readonly SubIndicatorSeriesKind[]>> = {
+  rsi14: ["line"],
+  macd: ["line", "line", "histogram"],
+  stochastic: ["line", "line"],
+  atr14: ["line"],
+  adx14: ["line"],
+  obv: ["line"],
+};
+
+const SUB_INDICATOR_GUIDE_LINES: Readonly<Partial<Record<SubIndicatorId, readonly number[]>>> = {
+  rsi14: [30, 70],
+  macd: [0],
+  stochastic: [20, 80],
+  adx14: [20, 25],
+};
+
+type SubIndicatorRuntimeSeries =
+  | Readonly<{ kind: "line"; api: ISeriesApi<"Line"> }>
+  | Readonly<{ kind: "histogram"; api: ISeriesApi<"Histogram"> }>;
+
+type SubIndicatorChartRuntime = Readonly<{
+  chart: IChartApi;
+  timeline: ISeriesApi<"Line">;
+  series: readonly SubIndicatorRuntimeSeries[];
+}>;
 
 function chartTime(value: string): Time {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value as Time;
@@ -110,22 +145,29 @@ function compactNumber(value: number, locale: "en" | "ja", precision = 2) {
 function SubIndicatorPane({
   bars,
   spec,
+  dataIdentity,
   timeScaleSync,
 }: {
   bars: readonly MarketBar[];
   spec: SubIndicatorSpec;
+  dataIdentity: string;
   timeScaleSync: ChartTimeScaleSync;
 }) {
   const { locale } = useI18n();
   const hostRef = useRef<HTMLDivElement>(null);
+  const chartRuntimeRef = useRef<SubIndicatorChartRuntime | null>(null);
+  const chartDataLifecycleRef = useRef<ChartDataLifecycleState>(EMPTY_CHART_DATA_LIFECYCLE);
+  const initialLocaleRef = useRef(locale);
   const computed = useMemo(() => computeSubIndicator(bars, spec), [bars, spec]);
   const latestValues = computed.series
     .map((series) => ({ name: series.name, color: series.color, value: series.points.at(-1)?.value }))
     .filter((item): item is { name: string; color: string; value: number } => typeof item.value === "number");
+  const hasRenderableData = latestValues.length > 0;
+  const paneDataIdentity = `${dataIdentity}:${spec.id}`;
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || computed.series.every((series) => series.points.length === 0)) return;
+    if (!host || !hasRenderableData) return;
     const chart = createChart(host, {
       width: Math.max(1, host.clientWidth),
       height: Math.max(96, host.clientHeight),
@@ -148,13 +190,13 @@ function SubIndicatorPane({
         rightOffset: 3,
         barSpacing: 7,
         minBarSpacing: 3,
-        timeVisible: bars.some((item) => item.time.includes("T")),
+        timeVisible: false,
       },
       // The price chart is the only interactive time-scale controller. Keeping
       // followers passive prevents a pane from drifting away from its candles.
       handleScroll: false,
       handleScale: false,
-      localization: { locale: chartLocaleTag(locale) },
+      localization: { locale: chartLocaleTag(initialLocaleRef.current) },
     });
 
     // Indicator series begin after their warm-up period. Whitespace points keep
@@ -167,38 +209,31 @@ function SubIndicatorPane({
       priceLineVisible: false,
       lastValueVisible: false,
     });
-    timeline.setData(finiteMarketBars(bars).map((bar) => ({
-      time: chartTime(bar.time),
-    })) as WhitespaceData<Time>[]);
-
-    computed.series.forEach((seriesDefinition, seriesIndex) => {
-      if (seriesDefinition.kind === "histogram") {
-        const histogram = chart.addSeries(HistogramSeries, {
-          color: seriesDefinition.color,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        });
-        histogram.setData(seriesDefinition.points.map((point) => ({
-          ...point,
-          color: point.value >= 0 ? "rgba(38, 166, 154, .68)" : "rgba(239, 83, 80, .68)",
-        })) as HistogramData<Time>[]);
-        return;
+    const series = SUB_INDICATOR_SERIES_LAYOUT[spec.id].map((kind, seriesIndex): SubIndicatorRuntimeSeries => {
+      if (kind === "histogram") {
+        return {
+          kind,
+          api: chart.addSeries(HistogramSeries, {
+            color: "#607d8b",
+            priceLineVisible: false,
+            lastValueVisible: false,
+          }),
+        };
       }
       const line = chart.addSeries(LineSeries, {
-        color: seriesDefinition.color,
-        lineWidth: seriesIndex === 0 ? spec.lineWidth : 1,
-        lineStyle: seriesIndex === 0 ? chartLineStyle(spec.lineStyle) : LineStyle.Solid,
+        color: "#b388ff",
+        lineWidth: seriesIndex === 0 ? 2 : 1,
+        lineStyle: LineStyle.Solid,
         priceLineVisible: false,
         // The canonical label and latest value are rendered once in the pane
         // header. A second scale badge can lag during chart reflow and look
         // inconsistent with that shared legend.
         lastValueVisible: false,
         title: "",
-        priceFormat: { type: "price", precision: computed.precision ?? 2, minMove: computed.precision === 0 ? 1 : 0.01 },
+        priceFormat: { type: "price", precision: 2, minMove: 0.01 },
       });
-      line.setData(seriesDefinition.points as LineData<Time>[]);
       if (seriesIndex === 0) {
-        for (const price of computed.guideLines ?? []) {
+        for (const price of SUB_INDICATOR_GUIDE_LINES[spec.id] ?? []) {
           line.createPriceLine({
             price,
             color: "#55585f",
@@ -209,18 +244,86 @@ function SubIndicatorPane({
           });
         }
       }
+      return { kind, api: line };
     });
-    const timeScale = chart.timeScale();
-    timeScale.fitContent();
+    chartDataLifecycleRef.current = EMPTY_CHART_DATA_LIFECYCLE;
+    chartRuntimeRef.current = { chart, timeline, series };
+    return () => {
+      chartRuntimeRef.current = null;
+      chart.remove();
+    };
+  }, [hasRenderableData, spec.id]);
+
+  useEffect(() => {
+    const runtime = chartRuntimeRef.current;
+    if (!runtime) return;
+    runtime.chart.applyOptions({
+      localization: { locale: chartLocaleTag(locale) },
+      timeScale: { timeVisible: bars.some((item) => item.time.includes("T")) },
+    });
+    runtime.series.forEach((runtimeSeries, seriesIndex) => {
+      const seriesDefinition = computed.series[seriesIndex];
+      if (!seriesDefinition) return;
+      if (runtimeSeries.kind === "histogram") {
+        runtimeSeries.api.applyOptions({
+          color: seriesDefinition.color,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        });
+        return;
+      }
+      runtimeSeries.api.applyOptions({
+        color: seriesDefinition.color,
+        lineWidth: seriesIndex === 0 ? spec.lineWidth : 1,
+        lineStyle: seriesIndex === 0 ? chartLineStyle(spec.lineStyle) : LineStyle.Solid,
+        priceFormat: { type: "price", precision: computed.precision ?? 2, minMove: computed.precision === 0 ? 1 : 0.01 },
+      });
+    });
+  }, [bars, computed, locale, spec.lineStyle, spec.lineWidth]);
+
+  useEffect(() => {
+    const runtime = chartRuntimeRef.current;
+    if (!runtime) return;
+    const finiteBars = finiteMarketBars(bars);
+    const timeScale = runtime.chart.timeScale();
+    const updatePlan = planChartDataUpdate({
+      previous: chartDataLifecycleRef.current,
+      identity: paneDataIdentity,
+      pointCount: finiteBars.length,
+      visibleLogicalRange: timeScale.getVisibleLogicalRange(),
+    });
+    runtime.timeline.setData(finiteBars.map((bar) => ({
+      time: chartTime(bar.time),
+    })) as WhitespaceData<Time>[]);
+    runtime.series.forEach((runtimeSeries, seriesIndex) => {
+      const seriesDefinition = computed.series[seriesIndex];
+      if (!seriesDefinition) return;
+      if (runtimeSeries.kind === "histogram") {
+        runtimeSeries.api.setData(seriesDefinition.points.map((point) => ({
+          ...point,
+          color: point.value >= 0 ? "rgba(38, 166, 154, .68)" : "rgba(239, 83, 80, .68)",
+        })) as HistogramData<Time>[]);
+      } else {
+        runtimeSeries.api.setData(seriesDefinition.points as LineData<Time>[]);
+      }
+    });
+    chartDataLifecycleRef.current = updatePlan.nextState;
+    const synchronizedRange = timeScaleSync.snapshot();
+    if (synchronizedRange) timeScale.setVisibleLogicalRange(synchronizedRange);
+    else if (updatePlan.fitContent) timeScale.fitContent();
+    else if (updatePlan.visibleLogicalRange) timeScale.setVisibleLogicalRange(updatePlan.visibleLogicalRange);
+  }, [bars, computed, paneDataIdentity, timeScaleSync]);
+
+  useEffect(() => {
+    const runtime = chartRuntimeRef.current;
+    if (!runtime) return;
+    const timeScale = runtime.chart.timeScale();
     const unsubscribeSync = timeScaleSync.subscribe((range) => {
       if (range === null) timeScale.fitContent();
       else timeScale.setVisibleLogicalRange(range);
     });
-    return () => {
-      unsubscribeSync();
-      chart.remove();
-    };
-  }, [bars, computed, locale, spec.lineStyle, spec.lineWidth, timeScaleSync]);
+    return unsubscribeSync;
+  }, [hasRenderableData, timeScaleSync]);
 
   return (
     <section className="subindicator-pane" aria-label={indicatorText(locale, "paneAria", { name: spec.label })}>
@@ -238,10 +341,12 @@ function SubIndicatorPane({
 export function SubIndicatorPanes({
   bars,
   indicators,
+  dataIdentity = "default",
   timeScaleSync,
 }: {
   bars: readonly MarketBar[];
   indicators: readonly SubIndicatorSpec[];
+  dataIdentity?: string;
   timeScaleSync?: ChartTimeScaleSync;
 }) {
   const { locale } = useI18n();
@@ -250,7 +355,7 @@ export function SubIndicatorPanes({
   if (indicators.length === 0) return null;
   return (
     <div className="subindicator-panes" aria-label={indicatorText(locale, "panesAria")}>
-      {indicators.map((indicator) => <SubIndicatorPane key={indicator.id} bars={bars} spec={indicator} timeScaleSync={resolvedTimeScaleSync} />)}
+      {indicators.map((indicator) => <SubIndicatorPane key={indicator.id} bars={bars} spec={indicator} dataIdentity={dataIdentity} timeScaleSync={resolvedTimeScaleSync} />)}
     </div>
   );
 }

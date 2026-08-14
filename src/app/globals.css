@@ -729,7 +729,7 @@ textarea:focus-visible {
 .watchlist-columns {
   height: 28px;
   display: grid;
-  grid-template-columns: 1fr 82px 64px;
+  grid-template-columns: 1fr 82px 64px 88px;
   align-items: center;
   border-bottom: 1px solid var(--line-soft);
   color: var(--muted-2);
@@ -745,7 +745,7 @@ textarea:focus-visible {
   width: 100%;
   height: 42px;
   display: grid;
-  grid-template-columns: 1fr 82px 64px;
+  grid-template-columns: 1fr 82px 64px 88px;
   align-items: center;
   border: 0;
   border-bottom: 1px solid #1a1e23;
@@ -764,7 +764,51 @@ textarea:focus-visible {
   box-shadow: inset 2px 0 var(--blue);
 }
 
-.watch-row > span:not(:first-child) {
+.watch-row.is-draggable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.watch-row.is-draggable img {
+  -webkit-user-drag: none;
+}
+
+.watch-row.is-draggable:active,
+.watch-row.is-dragging {
+  cursor: pointer;
+}
+
+.watch-row.is-dragging {
+  opacity: 0.44;
+}
+
+.watch-row.is-drop-before,
+.watch-row.is-drop-after {
+  position: relative;
+}
+
+.watch-row.is-drop-before::before,
+.watch-row.is-drop-after::after {
+  position: absolute;
+  z-index: 2;
+  right: 8px;
+  left: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--blue);
+  content: "";
+  pointer-events: none;
+}
+
+.watch-row.is-drop-before::before {
+  top: -1px;
+}
+
+.watch-row.is-drop-after::after {
+  bottom: -1px;
+}
+
+.watch-row > span:not(.watch-symbol) {
   text-align: right;
   font-family: var(--font-mono);
 }
@@ -2625,7 +2669,7 @@ textarea:focus-visible {
 
 .analyst-rating-history-table {
   width: 100%;
-  min-width: 880px;
+  min-width: 1000px;
   border-collapse: collapse;
   color: #e6e8ec;
   font-size: 12px;
@@ -2654,7 +2698,7 @@ textarea:focus-visible {
 .analyst-rating-history-table td strong { font-size: 12px; }
 .analyst-rating-history-table td small { margin-top: 3px; color: #8e949f; font-size: 10px; }
 
-/* Text and arrows retain the meaning without color; these tones make revisions
+/* Column labels retain the meaning without color; these tones make revisions
  * quicker to scan and mirror the market-wide green/red convention. */
 .analyst-rating-history-table td.analyst-change-positive {
   color: var(--green);
@@ -2669,6 +2713,8 @@ textarea:focus-visible {
 .analyst-rating-history-table td.analyst-change-neutral {
   color: #d1d4dc;
 }
+.analyst-rating-cell { white-space: nowrap; }
+.analyst-rating-previous { color: #a9afba; }
 .analyst-target-cell { font-family: var(--font-mono); white-space: nowrap; }
 .analyst-target-previous { color: #a9afba; }
 .dialog-data-source { margin-right: auto; color: #8e949f; font-size: 11px; }
@@ -2699,7 +2745,7 @@ textarea:focus-visible {
 .summary-technical-footer small,
 .stock-summary-detail-button small { font-size: 10px; }
 
-.stock-summary-identity .summary-quote > small,
+.summary-current-price > small,
 .stock-summary-identity .summary-quote > span,
 .summary-range-labels b,
 .summary-stat-list dt,
@@ -6383,7 +6429,7 @@ textarea:focus-visible {
 
 .watchlist-columns,
 .watch-row {
-  grid-template-columns: minmax(110px, 1fr) 68px 54px 68px;
+  grid-template-columns: minmax(100px, 1fr) 68px 54px 88px;
   column-gap: 4px;
   padding-right: 8px;
   padding-left: 8px;
@@ -6995,13 +7041,29 @@ textarea:focus-visible {
 
 .stock-summary-identity .summary-quote {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 5px;
+  gap: 8px 12px;
   margin-top: 10px;
 }
 
-.stock-summary-identity .summary-quote > small {
+.summary-current-price {
+  min-width: 0;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.summary-current-price > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summary-current-price > small {
+  flex: 0 0 auto;
   color: var(--muted-2);
   font-size: 8px;
 }
@@ -7678,6 +7740,298 @@ textarea:focus-visible {
   justify-content: space-between;
   border-bottom: 1px solid var(--line);
   padding: 0 2px 7px;
+}
+
+.technical-ratings-panel {
+  display: grid;
+  gap: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #08090b;
+}
+
+.technical-ratings-heading {
+  min-height: 72px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 16px 12px;
+}
+
+.technical-ratings-heading h2 {
+  margin: 2px 0 0;
+  color: var(--text-strong);
+  font-size: 17px;
+}
+
+.technical-ratings-heading p {
+  max-width: 720px;
+  margin: 5px 0 0;
+  color: var(--muted-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.technical-ratings-heading > small {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  color: #9aa0aa;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.technical-rating-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  padding: 0 12px;
+}
+
+.technical-rating-card {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  border: 1px solid #292d34;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #111318, #0b0c0f);
+  padding: 12px 13px;
+}
+
+.technical-rating-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.technical-rating-card > header span {
+  color: #d9dce2;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.technical-rating-card > header small {
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.technical-rating-gauge {
+  display: grid;
+  gap: 9px;
+}
+
+.technical-rating-gauge-track {
+  position: relative;
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ef5350 0 35%, #737985 47% 53%, #26a69a 65% 100%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 9%);
+}
+
+.technical-rating-gauge-track > i {
+  position: absolute;
+  top: -5px;
+  width: 2px;
+  height: 17px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 0 2px #111318, 0 0 8px rgb(255 255 255 / 45%);
+  transform: translateX(-50%);
+}
+
+.technical-rating-gauge strong {
+  color: #d1d4dc;
+  text-align: center;
+  font-size: 18px;
+}
+
+.technical-rating-card[data-verdict="strong_buy"] .technical-rating-gauge strong,
+.technical-rating-card[data-verdict="buy"] .technical-rating-gauge strong {
+  color: var(--green);
+}
+
+.technical-rating-card[data-verdict="strong_sell"] .technical-rating-gauge strong,
+.technical-rating-card[data-verdict="sell"] .technical-rating-gauge strong {
+  color: var(--red);
+}
+
+.technical-rating-card > footer {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  color: var(--muted-2);
+  text-align: center;
+  font-size: 9px;
+}
+
+.technical-rating-card > footer span {
+  display: grid;
+  gap: 2px;
+}
+
+.technical-rating-card > footer b {
+  color: #d1d4dc;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.technical-rating-card > footer .is-sell b { color: var(--red); }
+.technical-rating-card > footer .is-buy b { color: var(--green); }
+
+.technical-rating-card > footer small {
+  grid-column: 1 / -1;
+  color: #777d87;
+  font-size: 9px;
+}
+
+.technical-signal-table-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  padding: 0 12px;
+}
+
+.technical-signal-table-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #292d34;
+  border-radius: 6px;
+  background: #0a0b0d;
+}
+
+.technical-signal-table-card > header {
+  height: 39px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #292d34;
+  padding: 0 11px;
+}
+
+.technical-signal-table-card > header h3 {
+  margin: 0;
+  color: #d9dce2;
+  font-size: 12px;
+}
+
+.technical-signal-table-card > header span {
+  display: grid;
+  min-width: 23px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid #343841;
+  border-radius: 999px;
+  color: #9ca2ac;
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.technical-signal-table-shell {
+  max-height: 480px;
+  overflow: auto;
+}
+
+.technical-signal-table {
+  width: 100%;
+  min-width: 440px;
+  border-collapse: collapse;
+  color: #d1d4dc;
+  font-size: 11px;
+}
+
+.technical-signal-table th {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  background: #15171b;
+  color: #8f96a1;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.technical-signal-table th:nth-child(2),
+.technical-signal-table td:nth-child(2),
+.technical-signal-table th:last-child,
+.technical-signal-table td:last-child {
+  text-align: right;
+}
+
+.technical-signal-table td {
+  border-top: 1px solid #23262c;
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.technical-signal-table td:nth-child(2) {
+  color: #aeb4be;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.technical-signal-verdict {
+  display: inline-flex;
+  min-width: 46px;
+  justify-content: center;
+  border: 1px solid #3a3e46;
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #abb0ba;
+  font-size: 9px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.technical-signal-verdict[data-signal="buy"] {
+  border-color: rgb(38 166 154 / 50%);
+  background: rgb(38 166 154 / 10%);
+  color: var(--green);
+}
+
+.technical-signal-verdict[data-signal="sell"] {
+  border-color: rgb(239 83 80 / 50%);
+  background: rgb(239 83 80 / 10%);
+  color: var(--red);
+}
+
+.technical-signal-verdict[data-signal="unavailable"] {
+  border-color: transparent;
+  color: #676c75;
+}
+
+.technical-rating-disclaimer {
+  margin: 0;
+  border-top: 1px solid #202329;
+  padding: 10px 13px 11px;
+  color: #757b85;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .technical-rating-card-grid,
+  .technical-signal-table-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .technical-ratings-heading {
+    display: grid;
+    gap: 8px;
+  }
+
+  .technical-ratings-heading > small {
+    white-space: normal;
+  }
 }
 
 .stock-detail-card-grid {
@@ -8660,7 +9014,7 @@ textarea:focus-visible {
 .watch-symbol small,
 .stock-summary-settings label strong,
 .stock-summary-section-title span,
-.stock-summary-identity .summary-quote > small,
+.summary-current-price > small,
 .stock-summary-identity .summary-quote > span,
 .summary-stat-list dd,
 .summary-event-card strong,

@@ -57,6 +57,7 @@ REALTIME_STREAM_TTL_SECONDS = 60.0
 REALTIME_RECONNECT_MAX_SECONDS = 30.0
 REALTIME_UPSTREAM_LIVENESS_SECONDS = 45.0
 REALTIME_ACTIVE_STALE_SECONDS = 5.0 * 60.0
+REALTIME_FUTURE_SKEW_SECONDS = 60.0
 REALTIME_QUOTE_FIELDS = (
     "lp",
     "lp_time",
@@ -252,8 +253,10 @@ def synthetic_latest_close_item(
     symbol: str,
     exchanges: tuple[str, ...],
     values: dict[str, dict[str, Any]],
+    observed_at: datetime | None = None,
 ) -> dict[str, Any]:
-    """Select the first usable configured source without relabeling USDT as USD."""
+    """Select a fresh ordered source without relabeling USDT as USD."""
+    candidates: list[tuple[str, float, str, datetime]] = []
     for exchange in exchanges:
         source_symbol = f"{exchange}:{symbol}USDT.P"
         value = values.get(source_symbol)
@@ -265,16 +268,28 @@ def synthetic_latest_close_item(
             close is not None
             and close > 0
             and value.get("currency") == "USDT"
+            and value.get("stale") is False
             and isinstance(updated_at, str)
+            and continuous_reference_is_fresh(updated_at, observed_at)
         ):
-            return {
-                "symbol": symbol,
-                "sourceSymbol": source_symbol,
-                "close": close,
-                "currency": "USDT",
-                "source": "tradingview-websocket",
-                "updatedAt": updated_at,
-            }
+            parsed_updated_at = parse_utc_datetime(updated_at)
+            if parsed_updated_at is not None:
+                candidates.append((source_symbol, close, updated_at, parsed_updated_at))
+    if candidates:
+        freshest = max(candidate[3] for candidate in candidates)
+        selected = next(
+            candidate
+            for candidate in candidates
+            if (freshest - candidate[3]).total_seconds() < REALTIME_ACTIVE_STALE_SECONDS
+        )
+        return {
+            "symbol": symbol,
+            "sourceSymbol": selected[0],
+            "close": selected[1],
+            "currency": "USDT",
+            "source": "tradingview-websocket",
+            "updatedAt": selected[2],
+        }
     return {
         "symbol": symbol,
         "sourceSymbol": f"{exchanges[0]}:{symbol}USDT.P",
@@ -450,8 +465,11 @@ class RealtimeQuoteBroker:
                 ordered = []
                 stale = self._connection_state != "connected"
                 for requested in items:
-                    source = requested["sourceSymbol"]
-                    value = values.get(source) or self._latest.get(source)
+                    # `_latest` is the authoritative current websocket
+                    # generation. A value captured in this call's local map
+                    # may belong to the prior generation if a reconnect
+                    # happened while another requested symbol was unresolved.
+                    value = self._latest.get(requested["sourceSymbol"])
                     ordered.append(self._response_item(requested, value, stale))
                 state = self._connection_state
             return ordered, state
@@ -532,6 +550,15 @@ class RealtimeQuoteBroker:
 
     def _publish_status(self, state: str) -> None:
         with self._condition:
+            if state == "reconnecting":
+                # Values from the prior websocket generation must not be
+                # re-stamped as a fresh session observation. Subscribers keep
+                # their last displayed price; snapshots remain missing until
+                # the new quote session supplies a fresh qsd payload.
+                for source in tuple(self._source_refcounts):
+                    self._latest.pop(source, None)
+                    self._raw_quote_values.pop(source, None)
+                    self._latest_epoch.pop(source, None)
             if self._connection_state == state:
                 return
             self._connection_state = state
@@ -854,6 +881,29 @@ def utc_iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp, timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def parse_utc_datetime(value: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def continuous_reference_is_fresh(
+    updated_at: str,
+    observed_at: datetime | None = None,
+) -> bool:
+    """Return whether a continuous USDT.P tick is current at the 5m boundary."""
+    quote_time = parse_utc_datetime(updated_at)
+    now = observed_at or datetime.now(timezone.utc)
+    if quote_time is None or now.tzinfo is None:
+        return False
+    age_seconds = (now.astimezone(timezone.utc) - quote_time).total_seconds()
+    return -REALTIME_FUTURE_SKEW_SECONDS <= age_seconds <= REALTIME_ACTIVE_STALE_SECONDS
+
+
 def realtime_quote_is_stale(
     updated_at: str,
     connected: bool,
@@ -867,13 +917,14 @@ def realtime_quote_is_stale(
     """
     if not connected:
         return True
-    try:
-        quote_time = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
-    except (TypeError, ValueError):
+    if continuous:
+        return not continuous_reference_is_fresh(updated_at)
+    quote_time = parse_utc_datetime(updated_at)
+    if quote_time is None:
         return True
     now = datetime.now(timezone.utc)
     market_now = now.astimezone(ZoneInfo("America/New_York"))
-    active = continuous or (market_now.weekday() < 5 and 4 <= market_now.hour < 20)
+    active = market_now.weekday() < 5 and 4 <= market_now.hour < 20
     return active and (now - quote_time).total_seconds() > REALTIME_ACTIVE_STALE_SECONDS
 
 
@@ -894,15 +945,25 @@ def normalize_rows(result_data: Any) -> list[dict[str, float | str]]:
         if not isinstance(entry, dict) or not isinstance(entry.get("v"), list):
             continue
         values = entry["v"]
-        if len(values) < 5:
+        if len(values) < 6:
             continue
         timestamp = finite_number(values[0])
         open_value = finite_number(values[1])
         high_value = finite_number(values[2])
         low_value = finite_number(values[3])
         close_value = finite_number(values[4])
-        volume_value = finite_number(values[5]) if len(values) > 5 else 0.0
-        if None in (timestamp, open_value, high_value, low_value, close_value):
+        volume_value = finite_number(values[5]) if len(values) > 5 else None
+        if None in (timestamp, open_value, high_value, low_value, close_value, volume_value):
+            continue
+        if (
+            open_value <= 0
+            or high_value <= 0
+            or low_value <= 0
+            or close_value <= 0
+            or volume_value < 0
+            or high_value < max(open_value, close_value, low_value)
+            or low_value > min(open_value, close_value, high_value)
+        ):
             continue
         rows.append(
             {
@@ -911,7 +972,7 @@ def normalize_rows(result_data: Any) -> list[dict[str, float | str]]:
                 "high": high_value,
                 "low": low_value,
                 "close": close_value,
-                "volume": volume_value or 0.0,
+                "volume": volume_value,
             }
         )
     rows.sort(key=lambda row: str(row["time"]))
@@ -1097,6 +1158,8 @@ def fetch_latest_closes_in_child(
                 if resolved_session is None:
                     continue
                 symbol, exchange_index = resolved_session
+                if active_candidates.get(symbol) != exchange_index:
+                    continue
                 message_type = message.get("m")
                 if message_type in {"symbol_error", "series_error", "critical_error"}:
                     advance_candidate(symbol, exchange_index)
@@ -1113,13 +1176,19 @@ def fetch_latest_closes_in_child(
                 except (TypeError, ValueError):
                     continue
                 close_value = finite_number(latest["close"])
-                if close_value is not None and close_value > 0:
+                if (
+                    close_value is not None
+                    and close_value > 0
+                    and continuous_reference_is_fresh(str(latest["time"]))
+                ):
                     values[symbol] = {
                         "close": close_value,
                         "updatedAt": latest["time"],
                         "sourceSymbol": f"{exchanges[exchange_index]}:{symbol}USDT.P",
                     }
-                pending.discard(symbol)
+                    pending.discard(symbol)
+                else:
+                    advance_candidate(symbol, exchange_index)
             advance_silent_candidates()
         result_queue.put({"ok": True, "values": values})
     except Exception as error:
@@ -1441,12 +1510,13 @@ def cached_yahoo_payload(
     key: tuple[str, str, int],
     ttl_seconds: float,
     loader: Callable[[], dict[str, Any]],
+    force_refresh: bool = False,
 ) -> dict[str, Any]:
     """Share one upstream request and cache only its normalized response."""
     now = time.monotonic()
     with server.yahoo_lock:
         cached = server.yahoo_cache.get(key)
-        if cached is not None and cached[0] > now:
+        if not force_refresh and cached is not None and cached[0] > now:
             return cached[1]
         inflight = server.yahoo_inflight.get(key)
         leader = inflight is None
@@ -1689,8 +1759,30 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
                 try:
                     event = subscriber.events.get(timeout=remaining)
                 except queue.Empty:
-                    self.wfile.write(b": keepalive\n\n")
-                    self.wfile.flush()
+                    emitted_expiry = False
+                    for symbol in symbols:
+                        next_item = synthetic_latest_close_item(symbol, exchanges, values)
+                        if next_item == selected[symbol]:
+                            continue
+                        selected[symbol] = next_item
+                        self.send_sse_event(
+                            "quote",
+                            {
+                                "schemaVersion": SCHEMA_VERSION,
+                                "type": "quote",
+                                "exchange": exchanges[0],
+                                "exchanges": list(exchanges),
+                                "resolutionStrategy": "ordered_fallback",
+                                "item": next_item,
+                                "ingestedAt": datetime.now(timezone.utc).isoformat().replace(
+                                    "+00:00", "Z"
+                                ),
+                            },
+                        )
+                        emitted_expiry = True
+                    if not emitted_expiry:
+                        self.wfile.write(b": keepalive\n\n")
+                        self.wfile.flush()
                     continue
 
                 event_type = event.get("type")
@@ -1772,7 +1864,10 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
                 return
             try:
                 if parsed.path == "/v1/yahoo/profile":
-                    if set(parameters) != {"symbol"}:
+                    if not set(parameters).issubset({"symbol", "fresh"}):
+                        raise ValueError("invalid profile parameters")
+                    force_refresh = parameters.get("fresh", [""])[0] == "1"
+                    if "fresh" in parameters and not force_refresh:
                         raise ValueError("invalid profile parameters")
                     payload = cached_yahoo_payload(
                         self.server,
@@ -1784,9 +1879,13 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
                             0,
                             self.server.fetch_timeout_seconds,
                         ),
+                        force_refresh,
                     )
                 else:
-                    if not set(parameters).issubset({"symbol", "limit"}):
+                    if not set(parameters).issubset({"symbol", "limit", "fresh"}):
+                        raise ValueError("invalid earnings parameters")
+                    force_refresh = parameters.get("fresh", [""])[0] == "1"
+                    if "fresh" in parameters and not force_refresh:
                         raise ValueError("invalid earnings parameters")
                     try:
                         limit = int(parameters.get("limit", ["24"])[0])
@@ -1804,6 +1903,7 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
                             limit,
                             self.server.fetch_timeout_seconds,
                         ),
+                        force_refresh,
                     )
             except ValueError:
                 self.send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request"})
@@ -1960,6 +2060,8 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
         items = []
         for symbol in symbols:
             value = values.get(symbol)
+            if value and not continuous_reference_is_fresh(str(value.get("updatedAt", ""))):
+                value = None
             items.append(
                 {
                     "symbol": symbol,

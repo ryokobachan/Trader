@@ -117,7 +117,7 @@ Current adapters:
 | `yahoo` | search, quote, bars, profile, fundamentals, earnings, news | explicit personal-use compatibility opt-in |
 | `fmp` | search, quote, bars, company data, analyst data, news | `FMP_API_KEY` and applicable display rights |
 | `benzinga` | Midas-compatible analyst consensus and rating history | optional token; applicable display rights remain required |
-| `tradingview-websocket` | local chart bars and synthetic reference closes | authenticated loopback sidecar |
+| `tradingview-websocket` | direct USD quotes, local chart bars, and fresh `{symbol}USDT.P` reference closes | authenticated sidecar for bars/local SSE; the hosted Worker uses the same guest quote websocket inside completed HTTPS long polls and a server-side scanner for snapshots; continuous ticks expire after 5m |
 
 No adapter silently falls back to mock data. Missing optional roles produce an
 explicit partial/missing state.

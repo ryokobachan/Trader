@@ -7,8 +7,10 @@ import test from "node:test";
 import { createTradingViewSidecarProvider } from "../api/tradingview-websocket/index.server";
 import { GET } from "../src/app/api/v1/watchlists/after-hours/stream/route";
 import {
+  isFreshSyntheticLatestClose,
   isNewerAfterHoursClose,
   parseWatchlistAfterHoursStreamMessage,
+  pruneStaleAfterHoursCloses,
 } from "../src/app/features/watchlist/after-hours-stream";
 import type { SyntheticLatestClose } from "../src/app/platform/provider-contracts";
 
@@ -232,6 +234,7 @@ test("browser stream parser rejects mislabeled or malformed perpetual prices", (
     { ...item, close: 0 },
     { ...item, currency: "USD" },
     { ...item, sourceSymbol: "NASDAQ:AAPL" },
+    { ...item, sourceSymbol: "BINANCE:TSLAUSDT.P" },
     { ...item, updatedAt: "not-a-date" },
   ]) {
     assert.equal(parseWatchlistAfterHoursStreamMessage(JSON.stringify({
@@ -250,13 +253,29 @@ test("browser keeps the newest streamed reference price and wires snapshot fallb
   assert.equal(isNewerAfterHoursClose(current, current.updatedAt), true);
   assert.equal(isNewerAfterHoursClose(newer, current.updatedAt), true);
 
+  const observedAt = Date.parse("2026-08-10T01:35:00.000Z");
+  const exactBoundary = latestClose(313.3, "2026-08-10T01:30:00.000Z");
+  const oneMillisecondStale = latestClose(313.3, "2026-08-10T01:29:59.999Z");
+  const currentTick = latestClose(313.3, "2026-08-10T01:34:59.999Z");
+  assert.equal(isFreshSyntheticLatestClose(exactBoundary, observedAt), true);
+  assert.equal(isFreshSyntheticLatestClose(oneMillisecondStale, observedAt), false);
+  assert.equal(isFreshSyntheticLatestClose(currentTick, observedAt), true);
+  const unpruned = { AAPL: exactBoundary };
+  assert.equal(pruneStaleAfterHoursCloses(unpruned, observedAt), unpruned);
+  assert.deepEqual(
+    pruneStaleAfterHoursCloses({ AAPL: oneMillisecondStale, NVDA: currentTick }, observedAt),
+    { NVDA: currentTick },
+  );
+
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   assert.match(
     pageSource,
     /new EventSource\(`\/api\/v1\/watchlists\/after-hours\/stream\?\$\{query\}`\)/,
   );
   assert.match(pageSource, /parseWatchlistAfterHoursStreamMessage\(event\.data\)/);
-  assert.match(pageSource, /isNewerAfterHoursClose\(item, current\[symbol\]\?\.updatedAt\)/);
+  assert.match(pageSource, /isNewerAfterHoursClose\(item, previousUpdatedAt\)/);
+  assert.match(pageSource, /item\.close === null && item\.updatedAt === null/);
+  assert.match(pageSource, /pruneExpiredCloses\(\)/);
   assert.match(pageSource, /fetch\("\/api\/v1\/watchlists\/after-hours"/);
   assert.match(pageSource, /document\.addEventListener\("visibilitychange", handleVisibilityChange\)/);
   assert.match(pageSource, /window\.addEventListener\("online", refreshNow\)/);
@@ -275,6 +294,10 @@ test("sidecar shares one quote broker between direct USD and USDT perpetual stre
   assert.match(source, /expected_currency = requested\["currency"\]/);
   assert.match(source, /quote_remove_symbols/);
   assert.match(source, /"currency": "USDT"/);
+  assert.match(source, /continuous_reference_is_fresh\(updated_at, observed_at\)/);
+  assert.match(source, /value\.get\("stale"\) is False/);
+  assert.match(source, /emitted_expiry = False/);
+  assert.match(source, /value and not continuous_reference_is_fresh/);
   assert.doesNotMatch(source, /source_symbol.*request/i);
 });
 
@@ -282,12 +305,15 @@ test("shared Python broker keeps USD listings and USDT fallback candidates disti
   const script = String.raw`
 import importlib.util
 import sys
+import time
+from datetime import datetime, timedelta, timezone
 
 spec = importlib.util.spec_from_file_location("unicorn_sidecar", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 module.RealtimeQuoteBroker._run = lambda self: None
 broker = module.RealtimeQuoteBroker(2.0)
+now_epoch = int(time.time())
 
 direct = module.parse_realtime_items({"items": [{"symbol": "AAPL", "mic": "XNAS"}]})
 synthetic = module.synthetic_realtime_items(["AAPL"], ("BINANCE", "BITGET"))
@@ -295,10 +321,10 @@ direct_subscriber, _ = broker.subscribe(direct, "direct-owner")
 synthetic_subscriber, _ = broker.subscribe(synthetic, "synthetic-owner")
 
 assert broker._publish_quote("NASDAQ:AAPL", {
-    "lp": 313.30, "lp_time": 1786325400, "currency_code": "USD"
+    "lp": 313.30, "lp_time": now_epoch, "currency_code": "USD"
 })
 assert broker._publish_quote("BITGET:AAPLUSDT.P", {
-    "lp": 313.25, "lp_time": 1786325401, "currency_code": "USDT"
+    "lp": 313.25, "lp_time": now_epoch, "currency_code": "USDT"
 })
 values = dict(broker._latest)
 assert values["NASDAQ:AAPL"]["currency"] == "USD"
@@ -307,13 +333,37 @@ selected = module.synthetic_latest_close_item("AAPL", ("BINANCE", "BITGET"), val
 assert selected["sourceSymbol"] == "BITGET:AAPLUSDT.P"
 
 assert broker._publish_quote("BINANCE:AAPLUSDT.P", {
-    "lp": 313.26, "lp_time": 1786325402, "currency_code": "USDT"
+    "lp": 313.26, "lp_time": now_epoch + 1, "currency_code": "USDT"
 })
 selected = module.synthetic_latest_close_item(
     "AAPL", ("BINANCE", "BITGET"), dict(broker._latest)
 )
 assert selected["sourceSymbol"] == "BINANCE:AAPLUSDT.P"
 assert selected["close"] == 313.26 and selected["currency"] == "USDT"
+
+observed_at = datetime(2026, 8, 13, 7, 0, tzinfo=timezone.utc)
+boundary_values = {
+    "BINANCE:AAPLUSDT.P": {
+        "price": 303.0,
+        "currency": "USDT",
+        "updatedAt": (observed_at - timedelta(minutes=5)).isoformat(),
+        "stale": False,
+    }
+}
+assert module.synthetic_latest_close_item(
+    "AAPL", ("BINANCE",), boundary_values, observed_at
+)["close"] == 303.0
+boundary_values["BINANCE:AAPLUSDT.P"]["updatedAt"] = (
+    observed_at - timedelta(minutes=5, microseconds=1000)
+).isoformat()
+assert module.synthetic_latest_close_item(
+    "AAPL", ("BINANCE",), boundary_values, observed_at
+)["close"] is None
+boundary_values["BINANCE:AAPLUSDT.P"]["updatedAt"] = observed_at.isoformat()
+boundary_values["BINANCE:AAPLUSDT.P"]["stale"] = True
+assert module.synthetic_latest_close_item(
+    "AAPL", ("BINANCE",), boundary_values, observed_at
+)["close"] is None
 
 broker.unsubscribe(synthetic_subscriber.subscriber_id)
 assert "NASDAQ:AAPL" in broker._source_refcounts

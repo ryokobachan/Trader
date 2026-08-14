@@ -124,7 +124,7 @@ function workspaceFixture(): SymbolWorkspace {
 
 function ascendingBars(length: number): MarketBar[] {
   return Array.from({ length }, (_, index) => ({
-    time: `2026-06-${String(index + 1).padStart(2, "0")}`,
+    time: new Date(Date.UTC(2026, 5, index + 1)).toISOString(),
     open: 100 + index,
     high: 102 + index,
     low: 99 + index,

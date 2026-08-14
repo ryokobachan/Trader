@@ -96,7 +96,7 @@ test("requires an API key and an explicit restricted-data usage mode", () => {
   }));
 });
 
-test("deduplicates search candidates and returns only active US stocks and ADRs", async () => {
+test("deduplicates search candidates and returns only supported active US listings", async () => {
   const requests: URL[] = [];
   const profiles: Record<string, unknown> = {
     AAPL: {
@@ -151,6 +151,14 @@ test("deduplicates search candidates and returns only active US stocks and ADRs"
       currency: "USD",
       exchangeShortName: "NASDAQ",
     },
+    OTCM: {
+      symbol: "OTCM",
+      companyName: "OTC Markets Group Inc.",
+      isActivelyTrading: true,
+      country: "US",
+      currency: "USD",
+      exchangeShortName: "OTC",
+    },
   };
   const fetch: FmpFetch = async (input) => {
     const url = requestUrl(input);
@@ -163,6 +171,7 @@ test("deduplicates search candidates and returns only active US stocks and ADRs"
         { symbol: "SAP" },
         { symbol: "DEAD" },
         { symbol: "TSM" },
+        { symbol: "OTCM" },
         { symbol: "AAPL" },
       ]);
     }
@@ -184,11 +193,12 @@ test("deduplicates search candidates and returns only active US stocks and ADRs"
   const results = await provider.instrument.searchUSStocks({ query: "apple", limit: 10 }, CONTEXT);
   assert.deepEqual(results.map(({ symbol, assetType }) => [symbol, assetType]), [
     ["AAPL", "common_stock"],
+    ["SAP", "common_stock"],
     ["TSM", "adr"],
   ]);
   assert.equal(new Set(requests
     .filter((url) => url.pathname === "/stable/profile")
-    .map((url) => url.searchParams.get("symbol"))).size, 6);
+    .map((url) => url.searchParams.get("symbol"))).size, 8);
   assert.ok(results.every((item) => item.active && item.listingCountry === "US"));
   assert.ok(results.every((item) => !item.provenance.sourceUrl?.includes("apikey")));
   assert.ok(results.every((item) => !item.provenance.sourceUrl?.includes(SECRET)));
@@ -196,6 +206,119 @@ test("deduplicates search candidates and returns only active US stocks and ADRs"
   const callsBeforeInvalidIdentity = requests.length;
   assert.equal(await provider.instrument.getUSStockBySymbol("7203", CONTEXT), null);
   assert.equal(requests.length, callsBeforeInvalidIdentity);
+});
+
+test("prioritizes exact ticker aliases and accepts foreign issuers on US exchanges", async () => {
+  const requestedProfiles: string[] = [];
+  const profiles: Record<string, unknown> = {
+    NVO: {
+      symbol: "NVO",
+      companyName: "Novo Nordisk A/S",
+      isActivelyTrading: true,
+      isAdr: true,
+      country: "DK",
+      currency: "USD",
+      exchangeShortName: "NYSE",
+    },
+    ARM: {
+      symbol: "ARM",
+      companyName: "Arm Holdings plc",
+      isActivelyTrading: true,
+      securityType: "Depositary Receipt",
+      country: "GB",
+      currency: "USD",
+      exchangeShortName: "NASDAQ",
+    },
+    TMC: {
+      symbol: "TMC",
+      companyName: "TMC the metals company Inc.",
+      isActivelyTrading: true,
+      country: "CA",
+      currency: "USD",
+      exchangeShortName: "NASDAQ",
+    },
+    BABA: {
+      symbol: "BABA",
+      companyName: "Alibaba Group Holding Limited",
+      isActivelyTrading: true,
+      isADR: true,
+      country: "CN",
+      currency: "USD",
+      exchangeShortName: "NYSE",
+    },
+    SHOP: {
+      symbol: "SHOP",
+      companyName: "Shopify Inc.",
+      isActivelyTrading: true,
+      country: "CA",
+      currency: "USD",
+      exchangeShortName: "NASDAQ",
+    },
+    "BRK-B": {
+      symbol: "BRK-B",
+      companyName: "Berkshire Hathaway Inc.",
+      isActivelyTrading: true,
+      country: "US",
+      currency: "USD",
+      exchangeShortName: "NYSE",
+    },
+    "NOVO-B": {
+      symbol: "NOVO-B",
+      companyName: "Novo Nordisk A/S",
+      isActivelyTrading: true,
+      country: "DK",
+      currency: "DKK",
+      exchangeShortName: "CPH",
+    },
+  };
+  const fetch: FmpFetch = async (input) => {
+    const url = requestUrl(input);
+    if (url.pathname === "/stable/search-symbol") {
+      const query = url.searchParams.get("query");
+      if (query === "ARM") return json([{ symbol: "ARMV" }]);
+      if (query === "TMC") return json([{ symbol: "TMCV" }]);
+      return json([]);
+    }
+    if (url.pathname === "/stable/search-name") {
+      return url.searchParams.get("query") === "Novo Nordisk"
+        ? json([{ symbol: "NVO" }])
+        : json([]);
+    }
+    if (url.pathname === "/stable/profile") {
+      const symbol = url.searchParams.get("symbol") || "";
+      requestedProfiles.push(symbol);
+      return json(profiles[symbol] ? [profiles[symbol]] : []);
+    }
+    return json([], 404);
+  };
+  const provider = createFmpProvider(
+    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { fetch, now: () => new Date(NOW) },
+  );
+
+  const cases = [
+    ["Novo Nordisk", "NVO"],
+    ["ARM", "ARM"],
+    ["TMC", "TMC"],
+    ["BABA", "BABA"],
+    ["SHOP", "SHOP"],
+    ["BRK.B", "BRK-B"],
+  ] as const;
+  for (const [query, expectedSymbol] of cases) {
+    const results = await provider.instrument?.searchUSStocks({ query, limit: 20 }, CONTEXT);
+    assert.equal(results?.[0]?.symbol, expectedSymbol);
+    assert.ok(results?.every((item) => (
+      item.active
+      && item.listingCountry === "US"
+      && item.currency === "USD"
+      && (item.assetType === "common_stock" || item.assetType === "adr")
+    )));
+  }
+
+  const berkshire = await provider.instrument?.getUSStockBySymbol("BRK.B", CONTEXT);
+  assert.equal(berkshire?.symbol, "BRK-B");
+  assert.ok(requestedProfiles.includes("BRK-B"));
+  assert.equal(await provider.instrument?.getUSStockBySymbol("NOVO-B", CONTEXT), null);
 });
 
 test("continues symbol search when one FMP search endpoint is unavailable", async () => {
@@ -364,12 +487,25 @@ test("normalizes quote, bars, profile, fundamentals, earnings, analyst, and news
         return json([{ date: "2027-09-30", estimatedEpsAvg: 8.2, estimatedRevenueAvg: 450, numberAnalystsEstimatedEps: 36 }]);
       case "/stable/news/stock":
         return json([{
+          id: "apple-update",
           title: "Apple announces a product update",
           text: "A concise summary.",
           url: "https://news.example.test/apple-update",
           site: "Example News",
           publishedDate: "2026-08-09 10:30:00",
           image: "https://news.example.test/image.png",
+        }, {
+          id: "apple-update",
+          title: "Duplicate by id",
+          url: "https://news.example.test/other-path",
+          site: "Example News",
+          publishedDate: "2026-08-09 10:31:00",
+        }, {
+          id: "different-id",
+          title: "Duplicate by URL",
+          url: "https://news.example.test/apple-update",
+          site: "Example News",
+          publishedDate: "2026-08-09 10:32:00",
         }]);
       default:
         return json([], 404);
@@ -447,6 +583,7 @@ test("normalizes quote, bars, profile, fundamentals, earnings, analyst, and news
   assert.equal(analyst?.targetConsensus, 250);
   assert.equal(analyst?.analystCount, 36);
   assert.equal(analyst?.forwardEps, 8.2);
+  assert.equal(news.length, 1, "duplicate provider ids or URLs must not create extra stories");
   assert.equal(news[0]?.publisher, "Example News");
   assert.equal(news[0]?.publishedAt, "2026-08-09T10:30:00.000Z");
 
@@ -459,6 +596,85 @@ test("normalizes quote, bars, profile, fundamentals, earnings, analyst, and news
   }
   assert.ok(requests.every((url) => url.searchParams.get("apikey") === SECRET));
   assert.ok(requests.some((url) => url.pathname === "/stable/historical-price-eod/full"));
+});
+
+test("does not fabricate missing quote fields or OHLCV volume", async () => {
+  const completeQuote: Record<string, unknown> = {
+    symbol: "AAPL",
+    price: 225,
+    previousClose: 220,
+    open: 221,
+    dayHigh: 226,
+    dayLow: 219,
+    volume: 42_000_000,
+    timestamp: 1_786_279_200,
+    marketState: "REGULAR",
+  };
+  let quotePayload: Record<string, unknown> = completeQuote;
+  const fetch: FmpFetch = async (input) => {
+    const url = requestUrl(input);
+    if (url.pathname === "/stable/quote") return json([quotePayload]);
+    if (url.pathname === "/stable/historical-price-eod/full") {
+      return json({ historical: [
+        { date: "2026-08-07", open: 218, high: 222, low: 217, close: 220 },
+        { date: "2026-08-08", open: 220, high: 226, low: 219, close: 225, volume: 42 },
+        { date: "2026-08-09", open: 225, high: 227, low: 224, close: 226, volume: 0 },
+        { date: "2026-08-10", open: 0, high: 227, low: 224, close: 226, volume: 42 },
+        { date: "2026-08-11", open: 225, high: 224, low: 223, close: 226, volume: 42 },
+        { date: "2026-08-12", open: 225, high: 227, low: 226, close: 224, volume: 42 },
+        { date: "2026-08-13", open: 225, high: 227, low: 224, close: 226, volume: -1 },
+      ] });
+    }
+    return json([]);
+  };
+  const provider = createFmpProvider(
+    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { fetch, now: () => new Date(NOW) },
+  );
+
+  for (const missingField of ["previousClose", "open", "dayHigh", "dayLow", "volume", "timestamp"]) {
+    quotePayload = { ...completeQuote };
+    delete quotePayload[missingField];
+    assert.equal(
+      await provider.market?.getQuote(INSTRUMENT, CONTEXT),
+      null,
+      missingField,
+    );
+  }
+
+  quotePayload = { ...completeQuote };
+  const derivedQuote = await provider.market?.getQuote(INSTRUMENT, CONTEXT);
+  assert.equal(derivedQuote?.change, 5, "change may be derived from two real prices");
+  assert.ok(Math.abs((derivedQuote?.changePercent ?? 0) - (5 / 220) * 100) < 1e-10);
+
+  const bars = await provider.market?.getBars?.(
+    INSTRUMENT,
+    { range: "1mo", interval: "1d" },
+    CONTEXT,
+  );
+  assert.deepEqual(bars?.items.map((bar) => [bar.time, bar.volume]), [
+    ["2026-08-08T00:00:00.000Z", 42],
+    ["2026-08-09T00:00:00.000Z", 0],
+  ]);
+});
+
+test("all-zero analyst payloads remain unavailable instead of neutral", async () => {
+  const fetch: FmpFetch = async (input) => {
+    const url = requestUrl(input);
+    if (url.pathname === "/stable/price-target-consensus") {
+      return json([{ targetLow: 0, targetHigh: 0, targetConsensus: 0, targetMedian: 0, analystCount: 0 }]);
+    }
+    if (url.pathname === "/stable/grades-consensus") {
+      return json([{ strongBuy: 0, buy: 0, hold: 0, sell: 0, strongSell: 0 }]);
+    }
+    if (url.pathname === "/stable/analyst-estimates") return json([]);
+    return json([]);
+  };
+  const provider = createFmpProvider(
+    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { fetch, now: () => new Date(NOW) },
+  );
+  assert.equal(await provider.analyst?.getConsensus(INSTRUMENT, CONTEXT), null);
 });
 
 test("returns a partial fundamental snapshot when optional upstream datasets are missing", async () => {

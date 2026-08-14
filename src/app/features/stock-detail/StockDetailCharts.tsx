@@ -39,7 +39,7 @@ export type ActualStockPricePoint = Readonly<{
   close: number;
 }>;
 
-type AnalystChartReadout = Readonly<{
+export type AnalystChartReadout = Readonly<{
   date: string;
   low?: number;
   average?: number;
@@ -72,13 +72,19 @@ function isoCalendarDayTimestamp(value: string) {
   return new Date(timestamp).toISOString().slice(0, 10) === value ? timestamp : undefined;
 }
 
-function analystTargetIsFresh(targetDate: string, actualDate: string) {
+function analystTargetIsFresh(targetDate: string, actualDate: string, validityDays = ANALYST_TARGET_VALIDITY_DAYS) {
   const targetTimestamp = isoCalendarDayTimestamp(targetDate);
   const actualTimestamp = isoCalendarDayTimestamp(actualDate);
-  if (targetTimestamp === undefined || actualTimestamp === undefined || actualTimestamp < targetTimestamp) {
+  if (
+    targetTimestamp === undefined
+    || actualTimestamp === undefined
+    || !Number.isFinite(validityDays)
+    || validityDays < 0
+    || actualTimestamp < targetTimestamp
+  ) {
     return false;
   }
-  return actualTimestamp - targetTimestamp <= ANALYST_TARGET_VALIDITY_DAYS * DAY_MS;
+  return actualTimestamp - targetTimestamp < Math.floor(validityDays) * DAY_MS;
 }
 
 function normalizedAnalystLabel(value: string | undefined) {
@@ -149,14 +155,27 @@ function eventIdentity(event: AnalystRatingEvent) {
 
 /**
  * Rebuild a trailing consensus from Midas-normalized Benzinga events.
- * Each point keeps the latest event per analyst/firm observed in the prior year.
+ * Each point keeps the latest event per analyst/firm observed strictly after
+ * the one-year cutoff. The cutoff date itself is not part of the window.
  */
 export function buildAnalystTargetPoints(
   items: readonly AnalystRatingEvent[],
   trailingDays = 365,
+  asOfDate?: string,
 ): readonly AnalystTargetPoint[] {
+  const normalizedTrailingDays = Number.isFinite(trailingDays) && trailingDays >= 0
+    ? Math.floor(trailingDays)
+    : ANALYST_TARGET_VALIDITY_DAYS;
+  const asOfTimestamp = asOfDate === undefined ? undefined : isoCalendarDayTimestamp(asOfDate);
+  if (asOfDate !== undefined && asOfTimestamp === undefined) return Object.freeze([]);
   const events = [...items]
-    .filter((event) => /^\d{4}-\d{2}-\d{2}$/.test(event.sourceEventDate))
+    .filter((event) => (
+      isoCalendarDayTimestamp(event.sourceEventDate) !== undefined
+      && (
+        asOfDate === undefined
+        || analystTargetIsFresh(event.sourceEventDate, asOfDate, normalizedTrailingDays)
+      )
+    ))
     .sort((left, right) => left.eventTime.localeCompare(right.eventTime));
   const byDate = new Map<string, AnalystRatingEvent[]>();
   for (const event of events) {
@@ -165,7 +184,7 @@ export function buildAnalystTargetPoints(
     byDate.set(event.sourceEventDate, current);
   }
 
-  const active = new Map<string, Readonly<{ target: number; eventTime: number }>>();
+  const active = new Map<string, Readonly<{ target: number; observedDate: number }>>();
   const points: AnalystTargetPoint[] = [];
   for (const [date, dateEvents] of [...byDate].sort(([left], [right]) => left.localeCompare(right))) {
     for (const event of dateEvents) {
@@ -173,17 +192,17 @@ export function buildAnalystTargetPoints(
       if (finitePositive(event.effectivePriceTarget) && (!event.currency || event.currency === "USD")) {
         active.set(identity, {
           target: event.effectivePriceTarget,
-          eventTime: Date.parse(event.eventTime),
+          observedDate: isoCalendarDayTimestamp(event.sourceEventDate)!,
         });
       } else {
         active.delete(identity);
       }
     }
 
-    const dateMilliseconds = Date.parse(`${date}T23:59:59Z`);
-    const oldestAllowed = dateMilliseconds - trailingDays * DAY_MS;
+    const dateMilliseconds = isoCalendarDayTimestamp(date)!;
+    const oldestAllowed = dateMilliseconds - normalizedTrailingDays * DAY_MS;
     for (const [identity, value] of active) {
-      if (!Number.isFinite(value.eventTime) || value.eventTime < oldestAllowed) active.delete(identity);
+      if (value.observedDate < oldestAllowed) active.delete(identity);
     }
     const targets = [...active.values()].map((value) => value.target);
     if (targets.length === 0) continue;
@@ -242,6 +261,28 @@ export function extendAnalystTargetPointsToActualPrice(
   ]);
 }
 
+/** Resolve the latest observed close on or before an ISO calendar date. */
+export function actualStockPricePointAtOrBefore(
+  points: readonly ActualStockPricePoint[],
+  date: string,
+): ActualStockPricePoint | undefined {
+  if (isoCalendarDayTimestamp(date) === undefined || points.length === 0) return undefined;
+  let left = 0;
+  let right = points.length - 1;
+  let match: ActualStockPricePoint | undefined;
+  while (left <= right) {
+    const middle = Math.floor((left + right) / 2);
+    const point = points[middle];
+    if (point.date <= date) {
+      match = point;
+      left = middle + 1;
+    } else {
+      right = middle - 1;
+    }
+  }
+  return match;
+}
+
 function marketBarDate(time: string) {
   const timestamp = Date.parse(time);
   if (!Number.isFinite(timestamp)) return null;
@@ -256,7 +297,10 @@ function marketBarDate(time: string) {
  */
 export function buildActualStockPricePoints(
   marketBars: readonly MarketBar[],
+  asOfDate?: string,
 ): readonly ActualStockPricePoint[] {
+  const asOfTimestamp = asOfDate === undefined ? undefined : isoCalendarDayTimestamp(asOfDate);
+  if (asOfDate !== undefined && asOfTimestamp === undefined) return Object.freeze([]);
   const byDate = new Map<string, Readonly<{
     close: number;
     timestamp: number;
@@ -265,6 +309,11 @@ export function buildActualStockPricePoints(
   marketBars.forEach((bar, sourceIndex) => {
     const normalizedTime = marketBarDate(bar.time);
     if (!normalizedTime || !finitePositive(bar.close)) return;
+    const normalizedDateTimestamp = isoCalendarDayTimestamp(normalizedTime.date);
+    if (
+      normalizedDateTimestamp === undefined
+      || (asOfTimestamp !== undefined && normalizedDateTimestamp > asOfTimestamp)
+    ) return;
     const current = byDate.get(normalizedTime.date);
     if (
       !current
@@ -291,12 +340,6 @@ function chartTimeDate(time: Time) {
   const month = String(time.month).padStart(2, "0");
   const day = String(time.day).padStart(2, "0");
   return `${time.year}-${month}-${day}`;
-}
-
-function lineSeriesValue(data: unknown) {
-  if (!data || typeof data !== "object" || !("value" in data)) return undefined;
-  const value = (data as Readonly<{ value?: unknown }>).value;
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function chartBase(host: HTMLDivElement, locale: Locale) {
@@ -360,6 +403,40 @@ function currency(value: number, locale: Locale) {
   }).format(value);
 }
 
+/** A fixed five-row readout prevents hover values from shifting the header. */
+export function AnalystTargetReadout({ readout }: { readout: AnalystChartReadout }) {
+  const { locale, t } = useI18n();
+  const targetRange = [
+    readout.low !== undefined
+      ? t("detail.chart.target.lowReadout", { value: currency(readout.low, locale) })
+      : "",
+    readout.high !== undefined
+      ? t("detail.chart.target.highReadout", { value: currency(readout.high, locale) })
+      : "",
+  ].filter(Boolean).join(" · ");
+  return (
+    <div className="analyst-target-readout" role="status" aria-live="polite">
+      <small>{formatChartDate(readout.date, locale)}</small>
+      <b>
+        {readout.average !== undefined
+          ? t("detail.chart.target.averageReadout", { value: currency(readout.average, locale) })
+          : "\u00a0"}
+      </b>
+      <em>{targetRange || "\u00a0"}</em>
+      <em className="analyst-target-actual-readout">
+        {readout.actualPrice !== undefined
+          ? t("detail.chart.target.actualReadout", { value: currency(readout.actualPrice, locale) })
+          : "\u00a0"}
+      </em>
+      <em>
+        {readout.analystCount !== undefined
+          ? t("detail.chart.target.analystCount", { count: readout.analystCount })
+          : "\u00a0"}
+      </em>
+    </div>
+  );
+}
+
 export function AnalystTargetHistoryChart({
   history,
   marketBars,
@@ -371,25 +448,28 @@ export function AnalystTargetHistoryChart({
   const hostRef = useRef<HTMLDivElement>(null);
   const resourcesRef = useRef<AnalystTargetChartResources | null>(null);
   const [crosshairReadout, setCrosshairReadout] = useState<AnalystCrosshairReadout | null>(null);
+  const allActualPrices = useMemo(
+    () => buildActualStockPricePoints(marketBars, history?.dateTo),
+    [history?.dateTo, marketBars],
+  );
   const points = useMemo(
-    () => buildAnalystTargetPoints(history?.items ?? []),
+    () => buildAnalystTargetPoints(history?.items ?? [], ANALYST_TARGET_VALIDITY_DAYS, history?.dateTo),
     [history],
   );
   const actualPrices = useMemo(() => {
-    const allPrices = buildActualStockPricePoints(marketBars);
     const firstTargetDate = points[0]?.date;
     if (!firstTargetDate) return Object.freeze([]) as readonly ActualStockPricePoint[];
     return Object.freeze(
-      allPrices.filter((point) => point.date >= firstTargetDate),
+      allActualPrices.filter((point) => point.date >= firstTargetDate),
     );
-  }, [marketBars, points]);
+  }, [allActualPrices, points]);
   const plottedTargetPoints = useMemo(
     () => extendAnalystTargetPointsToActualPrice(points, actualPrices),
     [actualPrices, points],
   );
   const latest = points.at(-1);
   const latestActualPrice = actualPrices.at(-1);
-  const targetDataKey = useMemo(() => [
+  const chartDataKey = useMemo(() => [
     history?.instrumentId ?? "",
     ...points.map((point) => [
       point.date,
@@ -398,16 +478,22 @@ export function AnalystTargetHistoryChart({
       point.high,
       point.analystCount,
     ].join(":")),
-  ].join("|"), [history?.instrumentId, points]);
-  const activeCrosshairReadout = crosshairReadout?.dataKey === targetDataKey
+    ...actualPrices.map((point) => `${point.date}:${point.close}`),
+  ].join("|"), [actualPrices, history?.instrumentId, points]);
+  const activeCrosshairReadout = crosshairReadout?.dataKey === chartDataKey
     ? crosshairReadout.value
     : null;
-  const displayedReadout: AnalystChartReadout | null = activeCrosshairReadout ?? (latest ? {
-    date: latest.date,
-    low: latest.low,
-    average: latest.average,
-    high: latest.high,
-    analystCount: latest.analystCount,
+  const latestReadoutDate = latestActualPrice?.date ?? latest?.date;
+  const latestReadoutTarget = latestReadoutDate
+    ? analystTargetPointAtOrBefore(points, latestReadoutDate)
+    : undefined;
+  const displayedReadout: AnalystChartReadout | null = activeCrosshairReadout ?? (latestReadoutDate ? {
+    date: latestReadoutDate,
+    low: latestReadoutTarget?.low,
+    average: latestReadoutTarget?.average,
+    high: latestReadoutTarget?.high,
+    actualPrice: latestActualPrice?.close,
+    analystCount: latestReadoutTarget?.analystCount,
   } : null);
 
   const hasPoints = points.length > 0;
@@ -497,14 +583,15 @@ export function AnalystTargetHistoryChart({
       }
       const date = chartTimeDate(parameter.time);
       const targetPoint = analystTargetPointAtOrBefore(points, date);
+      const actualPricePoint = actualStockPricePointAtOrBefore(actualPrices, date);
       setCrosshairReadout({
-        dataKey: targetDataKey,
+        dataKey: chartDataKey,
         value: {
           date,
           low: targetPoint?.low,
           average: targetPoint?.average,
           high: targetPoint?.high,
-          actualPrice: lineSeriesValue(parameter.seriesData.get(resources.actualPrice)),
+          actualPrice: actualPricePoint?.close,
           analystCount: targetPoint?.analystCount,
         },
       });
@@ -515,28 +602,14 @@ export function AnalystTargetHistoryChart({
         resources.chart.unsubscribeCrosshairMove(handleCrosshairMove);
       }
     };
-  }, [hasPoints, points, targetDataKey]);
+  }, [actualPrices, chartDataKey, hasPoints, points]);
 
   if (!history || !hasPoints) return null;
   return (
     <section className="detail-visual-card analyst-target-visual">
       <header>
         <div><span>PRICE TARGET HISTORY</span><strong>{t("detail.chart.target.title")}</strong></div>
-        {displayedReadout && (
-          <div className="analyst-target-readout" role="status" aria-live="polite">
-            <small>{formatChartDate(displayedReadout.date, locale)}</small>
-            {displayedReadout.average !== undefined && <b>{t("detail.chart.target.averageReadout", { value: currency(displayedReadout.average, locale) })}</b>}
-            {(displayedReadout.low !== undefined || displayedReadout.high !== undefined) && (
-              <em>
-                {displayedReadout.low !== undefined ? t("detail.chart.target.lowReadout", { value: currency(displayedReadout.low, locale) }) : ""}
-                {displayedReadout.low !== undefined && displayedReadout.high !== undefined ? " · " : ""}
-                {displayedReadout.high !== undefined ? t("detail.chart.target.highReadout", { value: currency(displayedReadout.high, locale) }) : ""}
-              </em>
-            )}
-            {displayedReadout.actualPrice !== undefined && <em>{t("detail.chart.target.actualReadout", { value: currency(displayedReadout.actualPrice, locale) })}</em>}
-            {displayedReadout.analystCount !== undefined && <em>{t("detail.chart.target.analystCount", { count: displayedReadout.analystCount })}</em>}
-          </div>
-        )}
+        {displayedReadout && <AnalystTargetReadout readout={displayedReadout} />}
       </header>
       <div
         ref={hostRef}

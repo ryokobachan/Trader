@@ -12,6 +12,7 @@ import {
   createTradingViewSidecarProvider,
   TradingViewSidecarError,
   tradingViewCandleCount,
+  tradingViewMarketSessionState,
   tradingViewWebsocketProviderRegistration,
   type TradingViewSidecarFetch,
 } from "../api/tradingview-websocket/index.server";
@@ -97,6 +98,24 @@ test("publishes a market-data-only TradingView websocket provider manifest", () 
   ]);
 });
 
+test("strictly maps TradingView current_session values with a clock fallback for unknowns", () => {
+  for (const value of ["market", "regular"] as const) {
+    assert.equal(tradingViewMarketSessionState(value), "regular");
+  }
+  for (const value of ["pre_market", "premarket"] as const) {
+    assert.equal(tradingViewMarketSessionState(value), "pre_market");
+  }
+  for (const value of ["post_market", "postmarket", "after_hours"] as const) {
+    assert.equal(tradingViewMarketSessionState(value), "after_hours");
+  }
+  for (const value of ["closed", "out_of_session", "holiday", "night"] as const) {
+    assert.equal(tradingViewMarketSessionState(value), "closed");
+  }
+  for (const value of ["extended", "MARKET", "", null, 1]) {
+    assert.equal(tradingViewMarketSessionState(value), null);
+  }
+});
+
 test("keeps adapter defaults available while allowing the chart's 10,000-bar request", () => {
   const intervals: readonly MarketBarInterval[] = ["1m", "5m", "15m", "1h", "4h", "1d", "1wk", "1mo"];
   for (const interval of intervals) {
@@ -156,7 +175,7 @@ test("normalizes bars and direct USD quote while keeping the sidecar token out o
   assert.equal(quote?.price, 315);
   assert.equal(quote?.previousClose, 312);
   assert.equal(quote?.change, 3);
-  assert.equal(quote?.marketState, "closed");
+  assert.equal(quote?.marketState, "regular");
   assert.equal(quote?.currency, "USD");
   assert.equal(quote?.provenance.sourceId, "tradingview-websocket:NASDAQ:AAPL:realtime-quote");
   assert.equal(requests[0]?.searchParams.get("exchange"), "NASDAQ");
@@ -167,6 +186,85 @@ test("normalizes bars and direct USD quote while keeping the sidecar token out o
   assert.deepEqual(requestBodies, [{ items: [{ symbol: "AAPL", mic: "XNAS" }] }]);
   assert.ok(!JSON.stringify(requestBodies).includes("USDT.P"));
   assert.ok(requests.every((url) => !url.toString().includes(secret)));
+});
+
+test("preserves explicit zero volume and rejects malformed OHLCV candles", async () => {
+  const validZeroVolume = {
+    time: "2026-08-07T13:30:00Z",
+    open: 100,
+    high: 102,
+    low: 99,
+    close: 101,
+    volume: 0,
+  };
+  let currentItem: Record<string, unknown> = validZeroVolume;
+  const adapter = createTradingViewSidecarProvider({
+    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+  }, {
+    fetch: async (input) => {
+      const url = new URL(String(input));
+      const interval = url.searchParams.get("interval") as MarketBarInterval;
+      const range = url.searchParams.get("range") as MarketBarRange;
+      const requestedCount = Number(url.searchParams.get("count"));
+      return json({
+        ...payload(interval, range, requestedCount),
+        returnedCount: 1,
+        items: [currentItem],
+      });
+    },
+  });
+
+  const valid = await adapter.market!.getBars!(INSTRUMENT, { range: "5d", interval: "5m" });
+  assert.equal(valid?.items[0]?.volume, 0);
+
+  const missingVolume = {
+    time: validZeroVolume.time,
+    open: validZeroVolume.open,
+    high: validZeroVolume.high,
+    low: validZeroVolume.low,
+    close: validZeroVolume.close,
+  };
+  const malformed: readonly Record<string, unknown>[] = [
+    missingVolume,
+    { ...validZeroVolume, volume: null },
+    { ...validZeroVolume, volume: -1 },
+    ...(["open", "high", "low", "close"] as const).map((field) => ({
+      ...validZeroVolume,
+      [field]: 0,
+    })),
+    { ...validZeroVolume, open: 103 },
+    { ...validZeroVolume, low: 101.5 },
+  ];
+  for (const item of malformed) {
+    currentItem = item;
+    await assert.rejects(
+      () => adapter.market!.getBars!(INSTRUMENT, { range: "5d", interval: "5m" }),
+      (error: unknown) => error instanceof TradingViewSidecarError && error.code === "invalid_response",
+    );
+  }
+});
+
+test("does not trust a cached market session while the realtime source reconnects", async () => {
+  const adapter = createTradingViewSidecarProvider({
+    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+  }, {
+    fetch: async () => json({
+      ...realtimePayload(),
+      state: "reconnecting",
+      items: [{
+        ...realtimePayload().items[0],
+        session: "out_of_session",
+        updatedAt: "2026-08-10T13:29:00Z",
+        stale: true,
+      }],
+      ingestedAt: "2026-08-10T13:30:00Z",
+    }),
+    now: () => new Date("2026-08-10T13:30:00Z"),
+  });
+
+  const quote = await adapter.market!.getQuote(INSTRUMENT, { requestId: "reconnecting-quote" });
+  assert.equal(quote?.price, 315, "the last validated price may remain visible");
+  assert.equal(quote?.marketState, "regular", "the stale closed session must fall back to the clock");
 });
 
 test("keeps quote and chart-bar provider selection independent", () => {

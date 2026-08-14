@@ -23,8 +23,10 @@ to restore a user's list.
 | `PATCH` | `/api/v1/watchlists/:watchlistId/items/reorder` | Replace the complete item order |
 | `GET` | `/api/v1/watchlists/quotes/stream?symbols=AAPL,NVDA` | Stream direct-listing USD quotes over same-origin SSE |
 | `POST` | `/api/v1/watchlists/quotes` | Batch-fetch current quotes without persisting provider data |
+| `POST` | `/api/v1/watchlists/quotes/poll` | Wait over ordinary HTTPS for the next direct-listing USD quote |
 | `GET` | `/api/v1/watchlists/after-hours/stream?symbols=AAPL,NVDA` | Stream ticker-derived USDT perpetual reference prices |
 | `POST` | `/api/v1/watchlists/after-hours` | Batch-fetch ticker-derived USDT perpetual closes |
+| `POST` | `/api/v1/watchlists/after-hours/poll` | Wait over ordinary HTTPS for the next changed USDT perpetual close |
 
 The add-item body is:
 
@@ -65,7 +67,8 @@ database or provider details. Persisted and watchlist-provider routes return
 
 ## Current quote stream and snapshot fallback
 
-The primary browser path is `GET /api/v1/watchlists/quotes/stream` with one
+When a configured local sidecar is available, the primary browser path is
+`GET /api/v1/watchlists/quotes/stream` with one
 comma-separated `symbols` query value. It accepts 1–50 unique canonical
 U.S.-equity tickers and emits `unicorn.watchlist-quote-stream.v1` quote events.
 The TradingView adapter maps each resolved instrument MIC to its direct USD
@@ -81,6 +84,28 @@ window, or if SSE disconnects, the browser keeps the last good value and uses
 `POST /api/v1/watchlists/quotes` every 15 seconds as a snapshot fallback. It
 reconnects immediately after focus, visibility, or network connectivity returns
 and closes the stream while the tab is hidden.
+
+On Sites, where the authenticated frontend does not preserve downstream
+WebSocket/SSE frames, the browser instead keeps exactly one ordinary HTTPS
+`POST /api/v1/watchlists/quotes/poll` request open. The Worker opens the same
+TradingView guest quote session for the direct USD listing IDs, waits up to 20
+seconds for a price or observation-time change, returns one completed JSON
+response, and the browser immediately issues the next request. Snapshot polling
+continues every 15 seconds only as a safety fallback. Each held request is
+aborted while the tab is hidden or its symbol set changes.
+
+The current-quote snapshot response includes an explicit `dataMode` of
+`provider` or `fixture`, determined by the selected instrument and market
+providers. If either role uses the mock provider, the whole response is
+`fixture`; only production providers in both roles return `provider`. The browser merges quote values and market-session
+observations only from `provider` responses, so mock prices cannot appear as
+live watchlist data. The response also includes `streamSupported`. The browser
+opens or reconnects the current-quote EventSource only when `dataMode` is
+`provider` and `streamSupported` is `true`; the SSE route rejects fixture
+providers as well. When the completed snapshot advertises
+`longPollSupported`, the browser uses the HTTPS wait path instead of creating
+an unsupported stream. This does not select or alter the separate
+`{TICKER}USDT.P` reference-price source below.
 
 The non-persistent snapshot body is `{ "symbols": ["AAPL", "NVDA"] }` and has
 the same 1–50-symbol limit. A batch-capable adapter performs one upstream
@@ -99,22 +124,48 @@ server-side bearer token; it cannot connect to `127.0.0.1` on a developer Mac.
 
 `GET /api/v1/watchlists/after-hours/stream` accepts the same comma-separated,
 1–50-symbol boundary as the current-quote stream. It emits
-`unicorn.watchlist-after-hours-stream.v1` quote messages. The sidecar derives
-all `{TICKER}USDT.P` candidates from its server-owned exchange order and adds
-them to the same process-wide TradingView quote websocket used by direct USD
-listings. Browser input therefore cannot select a raw TradingView source.
+`unicorn.watchlist-after-hours-stream.v1` quote messages. The local sidecar
+opens the TradingView guest quote websocket,
+derive every `{TICKER}USDT.P` candidate from the server-owned exchange order,
+and use the same auth/session/field/subscription/heartbeat protocol. Browser
+input therefore cannot select a raw TradingView source. The local sidecar can
+share that upstream session with direct USD listings.
 
-The first configured exchange with a usable tick wins; a lower-priority source
-is used until a higher-priority source becomes available. Removing the
+On Sites, the browser uses one ordinary HTTPS
+`POST /api/v1/watchlists/after-hours/poll` request because the frontend does
+not preserve downstream realtime frames. The Worker opens the same guest quote
+session internally, waits for the next changed canonical `{TICKER}USDT.P`
+value or a 20-second timeout, returns completed JSON, and closes the upstream
+socket. The browser immediately repeats successful requests and backs off only
+after an error. This changes the browser transport only; source IDs, exchange
+order, USDT contract validation, and UI presentation remain unchanged.
+
+The first configured exchange with a usable tick wins within the current
+freshness cohort. For each ticker, a candidate that is five minutes or more
+behind that snapshot's freshest candidate is not considered usable, so a stale
+higher-priority venue cannot mask a clearly newer lower-priority venue. Because
+these contracts trade continuously, a tick older than five minutes is never
+presented as current. Exactly five minutes remains usable; after that boundary
+the snapshot returns `close: null` and an SSE/client-held value is cleared.
+Removing the
 reference stream removes only its ref-counted symbols and does not close the
 direct-listing stream. The browser should ignore older `updatedAt` values,
-retain the last good value, and use the POST endpoint below as its reconnect
-fallback.
+retain a last good value only until that same five-minute boundary, and use the
+POST endpoint below as its reconnect fallback. A transient network failure
+therefore cannot leave an old USDT.P value displayed indefinitely.
 
 The non-persistent reference-price request is `{ "symbols": ["AAPL", "NVDA"] }`
-and accepts 1–50 unique canonical U.S.-equity tickers. The API makes one
-loopback call to the configured TradingView sidecar, so the browser never
-performs one request per watchlist row. Response schema
+and accepts 1–50 unique canonical U.S.-equity tickers. When the TradingView
+sidecar URL is configured, the API makes one authenticated sidecar call. In a
+Worker runtime without a sidecar URL, the snapshot endpoint uses one
+server-side TradingView crypto-scanner request for the same ordered candidates,
+while the HTTPS long-poll endpoint opens the same TradingView quote websocket
+used locally. The hosted snapshot advertises long-poll support instead of SSE.
+Neither path is selected by
+the ordinary equity `market` provider, and neither may silently substitute a
+direct USD equity quote. The browser never chooses a raw TradingView source or
+performs one upstream request per watchlist row.
+Response schema
 `unicorn.watchlist-after-hours.v1` includes `source`, the exact `sourceSymbol`,
 and `updatedAt` on every item. A missing `{TICKER}USDT.P` contract is represented
 as `close: null`; clients render it as `-`. These reference values are market
@@ -123,3 +174,6 @@ synthetic USDT perpetual reference values, not the direct USD equity quotes
 delivered by the current-quote stream and snapshot endpoints. The canonical
 currency remains `USDT`; a UI label of `USD` is presentation copy, not a change
 to the upstream contract or source symbol.
+Snapshot-only clients poll every 15 seconds, accept only non-older upstream
+timestamps, and prune values independently when their five-minute lifetime
+expires.

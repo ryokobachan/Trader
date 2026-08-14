@@ -1,5 +1,8 @@
 import type { UiModuleDensity } from "./ui-module-registry";
-import type { SyntheticLatestClose } from "./provider-contracts";
+import {
+  isFreshSyntheticLatestClose,
+  type SyntheticLatestClose,
+} from "./provider-contracts";
 
 export type SymbolSummaryStock = Readonly<{
   ticker: string;
@@ -45,8 +48,8 @@ export type SymbolSummaryIntelligence = Readonly<{
   exDividend: string;
   description: string;
   averageVolume30d: string;
-  dayRangePosition: number;
-  yearRangePosition: number;
+  dayRangePosition: number | null;
+  yearRangePosition: number | null;
   yearLow: string;
   yearHigh: string;
   beta: string;
@@ -86,10 +89,10 @@ export type SymbolSummaryPriceTone = "positive" | "negative-text" | "neutral";
 export function validSummaryAfterHoursClose(
   stock: Pick<SymbolSummaryStock, "ticker">,
   afterHours?: SyntheticLatestClose,
+  observedAtMilliseconds = Date.now(),
 ) {
   if (afterHours?.symbol.trim().toUpperCase() !== stock.ticker.trim().toUpperCase()) return null;
-  const close = afterHours.close;
-  return close !== null && Number.isFinite(close) && close > 0 ? close : null;
+  return isFreshSyntheticLatestClose(afterHours, observedAtMilliseconds) ? afterHours.close : null;
 }
 
 export function compareSummaryPrices(currentPrice: number, referencePrice: number | null): SymbolSummaryPriceTone {
@@ -100,7 +103,7 @@ export function compareSummaryPrices(currentPrice: number, referencePrice: numbe
 }
 
 export function formatSummaryAfterHoursPrice(value: number | null) {
-  if (value === null) return "-";
+  if (value === null) return "—";
   return value.toLocaleString("ja-JP", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -108,7 +111,7 @@ export function formatSummaryAfterHoursPrice(value: number | null) {
 }
 
 export function formatSummaryCurrentPrice(stock: SymbolSummaryStock) {
-  if (!Number.isFinite(stock.price) || stock.price <= 0) return "-";
+  if (!Number.isFinite(stock.price) || stock.price <= 0) return "—";
   const usesFractionalPrice = stock.currency === "$";
   return stock.price.toLocaleString("ja-JP", {
     minimumFractionDigits: usesFractionalPrice ? 2 : 0,
@@ -117,6 +120,7 @@ export function formatSummaryCurrentPrice(stock: SymbolSummaryStock) {
 }
 
 export function formatSymbolPrice(stock: SymbolSummaryStock, value = stock.price) {
+  if (!Number.isFinite(value) || value <= 0) return "—";
   const usesFractionalPrice = stock.currency === "$";
   return `${stock.currency}${value.toLocaleString("ja-JP", {
     minimumFractionDigits: usesFractionalPrice ? 2 : 0,
@@ -124,7 +128,7 @@ export function formatSymbolPrice(stock: SymbolSummaryStock, value = stock.price
   })}`;
 }
 
-export function clampPercent(value: number) {
-  if (!Number.isFinite(value)) return 0;
+export function clampPercent(value: number | null) {
+  if (value === null || !Number.isFinite(value)) return null;
   return Math.min(100, Math.max(0, value));
 }

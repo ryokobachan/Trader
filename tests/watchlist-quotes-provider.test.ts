@@ -13,6 +13,9 @@ import type {
 import {
   isUsableCurrentQuote,
   loadWatchlistQuotes,
+  providerDataMode,
+  watchlistQuoteCacheSegment,
+  watchlistQuoteDataMode,
 } from "../src/app/platform/watchlist-quotes.server";
 
 const AS_OF = "2026-08-09T10:00:00.000Z";
@@ -154,6 +157,86 @@ test("uses one market batch and caches instrument identities between refreshes",
   assert.deepEqual(second.map((item) => item.quote?.price ?? null), [312.5, null, null]);
 });
 
+test("quote batch cache cannot cross the exact New York open or close boundary", async () => {
+  assert.equal(
+    watchlistQuoteCacheSegment(new Date("2026-07-06T13:29:59.999Z")),
+    "2026-07-06:pre",
+  );
+  assert.equal(
+    watchlistQuoteCacheSegment(new Date("2026-07-06T13:30:00.000Z")),
+    "2026-07-06:regular",
+  );
+  assert.equal(
+    watchlistQuoteCacheSegment(new Date("2026-07-06T19:59:59.999Z")),
+    "2026-07-06:regular",
+  );
+  assert.equal(
+    watchlistQuoteCacheSegment(new Date("2026-07-06T20:00:00.000Z")),
+    "2026-07-06:post",
+  );
+  assert.equal(
+    watchlistQuoteCacheSegment(new Date("2026-01-05T14:30:00.000Z")),
+    "2026-01-05:regular",
+    "winter EST must use the 14:30Z open",
+  );
+
+  let batchCalls = 0;
+  const instruments: InstrumentProvider = {
+    searchUSStocks: async () => [],
+    getUSStockBySymbol: async (symbol) => instrument(symbol),
+  };
+  const market: MarketDataProvider = {
+    getQuote: async (value) => quote(value, 312.5),
+    getQuotes: async (values) => {
+      batchCalls += 1;
+      return values.map((value) => quote(value, 312.5));
+    },
+  };
+  const runtime = {
+    instrument: instruments,
+    market,
+    selectedProviderIds: {
+      instrument: "market-boundary-identity-fixture",
+      market: "market-boundary-market-fixture",
+      bars: "market-boundary-market-fixture",
+    },
+  } as const;
+
+  await loadWatchlistQuotes(
+    ["AAPL"],
+    runtime,
+    { requestId: "market-boundary-pre-first" },
+    1,
+    new Date("2026-09-07T13:29:55.000Z"),
+  );
+  await loadWatchlistQuotes(
+    ["AAPL"],
+    runtime,
+    { requestId: "market-boundary-pre-cached" },
+    1,
+    new Date("2026-09-07T13:29:59.000Z"),
+  );
+  await loadWatchlistQuotes(
+    ["AAPL"],
+    runtime,
+    { requestId: "market-boundary-open-forced" },
+    1,
+    new Date("2026-09-07T13:30:00.025Z"),
+  );
+
+  assert.equal(batchCalls, 2, "the 09:30 forced refresh must bypass the pre-open cache");
+});
+
+test("watchlist quote data mode rejects mock identity or market providers", () => {
+  assert.equal(providerDataMode("fmp", "benzinga", "yahoo"), "provider");
+  assert.equal(providerDataMode("fmp", undefined, "mock"), "fixture");
+  assert.equal(watchlistQuoteDataMode("mock", "fmp"), "fixture");
+  assert.equal(watchlistQuoteDataMode("fmp", "mock"), "fixture");
+  assert.equal(watchlistQuoteDataMode("mock", "mock"), "fixture");
+  assert.equal(watchlistQuoteDataMode("yahoo", "tradingview-websocket"), "provider");
+  assert.equal(watchlistQuoteDataMode("fmp", "fmp"), "provider");
+});
+
 test("watchlist quotes API returns one ordered batch with positive prices", async () => {
   const previousInstrument = process.env.UNICORN_INSTRUMENT_PROVIDER;
   const previousMarket = process.env.UNICORN_MARKET_PROVIDER;
@@ -171,6 +254,8 @@ test("watchlist quotes API returns one ordered batch with positive prices", asyn
     assert.deepEqual(payload.items.map((item) => item.symbol), ["AAPL", "NVDA"]);
     assert.ok(payload.items.every((item) => item.quote !== null && item.quote.price > 0));
     assert.deepEqual(payload.selectedProviders, { instrument: "mock", market: "mock" });
+    assert.equal(payload.dataMode, "fixture");
+    assert.equal(payload.streamSupported, false);
   } finally {
     if (previousInstrument === undefined) delete process.env.UNICORN_INSTRUMENT_PROVIDER;
     else process.env.UNICORN_INSTRUMENT_PROVIDER = previousInstrument;
@@ -200,13 +285,21 @@ test("watchlist UI refreshes visible quotes and resumes immediately after tab or
   assert.match(pageSource, /\/api\/v1\/watchlists\/quotes/);
   assert.match(pageSource, /watchlistQuoteStock\(item, next\[item\.symbol\]\)/);
   assert.match(pageSource, /WATCHLIST_QUOTE_REFRESH_MS = 15_000/);
-  assert.match(pageSource, /WATCHLIST_AFTER_HOURS_REFRESH_MS = 60_000/);
-  assert.match(pageSource, /WATCHLIST_SESSION_STATE_REFRESH_MS = 60_000/);
+  assert.match(pageSource, /WATCHLIST_AFTER_HOURS_REFRESH_MS = 15_000/);
+  assert.match(pageSource, /WATCHLIST_SESSION_STATE_REFRESH_MS = 15_000/);
   assert.match(pageSource, /scheduleSessionStateRefresh\(\)/);
   assert.match(pageSource, /window\.setTimeout\(\(\) => \{\s*refreshTimer = undefined;\s*refresh\(\);\s*\}, WATCHLIST_QUOTE_REFRESH_MS\)/);
   assert.match(pageSource, /requestInFlight/);
+  assert.match(pageSource, /providerQuotesEnabled = response\.dataMode === "provider"/);
+  assert.match(pageSource, /streamSupported = providerQuotesEnabled && response\.streamSupported === true/);
+  assert.match(pageSource, /streamSupported !== true/);
+  assert.match(pageSource, /if \(streamSupported === true\) connectStream\(\)/);
+  assert.match(pageSource, /if \(!providerQuotesEnabled\) return;/);
+  assert.match(pageSource, /if \(!providerQuotesEnabled \|\| !symbolSet\.has\(symbol\)\) return;/);
+  assert.match(pageSource, /quoteResponse\?\.dataMode === "provider" \? quoteResponse\.items : \[\]/);
   assert.match(pageSource, /window\.addEventListener\("focus", refreshNow\)/);
   assert.match(pageSource, /window\.addEventListener\("online", refreshNow\)/);
+  assert.match(pageSource, /window\.addEventListener\("pageshow", refreshNow\)/);
   assert.match(pageSource, /document\.addEventListener\("visibilitychange", handleVisibilityChange\)/);
   assert.match(pageSource, /document\.hidden/);
   assert.match(pageSource, /!Number\.isFinite\(value\) \|\| value <= 0 \? "-"/);

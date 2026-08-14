@@ -103,6 +103,9 @@ function normalizedPeriod(value: number | undefined, fallback: number, minimum =
 export function finiteMarketBars(bars: readonly MarketBar[]): readonly MarketBar[] {
   return bars.filter((bar) => {
     if (![bar.open, bar.high, bar.low, bar.close, bar.volume].every(Number.isFinite)) return false;
+    if (bar.open <= 0 || bar.high <= 0 || bar.low <= 0 || bar.close <= 0 || bar.volume < 0) return false;
+    if (bar.high < Math.max(bar.open, bar.close, bar.low)) return false;
+    if (bar.low > Math.min(bar.open, bar.close, bar.high)) return false;
     return typeof bar.time === "string" && Number.isFinite(Date.parse(bar.time));
   });
 }

@@ -10,6 +10,7 @@ import { ProviderRegistryError } from "../../../../../platform/provider-registry
 import {
   isUsableCurrentQuote,
   loadWatchlistInstruments,
+  watchlistQuoteDataMode,
 } from "../../../../../platform/watchlist-quotes.server";
 import {
   requestOwnerErrorResponse,
@@ -72,7 +73,13 @@ export async function GET(request: Request) {
 
   try {
     const runtime = createProviderRuntime(providerEnvironment());
-    if (!runtime.market.getQuoteStream) {
+    if (
+      watchlistQuoteDataMode(
+        runtime.selectedProviderIds.instrument,
+        runtime.selectedProviderIds.market,
+      ) !== "provider"
+      || !runtime.market.getQuoteStream
+    ) {
       return errorResponse(
         409,
         "stream_not_configured",

@@ -491,10 +491,15 @@ function normalizedEvent(
   const actionCompany = stringValue(row.action_company);
   const actionPriceTarget = stringValue(row.action_pt);
   const ratingCurrent = stringValue(row.rating_current);
-  const priceTarget = numberValue(row.pt_current);
-  const previousPriceTarget = numberValue(row.pt_prior);
-  const adjustedPriceTarget = numberValue(row.adjusted_pt_current);
-  const adjustedPreviousPriceTarget = numberValue(row.adjusted_pt_prior);
+  const currency = stringValue(row.currency)?.toUpperCase();
+  // Benzinga sometimes mixes non-USD target events into a U.S. ticker feed.
+  // Keep the rating event, but never relabel an explicitly non-USD target as USD.
+  // A missing currency inherits the requested U.S. instrument's USD contract.
+  const targetsAreUsd = !currency || currency === "USD";
+  const priceTarget = targetsAreUsd ? positiveNumber(row.pt_current) : undefined;
+  const previousPriceTarget = targetsAreUsd ? positiveNumber(row.pt_prior) : undefined;
+  const adjustedPriceTarget = targetsAreUsd ? positiveNumber(row.adjusted_pt_current) : undefined;
+  const adjustedPreviousPriceTarget = targetsAreUsd ? positiveNumber(row.adjusted_pt_prior) : undefined;
   const ratingsAccuracy = isRecord(row.ratings_accuracy) ? row.ratings_accuracy : {};
   const target = positiveNumber(adjustedPriceTarget) ?? positiveNumber(priceTarget);
   return {
@@ -512,7 +517,7 @@ function normalizedEvent(
     symbol,
     companyName: stringValue(row.name),
     exchange: stringValue(row.exchange),
-    currency: stringValue(row.currency)?.toUpperCase(),
+    currency,
     cusip: stringValue(row.cusip),
     isin: stringValue(row.isin),
     analystFirm,

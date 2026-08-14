@@ -45,11 +45,54 @@ test("realtime upstream derives USD listing IDs and maintains one reconnecting q
   assert.match(source, /"low": optional_positive\("low_price"\)/);
 });
 
+test("Python candle normalization drops incomplete or malformed OHLCV without synthesizing volume", () => {
+  const script = String.raw`
+import importlib.util
+import sys
+
+path = sys.argv[1]
+spec = importlib.util.spec_from_file_location("unicorn_sidecar", path)
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+timestamp = 1786109400
+valid_zero_volume = {"v": [timestamp, 100.0, 102.0, 99.0, 101.0, 0.0]}
+invalid = [
+    {"v": [timestamp + 1, 100.0, 102.0, 99.0, 101.0]},
+    {"v": [timestamp + 2, 100.0, 102.0, 99.0, 101.0, None]},
+    {"v": [timestamp + 3, 100.0, 102.0, 99.0, 101.0, float("nan")]},
+    {"v": [timestamp + 4, 100.0, 102.0, 99.0, 101.0, -1.0]},
+    {"v": [timestamp + 5, 0.0, 102.0, 99.0, 101.0, 10.0]},
+    {"v": [timestamp + 6, 100.0, 99.0, 98.0, 101.0, 10.0]},
+    {"v": [timestamp + 7, 100.0, 102.0, 101.5, 101.0, 10.0]},
+]
+rows = module.normalize_rows([valid_zero_volume, *invalid])
+assert len(rows) == 1
+assert rows[0]["volume"] == 0.0
+
+try:
+    module.normalize_rows(invalid)
+except ValueError as error:
+    assert str(error) == "TradingView returned no usable bars"
+else:
+    raise AssertionError("malformed OHLCV rows were accepted")
+
+print("ok")
+`;
+  const result = spawnSync("python3", ["-c", script, SIDECAR_URL.pathname], {
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(result.stdout.trim(), "ok");
+});
+
 test("Python realtime contract rejects raw IDs, preserves order, merges deltas, and drops stale updates", () => {
   const script = String.raw`
 import importlib.util
 import queue
 import sys
+import threading
+import time
 
 path = sys.argv[1]
 spec = importlib.util.spec_from_file_location("unicorn_sidecar", path)
@@ -124,8 +167,65 @@ assert not broker._publish_quote("NASDAQ:AAPL", {
     "currency_code": "USDT",
 })
 
+# A reconnect starts a new upstream generation. Cached quote/session fields
+# from the previous socket must disappear until a fresh qsd is received.
+broker._publish_status("reconnecting")
+assert "NASDAQ:AAPL" not in broker._latest
+assert "NASDAQ:AAPL" not in broker._raw_quote_values
+assert "NASDAQ:AAPL" not in broker._latest_epoch
+reconnecting_snapshot = broker._ordered_snapshot_locked(items)
+assert reconnecting_snapshot[0]["price"] is None
+assert reconnecting_snapshot[0]["session"] is None
+
 broker.unsubscribe(subscriber.subscriber_id)
 broker.close()
+
+# A snapshot waiting for one symbol must not combine another symbol retained
+# in its local map from the previous websocket generation with fresh data from
+# the replacement connection.
+race = module.RealtimeQuoteBroker(2.0)
+race_subscriber, _ = race.subscribe(items, "race-stream-owner")
+race._publish_status("connected")
+assert race._publish_quote("NASDAQ:AAPL", {
+    "lp": 210.0,
+    "lp_time": 1786147199,
+    "currency_code": "USD",
+    "prev_close_price": 208.0,
+    "current_session": "out_of_session",
+})
+race_result = {}
+
+def wait_for_race_snapshot():
+    race_result["items"], race_result["state"] = race.wait_for_snapshot(
+        items,
+        "race-snapshot-owner",
+        1.0,
+    )
+
+race_thread = threading.Thread(target=wait_for_race_snapshot)
+race_thread.start()
+deadline = time.monotonic() + 1.0
+while len(race._subscribers) < 2 and time.monotonic() < deadline:
+    time.sleep(0.005)
+assert len(race._subscribers) == 2
+race._publish_status("reconnecting")
+race._publish_status("connected")
+assert race._publish_quote("NASDAQ:NBIS", {
+    "lp": 187.97,
+    "lp_time": 1786147200,
+    "currency_code": "USD",
+    "prev_close_price": 189.88,
+    "current_session": "market",
+})
+race_thread.join(timeout=2.0)
+assert not race_thread.is_alive()
+assert race_result["state"] == "connected"
+assert race_result["items"][0]["price"] is None
+assert race_result["items"][0]["session"] is None
+assert race_result["items"][2]["price"] == 187.97
+assert race_result["items"][2]["session"] == "market"
+race.unsubscribe(race_subscriber.subscriber_id)
+race.close()
 
 # Long-lived streams and one-shot workspace snapshots use separate bounded
 # capacity. Saturating the local stream pool must not make getQuote fail.

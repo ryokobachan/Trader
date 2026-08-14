@@ -170,6 +170,7 @@ function sparkResponse(
         exchangeName: "NMS",
         instrumentType: "EQUITY",
         chartPreviousClose: previousClose,
+        regularMarketOpen: closes[0],
         regularMarketDayHigh: Math.max(...closes),
         regularMarketDayLow: Math.min(...closes),
         regularMarketVolume: 1_000_000,
@@ -526,6 +527,49 @@ test("batches Spark quotes in one request, preserves input order, and drops inva
   assert.equal(quotes[0]?.provenance.sourceUrl?.includes("AAPL"), false);
 });
 
+test("rejects Chart and Spark quotes when daily OHLCV metadata is unavailable", async (t) => {
+  const fields = [
+    "regularMarketOpen",
+    "regularMarketDayHigh",
+    "regularMarketDayLow",
+    "regularMarketVolume",
+  ] as const;
+  let path: "chart" | "spark" = "chart";
+  let missingField: typeof fields[number] = fields[0];
+  t.mock.method(globalThis, "fetch", async () => {
+    if (path === "chart") {
+      const payload = chartPayload();
+      delete (payload.chart.result[0]!.meta as Record<string, unknown>)[missingField];
+      return jsonResponse(payload);
+    }
+    return jsonResponse({
+      spark: {
+        error: null,
+        result: [sparkResponse("AAPL", 225, [226, 229.5], {
+          [missingField]: undefined,
+        })],
+      },
+    });
+  });
+  const adapter = yahooProviderRegistration.create(ENABLED_ENV);
+
+  for (const field of fields) {
+    missingField = field;
+    path = "chart";
+    assert.equal(
+      await adapter.market?.getQuote(AAPL, { requestId: `chart-missing-${field}` }),
+      null,
+      `Chart ${field}`,
+    );
+    path = "spark";
+    assert.deepEqual(
+      await adapter.market?.getQuotes?.([AAPL], { requestId: `spark-missing-${field}` }),
+      [],
+      `Spark ${field}`,
+    );
+  }
+});
+
 test("does not call Spark when no valid symbols are provided", async (t) => {
   const fetchMock = t.mock.method(globalThis, "fetch", async () => {
     throw new Error("unexpected request");
@@ -563,6 +607,63 @@ test("returns raw Chart bars and drops rows with null OHLC values", async (t) =>
   assert.equal(bars?.items.length, 2);
   assert.deepEqual(bars?.items.map((bar) => bar.close), [226.5, 229.5]);
   assert.deepEqual(bars?.items.map((bar) => bar.adjustedClose), [226.25, 229.25]);
+});
+
+test("drops complete-price bars and Spark quotes when real volume is missing", async (t) => {
+  let requestKind: "chart" | "spark" = "chart";
+  t.mock.method(globalThis, "fetch", async () => {
+    if (requestKind === "chart") {
+      const payload = chartPayload();
+      const result = payload.chart.result[0]!;
+      result.indicators.quote[0]!.open[1] = 227;
+      result.indicators.quote[0]!.high[1] = 229;
+      result.indicators.quote[0]!.low[1] = 226;
+      result.indicators.quote[0]!.close[1] = 228;
+      const quote = result.indicators.quote[0]!;
+      const adjusted = result.indicators.adjclose[0]!.adjclose;
+      const lastTimestamp = result.timestamp.at(-1)!;
+      result.timestamp.push(
+        lastTimestamp + 300,
+        lastTimestamp + 600,
+        lastTimestamp + 900,
+        lastTimestamp + 1_200,
+        lastTimestamp + 1_500,
+      );
+      quote.open.push(0, 230, 230, 230, 230);
+      quote.high.push(232, 229, 232, 232, 233);
+      quote.low.push(229, 228, 231, 229, 229);
+      quote.close.push(231, 231, 229, 231, 233);
+      quote.volume.push(100, 100, 100, -1, 0);
+      adjusted.push(231, 231, 229, 231, 233);
+      return jsonResponse(payload);
+    }
+    return jsonResponse({
+      spark: {
+        error: null,
+        result: [sparkResponse("AAPL", 225, [226, 229.5], {
+          regularMarketVolume: undefined,
+        })],
+      },
+    });
+  });
+  const adapter = yahooProviderRegistration.create(ENABLED_ENV);
+  const bars = await adapter.market?.getBars?.(
+    AAPL,
+    { range: "1mo", interval: "1d" },
+    { requestId: "missing-volume-bars" },
+  );
+  assert.deepEqual(bars?.items.map((bar) => [bar.close, bar.volume]), [
+    [226.5, 1000],
+    [229.5, 1400],
+    [233, 0],
+  ]);
+
+  requestKind = "spark";
+  const quotes = await adapter.market?.getQuotes?.(
+    [AAPL],
+    { requestId: "missing-volume-quote" },
+  );
+  assert.deepEqual(quotes, []);
 });
 
 test("passes supported resolutions through and rebuilds four-hour Yahoo bars", async (t) => {
@@ -1064,6 +1165,49 @@ test("falls back to the authenticated yfinance sidecar for profile and earnings"
   assert.deepEqual(sidecarPaths, ["/v1/yahoo/profile", "/v1/yahoo/earnings"]);
   assert.equal(nativeCredentialRequests, 2);
   assert.equal(fetchMock.mock.callCount(), 6);
+});
+
+test("forwards an explicit fresh earnings read through the sidecar boundary", async (t) => {
+  const sidecarFreshValues: Array<string | null> = [];
+  t.mock.method(globalThis, "fetch", async (input: FetchInput) => {
+    const url = new URL(String(input));
+    if (url.hostname === "fc.yahoo.com") {
+      return new Response("", {
+        status: 404,
+        headers: { "set-cookie": "A3=fresh-session; Path=/" },
+      });
+    }
+    if (url.pathname === "/v1/test/getcrumb") {
+      return new Response("Too Many Requests", { status: 429 });
+    }
+    assert.equal(url.pathname, "/v1/yahoo/earnings");
+    sidecarFreshValues.push(url.searchParams.get("fresh"));
+    return jsonResponse({
+      schemaVersion: "unicorn.yahoo-sidecar.v1",
+      symbol: "AAPL",
+      earnings: [{ reportDate: "2026-08-12", epsActual: 2.05, epsEstimate: 1.98 }],
+      asOf: "2026-08-12",
+      ingestedAt: "2026-08-13T00:00:00Z",
+    });
+  });
+  const adapter = yahooProviderRegistration.create({
+    ...ENABLED_ENV,
+    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: "fresh-sidecar-secret",
+  });
+  assert.ok(adapter.fundamentals);
+
+  const first = await adapter.fundamentals.getEarnings(AAPL, {
+    requestId: "fresh-earnings-1",
+    fresh: true,
+  });
+  const second = await adapter.fundamentals.getEarnings(AAPL, {
+    requestId: "fresh-earnings-2",
+    fresh: true,
+  });
+  assert.equal(first[0]?.epsActual, 2.05);
+  assert.equal(second[0]?.epsActual, 2.05);
+  assert.deepEqual(sidecarFreshValues, ["1", "1"]);
 });
 
 test("rejects unexpected yfinance sidecar fields without exposing its token", async (t) => {

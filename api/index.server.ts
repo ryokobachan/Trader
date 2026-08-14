@@ -62,6 +62,11 @@ export type ProviderRuntime = Readonly<{
   }>;
 }>;
 
+export type InstrumentProviderRuntime = Readonly<{
+  instrument: InstrumentProvider;
+  selectedProviderId: string;
+}>;
+
 const ROLE_ENV: Readonly<Record<ProviderRole, string>> = {
   instrument: "UNICORN_INSTRUMENT_PROVIDER",
   market: "UNICORN_MARKET_PROVIDER",
@@ -214,6 +219,32 @@ export function createProviderRuntime(env: ProviderEnvironment): ProviderRuntime
       analyst: analystId,
       news: newsId,
     }),
+  });
+}
+
+/** Resolve identity without initializing an unrelated market adapter. */
+export function createInstrumentProviderRuntime(
+  env: ProviderEnvironment,
+): InstrumentProviderRuntime {
+  const selection = resolveProviderSelections(env);
+  const instrumentId = selection.instrument.id;
+  if (!instrumentId) {
+    throw new ProviderRegistryError("unknown_provider", "Instrument provider is required.");
+  }
+  const adapter = providerRegistry.resolve(
+    instrumentId,
+    ["instrument.search", "instrument.identity"],
+    env,
+  );
+  if (!adapter.instrument) {
+    throw new ProviderRegistryError(
+      "provider_initialization_failed",
+      "Selected instrument provider is incomplete.",
+    );
+  }
+  return Object.freeze({
+    instrument: adapter.instrument,
+    selectedProviderId: instrumentId,
   });
 }
 

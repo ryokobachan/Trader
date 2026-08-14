@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   CHART_INDICATOR_IDS,
   computeIndicatorSeries,
+  finiteMarketBars,
   INDICATOR_CALCULATION_REGISTRY,
   latestIndicatorValue,
   latestIndicatorValues,
@@ -38,6 +39,28 @@ function assertNumbersClose(actual: readonly number[], expected: readonly number
     );
   });
 }
+
+test("shared indicator input keeps valid zero-volume candles and drops malformed OHLCV", () => {
+  const validZeroVolume: MarketBar = {
+    time: "2026-08-07T13:30:00Z",
+    open: 100,
+    high: 102,
+    low: 99,
+    close: 101,
+    volume: 0,
+  };
+  const malformed: readonly MarketBar[] = [
+    { ...validZeroVolume, volume: Number.NaN },
+    { ...validZeroVolume, volume: -1 },
+    { ...validZeroVolume, open: 0 },
+    { ...validZeroVolume, high: 100.5 },
+    { ...validZeroVolume, low: 101.5 },
+    { ...validZeroVolume, time: "not-a-date" },
+    { ...validZeroVolume, volume: undefined } as unknown as MarketBar,
+  ];
+
+  assert.deepEqual(finiteMarketBars([validZeroVolume, ...malformed]), [validZeroVolume]);
+});
 
 /** Mirrors the overlay math that page.tsx's generateSeries used before extraction. */
 function overlayReference(

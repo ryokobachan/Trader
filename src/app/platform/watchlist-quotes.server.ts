@@ -12,6 +12,15 @@ const MISSING_IDENTITY_CACHE_TTL_MS = 5 * 60_000;
 const IDENTITY_CACHE_MAX_ENTRIES = 1_000;
 const QUOTE_BATCH_CACHE_TTL_MS = 10_000;
 const QUOTE_BATCH_CACHE_MAX_ENTRIES = 200;
+const NEW_YORK_DATE_TIME = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
 
 type WatchlistQuoteRuntime = Pick<ProviderRuntime, "instrument" | "market">
   & Partial<Pick<ProviderRuntime, "selectedProviderIds">>;
@@ -30,6 +39,50 @@ const quoteBatchCache = new Map<string, Readonly<{
   values: readonly Quote[];
 }>>();
 const quoteBatchRequests = new Map<string, Promise<readonly Quote[]>>();
+
+/**
+ * Any response composed with the mock adapter remains behind the fixture
+ * boundary, even when another role uses a production provider.
+ */
+export function providerDataMode(
+  ...providerIds: readonly (string | undefined)[]
+): "fixture" | "provider" {
+  return providerIds.includes("mock") ? "fixture" : "provider";
+}
+
+/** Both identity and quote values reach the watchlist UI. */
+export function watchlistQuoteDataMode(
+  instrumentProviderId: string,
+  marketProviderId: string,
+): "fixture" | "provider" {
+  return providerDataMode(instrumentProviderId, marketProviderId);
+}
+
+/**
+ * A quote request that crosses 09:30 or 16:00 New York time must never join or
+ * reuse a request from the previous market segment. This keeps the browser's
+ * exact-boundary refresh exact even while the short batch cache is warm.
+ */
+export function watchlistQuoteCacheSegment(observedAt: Date): string {
+  if (!Number.isFinite(observedAt.getTime())) {
+    throw new RangeError("observedAt must be a valid date");
+  }
+  const parts = Object.fromEntries(
+    NEW_YORK_DATE_TIME
+      .formatToParts(observedAt)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  const hour = Number(parts.hour);
+  const minute = Number(parts.minute);
+  const minuteOfDay = (hour * 60) + minute;
+  const segment = minuteOfDay < (9 * 60) + 30
+    ? "pre"
+    : minuteOfDay < 16 * 60
+      ? "regular"
+      : "post";
+  return `${parts.year}-${parts.month}-${parts.day}:${segment}`;
+}
 
 function pruneIdentityCache(now: number) {
   for (const [key, entry] of identityCache) {
@@ -105,12 +158,13 @@ async function loadQuoteBatch(
   instruments: readonly Instrument[],
   runtime: WatchlistQuoteRuntime,
   context: ProviderRequestContext,
+  observedAt: Date,
 ): Promise<readonly Quote[]> {
   if (!runtime.market.getQuotes) return [];
   const providerId = runtime.selectedProviderIds?.market;
   if (!providerId) return runtime.market.getQuotes(instruments, context);
 
-  const key = `${providerId}:${instruments
+  const key = `${providerId}:${watchlistQuoteCacheSegment(observedAt)}:${instruments
     .map((instrument) => instrument.instrumentId)
     .sort()
     .join("\u0000")}`;
@@ -159,6 +213,7 @@ export async function loadWatchlistQuotes(
   runtime: WatchlistQuoteRuntime,
   context: ProviderRequestContext,
   concurrency = DEFAULT_CONCURRENCY,
+  observedAt = new Date(),
 ): Promise<readonly WatchlistQuoteItem[]> {
   const items = new Array<WatchlistQuoteItem>(symbols.length);
   const instruments = await loadWatchlistInstruments(symbols, runtime, context, concurrency);
@@ -176,7 +231,7 @@ export async function loadWatchlistQuotes(
   if (runtime.market.getQuotes && resolvedInstruments.length > 0) {
     let quotesByInstrument = new Map<string, Quote>();
     try {
-      const quotes = await loadQuoteBatch(resolvedInstruments, runtime, context);
+      const quotes = await loadQuoteBatch(resolvedInstruments, runtime, context, observedAt);
       quotesByInstrument = new Map(
         quotes
           .filter(isUsableCurrentQuote)

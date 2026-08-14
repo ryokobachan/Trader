@@ -157,6 +157,8 @@ test("StrategyHome loads direct quotes and daily bars without the USDT after-hou
   assert.match(strategySource, /fetch\("\/api\/v1\/watchlists\/quotes"/);
   assert.match(strategySource, /bars\?range=5d&interval=1d&count=3/);
   assert.match(strategySource, /Promise\.all\(\[quoteRequest, barsRequest\]\)/);
+  assert.match(strategySource, /quoteResponse\?\.dataMode === "provider"/);
+  assert.match(strategySource, /payload\.dataMode === "provider" \? payload\.bars\.items : \[\]/);
   assert.doesNotMatch(strategySource, /watchlists\/after-hours|USDT|afterHoursBySymbol/);
   assert.match(strategySource, /return markedPortfolio\.complete/);
   assert.doesNotMatch(

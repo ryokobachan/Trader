@@ -2,6 +2,7 @@ import {
   MAX_MARKET_BAR_COUNT,
   MIN_MARKET_BAR_COUNT,
   PROVIDER_SCHEMA_VERSION,
+  SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS,
   type Instrument,
   type MarketBar,
   type MarketBarInterval,
@@ -21,12 +22,35 @@ const REALTIME_QUOTES_SCHEMA_VERSION = "unicorn.tradingview-realtime-quotes.v1";
 const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_TIMEOUT_MS = 65_000;
 const TRADINGVIEW_SOURCE_URL = "wss://data.tradingview.com/socket.io/websocket";
+const TRADINGVIEW_WORKER_UPGRADE_URL = "https://data.tradingview.com/socket.io/websocket";
 const MAX_LATEST_CLOSE_SYMBOLS = 50;
 const MAX_REALTIME_SYMBOLS = 50;
 const MAX_SYNTHETIC_EXCHANGES = 8;
 const MAX_REALTIME_EVENT_BYTES = 64 * 1_024;
 const MAX_REALTIME_SNAPSHOT_BYTES = 256 * 1_024;
+const MAX_LATEST_CLOSE_SNAPSHOT_BYTES = 256 * 1_024;
+const TRADINGVIEW_SCANNER_URL = "https://scanner.tradingview.com/crypto/scan";
+const TRADINGVIEW_SCANNER_COLUMNS = Object.freeze([
+  "close",
+  "update_time",
+  "currency",
+  "update_mode",
+  "type",
+  "subtype",
+  "exchange",
+] as const);
+const MAX_TRADINGVIEW_SCANNER_RESPONSE_BYTES = 512 * 1_024;
 const MAX_FUTURE_CLOCK_SKEW_MS = 60_000;
+const TRADINGVIEW_SCANNER_RELATIVE_FRESHNESS_MS = SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS;
+const TRADINGVIEW_WORKER_STREAM_TTL_MS = 60_000;
+const TRADINGVIEW_WORKER_LIVENESS_TIMEOUT_MS = 45_000;
+const TRADINGVIEW_WORKER_FRESHNESS_CHECK_MS = 15_000;
+const TRADINGVIEW_WORKER_QUOTE_INITIAL_WAIT_MS = 5_000;
+const TRADINGVIEW_WORKER_QUOTE_LONG_POLL_WAIT_MS = 20_000;
+const TRADINGVIEW_WORKER_QUOTE_HANDSHAKE_WAIT_MS = 5_000;
+const MAX_TRADINGVIEW_WORKER_FRAME_BYTES = 64 * 1_024;
+const MAX_TRADINGVIEW_WORKER_BUFFER_BYTES = 128 * 1_024;
+const MAX_TRADINGVIEW_WORKER_PENDING_ITEMS = 512;
 const SYNTHETIC_EXCHANGE_PATTERN = /^[A-Z][A-Z0-9._-]{0,14}$/;
 
 export const DEFAULT_TRADINGVIEW_SYNTHETIC_EXCHANGES = Object.freeze([
@@ -48,6 +72,55 @@ const manifest = {
 } as const;
 
 export type TradingViewSidecarFetch = typeof globalThis.fetch;
+
+export type TradingViewScannerDependencies = Readonly<{
+  fetch?: TradingViewSidecarFetch;
+  now?: () => Date;
+}>;
+
+export type TradingViewWorkerWebSocket = Readonly<{
+  send: (data: string) => void;
+  close: (code?: number, reason?: string) => void;
+  accept?: () => void;
+  addEventListener: (
+    type: "message" | "close" | "error",
+    listener: EventListenerOrEventListenerObject,
+  ) => void;
+  removeEventListener: (
+    type: "message" | "close" | "error",
+    listener: EventListenerOrEventListenerObject,
+  ) => void;
+}>;
+
+export type TradingViewWorkerStreamDependencies = Readonly<{
+  connect?: (signal: AbortSignal) => Promise<TradingViewWorkerWebSocket>;
+  fetch?: TradingViewSidecarFetch;
+  now?: () => Date;
+  sessionId?: () => string;
+  streamTtlMs?: number;
+  livenessTimeoutMs?: number;
+  freshnessCheckMs?: number;
+}>;
+
+export type TradingViewWorkerQuoteCursor = Readonly<{
+  asOf: string;
+  price: number;
+}>;
+
+export type TradingViewWorkerQuoteLongPollDependencies = Readonly<{
+  connect?: (signal: AbortSignal) => Promise<TradingViewWorkerWebSocket>;
+  fetch?: TradingViewSidecarFetch;
+  now?: () => Date;
+  sessionId?: () => string;
+  initialWaitMs?: number;
+  longPollWaitMs?: number;
+  handshakeWaitMs?: number;
+}>;
+
+export type TradingViewWorkerQuoteLongPollResult = Readonly<{
+  quotes: readonly Quote[];
+  reason: "initial" | "changed" | "timeout";
+}>;
 
 type ProviderDependencies = Readonly<{
   fetch?: TradingViewSidecarFetch;
@@ -256,6 +329,30 @@ function marketState(now: Date): MarketSessionState {
   return "closed";
 }
 
+/** Strict allowlist for TradingView's `current_session` quote field. */
+export function tradingViewMarketSessionState(value: unknown): MarketSessionState | null {
+  if (typeof value !== "string") return null;
+  switch (value) {
+    case "market":
+    case "regular":
+      return "regular";
+    case "pre_market":
+    case "premarket":
+      return "pre_market";
+    case "post_market":
+    case "postmarket":
+    case "after_hours":
+      return "after_hours";
+    case "closed":
+    case "out_of_session":
+    case "holiday":
+    case "night":
+      return "closed";
+    default:
+      return null;
+  }
+}
+
 function normalizeBars(payload: unknown, expected: Readonly<{
   symbol: string;
   interval: MarketBarInterval;
@@ -301,10 +398,13 @@ function normalizeBars(payload: unknown, expected: Readonly<{
       || low === null
       || close === null
       || volume === null
+      || open <= 0
+      || high <= 0
+      || low <= 0
+      || close <= 0
       || volume < 0
-      || high < Math.max(open, close)
-      || low > Math.min(open, close)
-      || low > high
+      || high < Math.max(open, close, low)
+      || low > Math.min(open, close, high)
     ) {
       throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned invalid bars.");
     }
@@ -434,6 +534,1334 @@ function normalizeSyntheticSymbols(symbols: readonly string[]): readonly string[
   return Object.freeze(normalizedSymbols);
 }
 
+/**
+ * Worker-compatible snapshot fallback for the exact ticker-derived perpetuals
+ * used by the local TradingView websocket sidecar. The browser supplies only
+ * canonical U.S. tickers; raw TradingView identifiers remain server-derived.
+ */
+export async function loadTradingViewScannerLatestCloses(
+  env: ProviderEnvironment,
+  symbols: readonly string[],
+  context: ProviderRequestContext,
+  dependencies: TradingViewScannerDependencies = {},
+): Promise<readonly SyntheticLatestClose[]> {
+  const normalizedSymbols = normalizeSyntheticSymbols(symbols);
+  const exchanges = tradingViewSyntheticExchanges(env);
+  const sourceSymbols = normalizedSymbols.flatMap((symbol) => (
+    exchanges.map((exchange) => `${exchange}:${symbol}USDT.P`)
+  ));
+  const expectedSources = new Set(sourceSymbols);
+  const timeoutMs = positiveInteger(
+    env.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS,
+    DEFAULT_TIMEOUT_MS,
+  );
+  const fetchImplementation = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
+  const observedNow = (dependencies.now ?? (() => new Date()))();
+  if (!Number.isFinite(observedNow.getTime())) {
+    throw new TradingViewSidecarError(
+      "configuration",
+      "TradingView scanner clock is invalid.",
+    );
+  }
+
+  const controller = new AbortController();
+  let didTimeOut = false;
+  const abortFromContext = () => controller.abort(context.signal?.reason);
+  if (context.signal?.aborted) abortFromContext();
+  else context.signal?.addEventListener("abort", abortFromContext, { once: true });
+  const timer = setTimeout(() => {
+    didTimeOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetchImplementation(TRADINGVIEW_SCANNER_URL, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "cache-control": "no-cache",
+        "content-type": "application/json",
+        pragma: "no-cache",
+      },
+      body: JSON.stringify({
+        symbols: { tickers: sourceSymbols, query: { types: [] } },
+        columns: TRADINGVIEW_SCANNER_COLUMNS,
+        range: [0, sourceSymbols.length],
+      }),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch {
+    clearTimeout(timer);
+    context.signal?.removeEventListener("abort", abortFromContext);
+    if (didTimeOut) {
+      throw new TradingViewSidecarError(
+        "request_timeout",
+        "TradingView scanner request timed out.",
+      );
+    }
+    throw new TradingViewSidecarError(
+      "upstream_error",
+      "TradingView scanner request failed.",
+    );
+  }
+  try {
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new TradingViewSidecarError(
+        "upstream_error",
+        "TradingView scanner returned an unsuccessful response.",
+        response.status,
+      );
+    }
+    const contentType = response.headers.get("content-type") ?? "";
+    const declaredLength = Number(response.headers.get("content-length"));
+    if (
+      !contentType.toLowerCase().startsWith("application/json")
+      || (Number.isFinite(declaredLength)
+        && declaredLength > MAX_TRADINGVIEW_SCANNER_RESPONSE_BYTES)
+      || !response.body
+    ) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView scanner returned an invalid response.",
+      );
+    }
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.byteLength;
+        if (totalBytes > MAX_TRADINGVIEW_SCANNER_RESPONSE_BYTES) {
+          throw new TradingViewSidecarError(
+            "invalid_response",
+            "TradingView scanner response exceeded the permitted size.",
+          );
+        }
+        chunks.push(value);
+      }
+    } catch (error) {
+      await reader.cancel(error).catch(() => undefined);
+      if (didTimeOut) {
+        throw new TradingViewSidecarError(
+          "request_timeout",
+          "TradingView scanner request timed out.",
+        );
+      }
+      if (error instanceof TradingViewSidecarError) throw error;
+      throw new TradingViewSidecarError(
+        "upstream_error",
+        "TradingView scanner response stream failed.",
+      );
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(totalBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    } catch {
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView scanner returned invalid JSON.",
+      );
+    }
+    const root = asRecord(payload);
+    if (
+      !hasExactKeys(root, ["totalCount", "data"])
+      || !Number.isSafeInteger(root.totalCount)
+      || !Array.isArray(root.data)
+      || root.totalCount !== root.data.length
+      || root.data.length > sourceSymbols.length
+    ) {
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView scanner returned an invalid result set.",
+      );
+    }
+
+    const seenSources = new Set<string>();
+    const values = new Map<string, Readonly<{
+      close: number;
+      updatedAt: string;
+      updatedAtMilliseconds: number;
+    }>>();
+    for (const candidate of root.data) {
+      const row = asRecord(candidate);
+      const sourceSymbol = typeof row?.s === "string" ? row.s : "";
+      if (
+        !hasExactKeys(row, ["s", "d"])
+        || !expectedSources.has(sourceSymbol)
+        || seenSources.has(sourceSymbol)
+        || !Array.isArray(row.d)
+        || row.d.length !== TRADINGVIEW_SCANNER_COLUMNS.length
+      ) {
+        throw new TradingViewSidecarError(
+          "invalid_response",
+          "TradingView scanner returned an unexpected symbol.",
+        );
+      }
+      seenSources.add(sourceSymbol);
+      const [
+        rawClose,
+        rawUpdatedAt,
+        currency,
+        updateMode,
+        instrumentType,
+        instrumentSubtype,
+        returnedExchange,
+      ] = row.d;
+      const expectedExchange = sourceSymbol.slice(0, sourceSymbol.indexOf(":"));
+      if (
+        currency !== "USDT"
+        || updateMode !== "streaming"
+        || instrumentType !== "swap"
+        || instrumentSubtype !== "crypto"
+        || returnedExchange !== expectedExchange
+      ) {
+        throw new TradingViewSidecarError(
+          "invalid_response",
+          "TradingView scanner returned mislabeled quote data.",
+        );
+      }
+      if (rawClose === null && rawUpdatedAt === null) continue;
+      const close = finiteNumber(rawClose);
+      const updatedAtSeconds = finiteNumber(rawUpdatedAt);
+      const updatedAtMilliseconds = updatedAtSeconds === null
+        ? Number.NaN
+        : updatedAtSeconds * 1_000;
+      if (
+        close === null
+        || close <= 0
+        || updatedAtSeconds === null
+        || !Number.isSafeInteger(updatedAtSeconds)
+        || updatedAtSeconds <= 0
+        || !Number.isFinite(updatedAtMilliseconds)
+        || updatedAtMilliseconds > observedNow.getTime() + MAX_FUTURE_CLOCK_SKEW_MS
+      ) {
+        throw new TradingViewSidecarError(
+          "invalid_response",
+          "TradingView scanner returned malformed quote data.",
+        );
+      }
+      // These contracts trade continuously. An old last bar is not a current
+      // reference price, even when every configured venue returned the same
+      // closed/stuck snapshot.
+      if (
+        observedNow.getTime() - updatedAtMilliseconds
+        > SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS
+      ) continue;
+      values.set(sourceSymbol, Object.freeze({
+        close,
+        updatedAt: new Date(updatedAtMilliseconds).toISOString(),
+        updatedAtMilliseconds,
+      }));
+    }
+
+    return Object.freeze(normalizedSymbols.map((symbol) => {
+      const availableValues = exchanges.flatMap((exchange) => {
+        const sourceSymbol = `${exchange}:${symbol}USDT.P`;
+        const value = values.get(sourceSymbol);
+        return value ? [{ sourceSymbol, value }] : [];
+      });
+      const freshestUpdatedAt = Math.max(
+        ...availableValues.map(({ value }) => value.updatedAtMilliseconds),
+      );
+      // Preserve configured exchange priority within one freshness cohort, but
+      // never let a markedly older high-priority venue mask a current lower one.
+      const selected = availableValues.find(({ value }) => (
+        freshestUpdatedAt - value.updatedAtMilliseconds
+        < TRADINGVIEW_SCANNER_RELATIVE_FRESHNESS_MS
+      ));
+      if (selected) {
+        return Object.freeze({
+          symbol,
+          sourceSymbol: selected.sourceSymbol,
+          close: selected.value.close,
+          currency: "USDT" as const,
+          source: manifest.id,
+          updatedAt: selected.value.updatedAt,
+        });
+      }
+      return Object.freeze({
+        symbol,
+        sourceSymbol: `${exchanges[0]}:${symbol}USDT.P`,
+        close: null,
+        currency: "USDT" as const,
+        source: manifest.id,
+        updatedAt: null,
+      });
+    }));
+  } finally {
+    clearTimeout(timer);
+    context.signal?.removeEventListener("abort", abortFromContext);
+  }
+}
+
+const TRADINGVIEW_WORKER_QUOTE_FIELDS = Object.freeze([
+  "lp",
+  "lp_time",
+  "ch",
+  "chp",
+  "current_session",
+  "currency_code",
+  "volume",
+  "open_price",
+  "high_price",
+  "low_price",
+  "prev_close_price",
+  "update_mode",
+  "exchange",
+  "pro_name",
+  // Scanner and websocket results must both prove that a ticker-derived
+  // source is the requested perpetual contract, rather than merely sharing a
+  // name and quote currency.
+  "type",
+] as const);
+
+type TradingViewWorkerQuote = Readonly<{
+  close: number;
+  updatedAt: string;
+  updatedAtMilliseconds: number;
+}>;
+
+type TradingViewWorkerSource = Readonly<{
+  symbol: string;
+  exchange: string;
+  sourceSymbol: string;
+}>;
+
+function boundedWorkerDuration(
+  value: number | undefined,
+  fallback: number,
+  maximum: number,
+): number {
+  if (value === undefined) return fallback;
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(10, Math.min(maximum, Math.trunc(value)));
+}
+
+function tradingViewWorkerSessionId(): string {
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  return `qs_${Array.from(bytes, (value) => String.fromCharCode(97 + (value % 26))).join("")}`;
+}
+
+function tradingViewFrame(payload: string): string {
+  const length = new TextEncoder().encode(payload).byteLength;
+  return `~m~${length}~m~${payload}`;
+}
+
+function tradingViewProtocolMessage(method: string, parameters: readonly unknown[]): string {
+  return tradingViewFrame(JSON.stringify({ m: method, p: parameters }));
+}
+
+function appendBytes(left: Uint8Array, right: Uint8Array): Uint8Array {
+  if (left.byteLength === 0) return right;
+  const combined = new Uint8Array(left.byteLength + right.byteLength);
+  combined.set(left, 0);
+  combined.set(right, left.byteLength);
+  return combined;
+}
+
+function workerSocketMessageData(event: Event): unknown {
+  return (event as Event & Readonly<{ data?: unknown }>).data;
+}
+
+/**
+ * Sites runs this route in Cloudflare Workers, where `WebSocketPair` and
+ * outbound websocket-upgrade fetches are available. Keeping this capability
+ * check Worker-specific prevents a plain Node server without the Python
+ * sidecar from advertising a stream it cannot open.
+ */
+export function tradingViewWorkerLatestCloseStreamSupported(): boolean {
+  return typeof (globalThis as typeof globalThis & Readonly<{
+    WebSocketPair?: unknown;
+  }>).WebSocketPair === "function";
+}
+
+async function connectTradingViewWorkerWebSocket(
+  signal: AbortSignal,
+  fetchImplementation: TradingViewSidecarFetch,
+): Promise<TradingViewWorkerWebSocket> {
+  const response = await fetchImplementation(TRADINGVIEW_WORKER_UPGRADE_URL, {
+    cache: "no-store",
+    headers: {
+      "cache-control": "no-cache",
+      origin: "https://data.tradingview.com",
+      pragma: "no-cache",
+      upgrade: "websocket",
+    },
+    signal,
+  });
+  const websocket = (response as Response & Readonly<{
+    webSocket?: TradingViewWorkerWebSocket | null;
+  }>).webSocket;
+  if (!websocket) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new TradingViewSidecarError(
+      "upstream_error",
+      "TradingView websocket upgrade was not accepted.",
+      response.status,
+    );
+  }
+  websocket.accept?.();
+  return websocket;
+}
+
+/**
+ * Open the same guest TradingView quote session used by the local Python
+ * sidecar, directly from a Sites Worker. Raw upstream symbols remain wholly
+ * server-derived as `{EXCHANGE}:{symbol}USDT.P` and every emitted item is
+ * normalized back to the existing `tradingview-websocket` contract.
+ */
+export async function createTradingViewWorkerLatestCloseStream(
+  env: ProviderEnvironment,
+  symbols: readonly string[],
+  context: ProviderRequestContext,
+  dependencies: TradingViewWorkerStreamDependencies = {},
+): Promise<ReadableStream<SyntheticLatestClose>> {
+  const normalizedSymbols = normalizeSyntheticSymbols(symbols);
+  const exchanges = tradingViewSyntheticExchanges(env);
+  const sourceItems: readonly TradingViewWorkerSource[] = Object.freeze(
+    normalizedSymbols.flatMap((symbol) => exchanges.map((exchange) => Object.freeze({
+      symbol,
+      exchange,
+      sourceSymbol: `${exchange}:${symbol}USDT.P`,
+    }))),
+  );
+  const sourceByName = new Map(sourceItems.map((item) => [item.sourceSymbol, item]));
+  const now = dependencies.now ?? (() => new Date());
+  const sessionId = (dependencies.sessionId ?? tradingViewWorkerSessionId)();
+  if (!/^qs_[a-z]{12}$/.test(sessionId)) {
+    throw new TradingViewSidecarError(
+      "configuration",
+      "TradingView worker quote-session identifier is invalid.",
+    );
+  }
+  const timeoutMs = positiveInteger(
+    env.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS,
+    DEFAULT_TIMEOUT_MS,
+  );
+  const streamTtlMs = boundedWorkerDuration(
+    dependencies.streamTtlMs,
+    TRADINGVIEW_WORKER_STREAM_TTL_MS,
+    5 * 60_000,
+  );
+  const livenessTimeoutMs = boundedWorkerDuration(
+    dependencies.livenessTimeoutMs,
+    TRADINGVIEW_WORKER_LIVENESS_TIMEOUT_MS,
+    5 * 60_000,
+  );
+  const freshnessCheckMs = boundedWorkerDuration(
+    dependencies.freshnessCheckMs,
+    TRADINGVIEW_WORKER_FRESHNESS_CHECK_MS,
+    SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS,
+  );
+  const fetchImplementation = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
+  const connect = dependencies.connect ?? (
+    (signal: AbortSignal) => connectTradingViewWorkerWebSocket(signal, fetchImplementation)
+  );
+
+  // The upgrade signal is handshake-only. Aborting it after a successful
+  // Cloudflare websocket upgrade makes workerd report a noisy AbortError even
+  // when the downstream SSE client simply disconnects. Once connected, close
+  // the accepted websocket explicitly from the stream's cancellation path.
+  const handshakeController = new AbortController();
+  let didTimeOut = false;
+  const abortHandshakeFromContext = () => handshakeController.abort(context.signal?.reason);
+  if (context.signal?.aborted) abortHandshakeFromContext();
+  else context.signal?.addEventListener("abort", abortHandshakeFromContext, { once: true });
+  const handshakeTimer = setTimeout(() => {
+    didTimeOut = true;
+    handshakeController.abort();
+  }, timeoutMs);
+
+  let websocket: TradingViewWorkerWebSocket;
+  try {
+    const pendingConnection = Promise.resolve().then(
+      () => connect(handshakeController.signal),
+    );
+    websocket = await new Promise<TradingViewWorkerWebSocket>((resolve, reject) => {
+      const abortConnection = () => reject(
+        handshakeController.signal.reason ?? new DOMException("Aborted", "AbortError"),
+      );
+      if (handshakeController.signal.aborted) abortConnection();
+      else handshakeController.signal.addEventListener("abort", abortConnection, { once: true });
+      void pendingConnection.then((connected) => {
+        handshakeController.signal.removeEventListener("abort", abortConnection);
+        if (handshakeController.signal.aborted) {
+          try {
+            connected.close(1000, "request ended");
+          } catch {
+            // The failed handshake remains sanitized as a provider error.
+          }
+          abortConnection();
+          return;
+        }
+        resolve(connected);
+      }, (error: unknown) => {
+        handshakeController.signal.removeEventListener("abort", abortConnection);
+        reject(error);
+      });
+    });
+  } catch (error) {
+    clearTimeout(handshakeTimer);
+    context.signal?.removeEventListener("abort", abortHandshakeFromContext);
+    if (didTimeOut) {
+      throw new TradingViewSidecarError(
+        "request_timeout",
+        "TradingView websocket connection timed out.",
+      );
+    }
+    if (error instanceof TradingViewSidecarError) throw error;
+    throw new TradingViewSidecarError(
+      "upstream_error",
+      "TradingView websocket connection failed.",
+    );
+  }
+  clearTimeout(handshakeTimer);
+  context.signal?.removeEventListener("abort", abortHandshakeFromContext);
+
+  let cancelConnectedStream: (() => void) | undefined;
+
+  return new ReadableStream<SyntheticLatestClose>({
+    start(controller) {
+      const rawQuoteValues = new Map<string, JsonRecord>();
+      const latestEpochBySource = new Map<string, number>();
+      const quotesBySource = new Map<string, TradingViewWorkerQuote>();
+      const selectedBySymbol = new Map<string, SyntheticLatestClose>();
+      const textEncoder = new TextEncoder();
+      const textDecoder = new TextDecoder("utf-8", { fatal: true });
+      let frameBuffer: Uint8Array<ArrayBufferLike> = new Uint8Array(0);
+      let closed = false;
+      let ttlTimer: ReturnType<typeof setTimeout> | undefined;
+      let livenessTimer: ReturnType<typeof setTimeout> | undefined;
+      let freshnessTimer: ReturnType<typeof setInterval> | undefined;
+
+      const missingItem = (symbol: string): SyntheticLatestClose => Object.freeze({
+        symbol,
+        sourceSymbol: `${exchanges[0]}:${symbol}USDT.P`,
+        close: null,
+        currency: "USDT",
+        source: manifest.id,
+        updatedAt: null,
+      });
+
+      const observedNowMilliseconds = (): number => {
+        const value = now().getTime();
+        if (!Number.isFinite(value)) {
+          throw new TradingViewSidecarError(
+            "configuration",
+            "TradingView worker clock is invalid.",
+          );
+        }
+        return value;
+      };
+
+      const selectedItem = (symbol: string): SyntheticLatestClose => {
+        const observedAt = observedNowMilliseconds();
+        const candidates = exchanges.flatMap((exchange) => {
+          const sourceSymbol = `${exchange}:${symbol}USDT.P`;
+          const value = quotesBySource.get(sourceSymbol);
+          if (!value) return [];
+          const age = observedAt - value.updatedAtMilliseconds;
+          return age >= -MAX_FUTURE_CLOCK_SKEW_MS
+            && age <= SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS
+            ? [{ sourceSymbol, value }]
+            : [];
+        });
+        if (candidates.length === 0) return missingItem(symbol);
+        const freshest = Math.max(
+          ...candidates.map(({ value }) => value.updatedAtMilliseconds),
+        );
+        const selected = candidates.find(({ value }) => (
+          freshest - value.updatedAtMilliseconds
+          < SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS
+        ));
+        if (!selected) return missingItem(symbol);
+        return Object.freeze({
+          symbol,
+          sourceSymbol: selected.sourceSymbol,
+          close: selected.value.close,
+          currency: "USDT",
+          source: manifest.id,
+          updatedAt: selected.value.updatedAt,
+        });
+      };
+
+      const sameItem = (left: SyntheticLatestClose, right: SyntheticLatestClose): boolean => (
+        left.symbol === right.symbol
+        && left.sourceSymbol === right.sourceSymbol
+        && left.close === right.close
+        && left.currency === right.currency
+        && left.source === right.source
+        && left.updatedAt === right.updatedAt
+      );
+
+      const enqueue = (item: SyntheticLatestClose) => {
+        if (closed) return;
+        if (
+          controller.desiredSize !== null
+          && controller.desiredSize < -MAX_TRADINGVIEW_WORKER_PENDING_ITEMS
+        ) {
+          throw new TradingViewSidecarError(
+            "upstream_error",
+            "TradingView worker stream consumer is too slow.",
+          );
+        }
+        controller.enqueue(item);
+      };
+
+      const emitSelected = (symbol: string) => {
+        const item = selectedItem(symbol);
+        const previous = selectedBySymbol.get(symbol);
+        if (previous && sameItem(previous, item)) return;
+        selectedBySymbol.set(symbol, item);
+        enqueue(item);
+      };
+
+      const emitAllSelected = () => {
+        for (const symbol of normalizedSymbols) emitSelected(symbol);
+      };
+
+      const clearTimers = () => {
+        if (ttlTimer) clearTimeout(ttlTimer);
+        if (livenessTimer) clearTimeout(livenessTimer);
+        if (freshnessTimer) clearInterval(freshnessTimer);
+      };
+
+      const removeListeners = () => {
+        websocket.removeEventListener("message", onMessage);
+        websocket.removeEventListener("close", onClose);
+        websocket.removeEventListener("error", onError);
+        context.signal?.removeEventListener("abort", onAbort);
+      };
+
+      const disposeSocket = () => {
+        try {
+          websocket.close(1000, "stream ended");
+        } catch {
+          // Closing an already-closed upstream socket is harmless.
+        }
+      };
+
+      const finish = (error?: TradingViewSidecarError) => {
+        if (closed) return;
+        closed = true;
+        clearTimers();
+        removeListeners();
+        disposeSocket();
+        try {
+          if (error) controller.error(error);
+          else controller.close();
+        } catch {
+          // A downstream cancel can race the upstream close event.
+        }
+      };
+
+      const resetLivenessTimer = () => {
+        if (livenessTimer) clearTimeout(livenessTimer);
+        livenessTimer = setTimeout(() => finish(new TradingViewSidecarError(
+          "upstream_error",
+          "TradingView websocket became unresponsive.",
+        )), livenessTimeoutMs);
+      };
+
+      const quoteFieldMatches = (
+        values: JsonRecord,
+        field: string,
+        expected: string,
+        normalize = false,
+      ): boolean => {
+        const value = values[field];
+        if (value === undefined) return true;
+        if (typeof value !== "string") return false;
+        return (normalize ? value.normalize("NFKC").trim().toUpperCase() : value) === expected;
+      };
+
+      const handleQuoteData = (quote: JsonRecord) => {
+        const sourceSymbol = typeof quote.n === "string" ? quote.n : "";
+        const requested = sourceByName.get(sourceSymbol);
+        if (!requested) return;
+        if (quote.s === "error" || quote.s === "permission_denied") {
+          quotesBySource.delete(sourceSymbol);
+          emitSelected(requested.symbol);
+          return;
+        }
+        if (quote.s !== "ok") return;
+        const values = asRecord(quote.v);
+        if (!values) return;
+        const merged: JsonRecord = { ...(rawQuoteValues.get(sourceSymbol) ?? {}) };
+        for (const field of TRADINGVIEW_WORKER_QUOTE_FIELDS) {
+          if (field in values) merged[field] = values[field];
+        }
+        if (
+          !quoteFieldMatches(merged, "currency_code", "USDT")
+          || !quoteFieldMatches(merged, "update_mode", "streaming")
+          || !quoteFieldMatches(merged, "type", "swap")
+          || !quoteFieldMatches(merged, "exchange", requested.exchange, true)
+          || !quoteFieldMatches(merged, "pro_name", sourceSymbol)
+        ) return;
+        rawQuoteValues.set(sourceSymbol, merged);
+
+        const close = finiteNumber(merged.lp);
+        const epochSeconds = finiteNumber(merged.lp_time);
+        if (
+          close === null
+          || close <= 0
+          || epochSeconds === null
+          || epochSeconds <= 0
+          || merged.currency_code !== "USDT"
+          || merged.update_mode !== "streaming"
+          || merged.type !== "swap"
+          || typeof merged.exchange !== "string"
+          || merged.exchange.normalize("NFKC").trim().toUpperCase() !== requested.exchange
+          || merged.pro_name !== sourceSymbol
+        ) return;
+        const previousEpoch = latestEpochBySource.get(sourceSymbol);
+        if (previousEpoch !== undefined && epochSeconds < previousEpoch) return;
+        const updatedAtMilliseconds = Math.trunc(epochSeconds * 1_000);
+        if (
+          !Number.isSafeInteger(updatedAtMilliseconds)
+          || updatedAtMilliseconds <= 0
+          || updatedAtMilliseconds > 8_640_000_000_000_000
+        ) return;
+        const updatedAt = new Date(updatedAtMilliseconds).toISOString();
+        const previous = quotesBySource.get(sourceSymbol);
+        latestEpochBySource.set(sourceSymbol, epochSeconds);
+        if (
+          previous?.close === close
+          && previous.updatedAtMilliseconds === updatedAtMilliseconds
+        ) return;
+        quotesBySource.set(sourceSymbol, Object.freeze({
+          close,
+          updatedAt,
+          updatedAtMilliseconds,
+        }));
+        emitSelected(requested.symbol);
+      };
+
+      const handlePayload = (payload: string) => {
+        if (payload.startsWith("~h~")) {
+          websocket.send(tradingViewFrame(payload));
+          emitAllSelected();
+          return;
+        }
+        let message: unknown;
+        try {
+          message = JSON.parse(payload);
+        } catch {
+          return;
+        }
+        const root = asRecord(message);
+        if (!root || !Array.isArray(root.p)) return;
+        if (root.m === "qsd") {
+          if (root.p.length < 2 || root.p[0] !== sessionId) return;
+          const quote = asRecord(root.p[1]);
+          if (quote) handleQuoteData(quote);
+          return;
+        }
+        if (
+          (root.m === "critical_error" || root.m === "protocol_error")
+          && root.p.length > 0
+          && root.p[0] === sessionId
+        ) {
+          throw new TradingViewSidecarError(
+            "upstream_error",
+            "TradingView quote session failed.",
+          );
+        }
+      };
+
+      const consumeFrames = (chunk: string) => {
+        frameBuffer = appendBytes(frameBuffer, textEncoder.encode(chunk));
+        if (frameBuffer.byteLength > MAX_TRADINGVIEW_WORKER_BUFFER_BYTES) {
+          throw new TradingViewSidecarError(
+            "invalid_response",
+            "TradingView websocket frame buffer exceeded the permitted size.",
+          );
+        }
+        while (frameBuffer.byteLength > 0) {
+          if (
+            frameBuffer.byteLength < 3
+            || frameBuffer[0] !== 126
+            || frameBuffer[1] !== 109
+            || frameBuffer[2] !== 126
+          ) {
+            throw new TradingViewSidecarError(
+              "invalid_response",
+              "TradingView websocket returned invalid framing.",
+            );
+          }
+          let delimiter = -1;
+          for (let index = 3; index + 2 < frameBuffer.byteLength; index += 1) {
+            if (
+              frameBuffer[index] === 126
+              && frameBuffer[index + 1] === 109
+              && frameBuffer[index + 2] === 126
+            ) {
+              delimiter = index;
+              break;
+            }
+          }
+          if (delimiter < 0) return;
+          const lengthText = String.fromCharCode(...frameBuffer.slice(3, delimiter));
+          if (!/^[1-9][0-9]{0,5}$/.test(lengthText)) {
+            throw new TradingViewSidecarError(
+              "invalid_response",
+              "TradingView websocket returned an invalid frame length.",
+            );
+          }
+          const payloadLength = Number(lengthText);
+          if (payloadLength > MAX_TRADINGVIEW_WORKER_FRAME_BYTES) {
+            throw new TradingViewSidecarError(
+              "invalid_response",
+              "TradingView websocket frame exceeded the permitted size.",
+            );
+          }
+          const payloadStart = delimiter + 3;
+          const payloadEnd = payloadStart + payloadLength;
+          if (frameBuffer.byteLength < payloadEnd) return;
+          let payload: string;
+          try {
+            payload = textDecoder.decode(frameBuffer.slice(payloadStart, payloadEnd));
+          } catch {
+            throw new TradingViewSidecarError(
+              "invalid_response",
+              "TradingView websocket returned invalid UTF-8.",
+            );
+          }
+          frameBuffer = frameBuffer.slice(payloadEnd);
+          handlePayload(payload);
+        }
+      };
+
+      const onMessage: EventListener = (event) => {
+        if (closed) return;
+        const data = workerSocketMessageData(event);
+        if (typeof data !== "string") return;
+        resetLivenessTimer();
+        try {
+          consumeFrames(data);
+        } catch (error) {
+          finish(error instanceof TradingViewSidecarError
+            ? error
+            : new TradingViewSidecarError(
+              "invalid_response",
+              "TradingView websocket returned invalid data.",
+            ));
+        }
+      };
+      const onClose: EventListener = () => finish(new TradingViewSidecarError(
+        "upstream_error",
+        "TradingView websocket closed unexpectedly.",
+      ));
+      const onError: EventListener = () => finish(new TradingViewSidecarError(
+        "upstream_error",
+        "TradingView websocket failed.",
+      ));
+      const onAbort = () => finish();
+      cancelConnectedStream = onAbort;
+
+      websocket.addEventListener("message", onMessage);
+      websocket.addEventListener("close", onClose);
+      websocket.addEventListener("error", onError);
+      context.signal?.addEventListener("abort", onAbort, { once: true });
+
+      if (context.signal?.aborted) {
+        onAbort();
+        return;
+      }
+
+      try {
+        // This mirrors `RealtimeQuoteBroker._run`: one guest quote session and
+        // a two-argument `quote_add_symbols` call for every derived source.
+        for (const symbol of normalizedSymbols) {
+          const initial = missingItem(symbol);
+          selectedBySymbol.set(symbol, initial);
+          enqueue(initial);
+        }
+        websocket.send(tradingViewProtocolMessage(
+          "set_auth_token",
+          ["unauthorized_user_token"],
+        ));
+        websocket.send(tradingViewProtocolMessage("quote_create_session", [sessionId]));
+        websocket.send(tradingViewProtocolMessage(
+          "quote_set_fields",
+          [sessionId, ...TRADINGVIEW_WORKER_QUOTE_FIELDS],
+        ));
+        for (const item of sourceItems) {
+          websocket.send(tradingViewProtocolMessage(
+            "quote_add_symbols",
+            [sessionId, item.sourceSymbol],
+          ));
+        }
+        resetLivenessTimer();
+        freshnessTimer = setInterval(() => {
+          try {
+            emitAllSelected();
+          } catch (error) {
+            finish(error instanceof TradingViewSidecarError
+              ? error
+              : new TradingViewSidecarError(
+                "configuration",
+                "TradingView worker clock is invalid.",
+              ));
+          }
+        }, freshnessCheckMs);
+        ttlTimer = setTimeout(() => finish(), streamTtlMs);
+      } catch (error) {
+        finish(error instanceof TradingViewSidecarError
+          ? error
+          : new TradingViewSidecarError(
+            "upstream_error",
+            "TradingView websocket subscription failed.",
+          ));
+      }
+    },
+    cancel() {
+      cancelConnectedStream?.();
+    },
+  }, {
+    highWaterMark: MAX_TRADINGVIEW_WORKER_PENDING_ITEMS,
+  });
+}
+
+function normalizeTradingViewWorkerRegularQuote(
+  values: JsonRecord,
+  expected: RealtimeQuoteRequest,
+  observedNow: Date,
+): Quote | null {
+  const sourceExchange = expected.sourceSymbol.slice(0, expected.sourceSymbol.indexOf(":"));
+  const returnedExchange = typeof values.exchange === "string"
+    ? values.exchange.normalize("NFKC").trim().toUpperCase()
+    : "";
+  const expectedType = expected.instrument.assetType === "adr" ? "dr" : "stock";
+  if (
+    values.currency_code !== "USD"
+    || values.update_mode !== "streaming"
+    || values.type !== expectedType
+    // TradingView guest USD quotes currently identify their real-time tape as
+    // Cboe One even though `pro_name` retains the requested primary listing.
+    || (returnedExchange !== sourceExchange && returnedExchange !== "CBOE ONE")
+    || values.pro_name !== expected.sourceSymbol
+  ) return null;
+
+  const price = finiteNumber(values.lp);
+  const epochSeconds = finiteNumber(values.lp_time);
+  const previousClose = finiteNumber(values.prev_close_price);
+  const open = finiteNumber(values.open_price);
+  const high = finiteNumber(values.high_price);
+  const low = finiteNumber(values.low_price);
+  const volume = finiteNumber(values.volume);
+  const observedAtMilliseconds = observedNow.getTime();
+  const updatedAtMilliseconds = epochSeconds === null
+    ? Number.NaN
+    : Math.trunc(epochSeconds * 1_000);
+  if (
+    !Number.isFinite(observedAtMilliseconds)
+    || price === null
+    || price <= 0
+    || epochSeconds === null
+    || epochSeconds <= 0
+    || previousClose === null
+    || previousClose <= 0
+    || open === null
+    || open <= 0
+    || high === null
+    || high <= 0
+    || low === null
+    || low <= 0
+    || high < Math.max(open, low)
+    || low > Math.min(open, high)
+    || volume === null
+    || volume < 0
+    || !Number.isSafeInteger(updatedAtMilliseconds)
+    || updatedAtMilliseconds <= 0
+    || updatedAtMilliseconds > observedAtMilliseconds + MAX_FUTURE_CLOCK_SKEW_MS
+  ) return null;
+
+  const updatedAt = new Date(updatedAtMilliseconds).toISOString();
+  const ingestedAt = observedNow.toISOString();
+  const change = price - previousClose;
+  return Object.freeze({
+    instrumentId: expected.instrument.instrumentId,
+    price,
+    change,
+    changePercent: (change / previousClose) * 100,
+    previousClose,
+    open,
+    high,
+    low,
+    volume,
+    currency: "USD",
+    marketState: tradingViewMarketSessionState(values.current_session)
+      ?? marketState(observedNow),
+    delaySeconds: Math.max(
+      0,
+      Math.min(900, Math.trunc((observedAtMilliseconds - updatedAtMilliseconds) / 1_000)),
+    ),
+    provenance: Object.freeze({
+      providerId: manifest.id,
+      sourceId: `tradingview-websocket:${expected.sourceSymbol}:realtime-quote`,
+      asOf: updatedAt,
+      ingestedAt,
+      sourceUrl: TRADINGVIEW_SOURCE_URL,
+    }),
+  });
+}
+
+/**
+ * One bounded Worker-native long poll for direct-listing U.S. equity quotes.
+ *
+ * Sites keeps this ordinary HTTP request alive while the outbound TradingView
+ * guest websocket is open, so no downstream WebSocket/SSE survives the Worker
+ * response boundary. A cursor-less request returns the first complete batch
+ * (or the five-second initial deadline). With cursors, an unchanged initial
+ * snapshot waits for the first price/as-of change for at most twenty seconds.
+ */
+export async function loadTradingViewWorkerQuoteLongPoll(
+  instruments: readonly Instrument[],
+  cursors: ReadonlyMap<string, TradingViewWorkerQuoteCursor>,
+  context: ProviderRequestContext,
+  dependencies: TradingViewWorkerQuoteLongPollDependencies = {},
+): Promise<TradingViewWorkerQuoteLongPollResult> {
+  const requests = realtimeQuoteRequests(instruments);
+  if (
+    requests.length < 1
+    || requests.length > MAX_REALTIME_SYMBOLS
+    || requests.length !== instruments.length
+  ) {
+    throw new TradingViewSidecarError(
+      "invalid_request",
+      "Realtime quote instruments are invalid.",
+    );
+  }
+  const expectedBySource = new Map(requests.map((request) => [request.sourceSymbol, request]));
+  const expectedSymbols = new Set(requests.map((request) => request.symbol));
+  for (const [symbol, cursor] of cursors) {
+    if (
+      !expectedSymbols.has(symbol)
+      || !Number.isFinite(cursor.price)
+      || cursor.price <= 0
+      || typeof cursor.asOf !== "string"
+      || !isoTimestamp(cursor.asOf)
+    ) {
+      throw new TradingViewSidecarError(
+        "invalid_request",
+        "Realtime quote cursors are invalid.",
+      );
+    }
+  }
+
+  const sessionId = (dependencies.sessionId ?? tradingViewWorkerSessionId)();
+  if (!/^qs_[a-z]{12}$/.test(sessionId)) {
+    throw new TradingViewSidecarError(
+      "configuration",
+      "TradingView worker quote-session identifier is invalid.",
+    );
+  }
+  const waitMs = cursors.size === 0
+    ? boundedWorkerDuration(
+      dependencies.initialWaitMs,
+      TRADINGVIEW_WORKER_QUOTE_INITIAL_WAIT_MS,
+      TRADINGVIEW_WORKER_QUOTE_INITIAL_WAIT_MS,
+    )
+    : boundedWorkerDuration(
+      dependencies.longPollWaitMs,
+      TRADINGVIEW_WORKER_QUOTE_LONG_POLL_WAIT_MS,
+      TRADINGVIEW_WORKER_QUOTE_LONG_POLL_WAIT_MS,
+    );
+  const handshakeWaitMs = Math.min(
+    waitMs,
+    boundedWorkerDuration(
+      dependencies.handshakeWaitMs,
+      TRADINGVIEW_WORKER_QUOTE_HANDSHAKE_WAIT_MS,
+      TRADINGVIEW_WORKER_QUOTE_HANDSHAKE_WAIT_MS,
+    ),
+  );
+  const fetchImplementation = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
+  const connect = dependencies.connect ?? (
+    (signal: AbortSignal) => connectTradingViewWorkerWebSocket(signal, fetchImplementation)
+  );
+  const now = dependencies.now ?? (() => new Date());
+  const startedAt = Date.now();
+
+  const handshakeController = new AbortController();
+  let handshakeTimedOut = false;
+  const abortHandshakeFromContext = () => handshakeController.abort(context.signal?.reason);
+  if (context.signal?.aborted) abortHandshakeFromContext();
+  else context.signal?.addEventListener("abort", abortHandshakeFromContext, { once: true });
+  const handshakeTimer = setTimeout(() => {
+    handshakeTimedOut = true;
+    handshakeController.abort();
+  }, handshakeWaitMs);
+
+  let websocket: TradingViewWorkerWebSocket;
+  try {
+    websocket = await connect(handshakeController.signal);
+    if (handshakeController.signal.aborted) {
+      try {
+        websocket.close(1000, "request ended");
+      } catch {
+        // The sanitized handshake failure below is authoritative.
+      }
+      throw handshakeController.signal.reason ?? new DOMException("Aborted", "AbortError");
+    }
+  } catch (error) {
+    if (handshakeTimedOut) {
+      throw new TradingViewSidecarError(
+        "request_timeout",
+        "TradingView websocket connection timed out.",
+      );
+    }
+    if (error instanceof TradingViewSidecarError) throw error;
+    throw new TradingViewSidecarError(
+      "upstream_error",
+      "TradingView websocket connection failed.",
+    );
+  } finally {
+    clearTimeout(handshakeTimer);
+    context.signal?.removeEventListener("abort", abortHandshakeFromContext);
+  }
+
+  return new Promise<TradingViewWorkerQuoteLongPollResult>((resolve, reject) => {
+    const rawQuoteValues = new Map<string, JsonRecord>();
+    const latestEpochBySource = new Map<string, number>();
+    const quotesByInstrumentId = new Map<string, Quote>();
+    const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder("utf-8", { fatal: true });
+    let frameBuffer: Uint8Array<ArrayBufferLike> = new Uint8Array(0);
+    let settled = false;
+    const timers: { response?: ReturnType<typeof setTimeout> } = {};
+
+    const orderedQuotes = () => Object.freeze(requests.flatMap((request) => {
+      const quote = quotesByInstrumentId.get(request.instrument.instrumentId);
+      return quote ? [quote] : [];
+    }));
+    const cleanup = () => {
+      if (timers.response) clearTimeout(timers.response);
+      websocket.removeEventListener("message", onMessage);
+      websocket.removeEventListener("close", onClose);
+      websocket.removeEventListener("error", onError);
+      context.signal?.removeEventListener("abort", onAbort);
+      try {
+        websocket.close(1000, "long poll ended");
+      } catch {
+        // A close/error callback may already have disposed the socket.
+      }
+    };
+    const finish = (reason: TradingViewWorkerQuoteLongPollResult["reason"]) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(Object.freeze({ quotes: orderedQuotes(), reason }));
+    };
+    const fail = (error: TradingViewSidecarError) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const cursorChanged = (request: RealtimeQuoteRequest, quote: Quote) => {
+      const cursor = cursors.get(request.symbol);
+      return !cursor
+        || cursor.price !== quote.price
+        || isoTimestamp(cursor.asOf) !== quote.provenance.asOf;
+    };
+    const handleQuoteData = (quoteData: JsonRecord) => {
+      const sourceSymbol = typeof quoteData.n === "string" ? quoteData.n : "";
+      const expected = expectedBySource.get(sourceSymbol);
+      if (!expected || quoteData.s !== "ok") return;
+      const values = asRecord(quoteData.v);
+      if (!values) return;
+      const merged: JsonRecord = { ...(rawQuoteValues.get(sourceSymbol) ?? {}) };
+      for (const field of TRADINGVIEW_WORKER_QUOTE_FIELDS) {
+        if (field in values) merged[field] = values[field];
+      }
+      rawQuoteValues.set(sourceSymbol, merged);
+      const quote = normalizeTradingViewWorkerRegularQuote(merged, expected, now());
+      if (!quote) return;
+      const epochSeconds = finiteNumber(merged.lp_time)!;
+      const previousEpoch = latestEpochBySource.get(sourceSymbol);
+      if (previousEpoch !== undefined && epochSeconds < previousEpoch) return;
+      latestEpochBySource.set(sourceSymbol, epochSeconds);
+      quotesByInstrumentId.set(expected.instrument.instrumentId, quote);
+
+      if (cursors.size > 0 && cursorChanged(expected, quote)) {
+        finish("changed");
+        return;
+      }
+      if (cursors.size === 0 && quotesByInstrumentId.size === requests.length) {
+        finish("initial");
+      }
+    };
+    const handlePayload = (payload: string) => {
+      if (payload.startsWith("~h~")) {
+        websocket.send(tradingViewFrame(payload));
+        return;
+      }
+      let message: unknown;
+      try {
+        message = JSON.parse(payload);
+      } catch {
+        return;
+      }
+      const root = asRecord(message);
+      if (!root || !Array.isArray(root.p)) return;
+      if (root.m === "qsd") {
+        if (root.p.length < 2 || root.p[0] !== sessionId) return;
+        const quote = asRecord(root.p[1]);
+        if (quote) handleQuoteData(quote);
+        return;
+      }
+      if (
+        (root.m === "critical_error" || root.m === "protocol_error")
+        && root.p.length > 0
+        && root.p[0] === sessionId
+      ) {
+        fail(new TradingViewSidecarError(
+          "upstream_error",
+          "TradingView quote session failed.",
+        ));
+      }
+    };
+    const consumeFrames = (chunk: string) => {
+      frameBuffer = appendBytes(frameBuffer, textEncoder.encode(chunk));
+      if (frameBuffer.byteLength > MAX_TRADINGVIEW_WORKER_BUFFER_BYTES) {
+        throw new TradingViewSidecarError(
+          "invalid_response",
+          "TradingView websocket frame buffer exceeded the permitted size.",
+        );
+      }
+      while (frameBuffer.byteLength > 0) {
+        if (
+          frameBuffer.byteLength < 3
+          || frameBuffer[0] !== 126
+          || frameBuffer[1] !== 109
+          || frameBuffer[2] !== 126
+        ) {
+          throw new TradingViewSidecarError(
+            "invalid_response",
+            "TradingView websocket returned invalid framing.",
+          );
+        }
+        let delimiter = -1;
+        for (let index = 3; index + 2 < frameBuffer.byteLength; index += 1) {
+          if (
+            frameBuffer[index] === 126
+            && frameBuffer[index + 1] === 109
+            && frameBuffer[index + 2] === 126
+          ) {
+            delimiter = index;
+            break;
+          }
+        }
+        if (delimiter < 0) return;
+        const lengthText = String.fromCharCode(...frameBuffer.slice(3, delimiter));
+        if (!/^[1-9][0-9]{0,5}$/.test(lengthText)) {
+          throw new TradingViewSidecarError(
+            "invalid_response",
+            "TradingView websocket returned an invalid frame length.",
+          );
+        }
+        const payloadLength = Number(lengthText);
+        if (payloadLength > MAX_TRADINGVIEW_WORKER_FRAME_BYTES) {
+          throw new TradingViewSidecarError(
+            "invalid_response",
+            "TradingView websocket frame exceeded the permitted size.",
+          );
+        }
+        const payloadStart = delimiter + 3;
+        const payloadEnd = payloadStart + payloadLength;
+        if (frameBuffer.byteLength < payloadEnd) return;
+        const payload = textDecoder.decode(frameBuffer.slice(payloadStart, payloadEnd));
+        frameBuffer = frameBuffer.slice(payloadEnd);
+        handlePayload(payload);
+        if (settled) return;
+      }
+    };
+    const onMessage: EventListener = (event) => {
+      if (settled) return;
+      const data = workerSocketMessageData(event);
+      if (typeof data !== "string") return;
+      try {
+        consumeFrames(data);
+      } catch (error) {
+        fail(error instanceof TradingViewSidecarError
+          ? error
+          : new TradingViewSidecarError(
+            "invalid_response",
+            "TradingView websocket returned invalid data.",
+          ));
+      }
+    };
+    const onClose: EventListener = () => fail(new TradingViewSidecarError(
+      "upstream_error",
+      "TradingView websocket closed unexpectedly.",
+    ));
+    const onError: EventListener = () => fail(new TradingViewSidecarError(
+      "upstream_error",
+      "TradingView websocket failed.",
+    ));
+    const onAbort = () => fail(new TradingViewSidecarError(
+      "upstream_error",
+      "Realtime quote request was canceled.",
+    ));
+
+    websocket.addEventListener("message", onMessage);
+    websocket.addEventListener("close", onClose);
+    websocket.addEventListener("error", onError);
+    context.signal?.addEventListener("abort", onAbort, { once: true });
+    if (context.signal?.aborted) {
+      onAbort();
+      return;
+    }
+
+    try {
+      websocket.send(tradingViewProtocolMessage(
+        "set_auth_token",
+        ["unauthorized_user_token"],
+      ));
+      websocket.send(tradingViewProtocolMessage("quote_create_session", [sessionId]));
+      websocket.send(tradingViewProtocolMessage(
+        "quote_set_fields",
+        [sessionId, ...TRADINGVIEW_WORKER_QUOTE_FIELDS],
+      ));
+      for (const request of requests) {
+        websocket.send(tradingViewProtocolMessage(
+          "quote_add_symbols",
+          [sessionId, request.sourceSymbol],
+        ));
+      }
+    } catch {
+      fail(new TradingViewSidecarError(
+        "upstream_error",
+        "TradingView websocket subscription failed.",
+      ));
+      return;
+    }
+
+    const elapsed = Date.now() - startedAt;
+    timers.response = setTimeout(() => {
+      finish(cursors.size === 0 ? "initial" : "timeout");
+    }, Math.max(10, waitMs - elapsed));
+  });
+}
+
 const REALTIME_ITEM_KEYS = Object.freeze([
   "symbol",
   "sourceSymbol",
@@ -456,6 +1884,7 @@ function normalizeRealtimeQuote(
   expectedBySymbol: ReadonlyMap<string, RealtimeQuoteRequest>,
   ingestedAtValue: unknown,
   observedNow: Date,
+  trustProviderSession: boolean,
 ): Quote | null {
   const item = asRecord(value);
   const ingestedAt = isoTimestamp(ingestedAtValue);
@@ -572,7 +2001,9 @@ function normalizeRealtimeQuote(
     low,
     volume,
     currency: "USD",
-    marketState: marketState(observedNow),
+    marketState: trustProviderSession
+      ? tradingViewMarketSessionState(item.session) ?? marketState(observedNow)
+      : marketState(observedNow),
     delaySeconds,
     provenance: Object.freeze({
       providerId: manifest.id,
@@ -602,6 +2033,7 @@ function normalizeRealtimeSnapshot(
     );
   }
   const expectedBySymbol = new Map(requests.map((request) => [request.symbol, request]));
+  const trustProviderSession = root.state === "connected";
   const seen = new Set<string>();
   const quotes: Quote[] = [];
   for (let index = 0; index < root.items.length; index += 1) {
@@ -614,7 +2046,13 @@ function normalizeRealtimeSnapshot(
       );
     }
     seen.add(expected.symbol);
-    const quote = normalizeRealtimeQuote(item, expectedBySymbol, root.ingestedAt, observedNow);
+    const quote = normalizeRealtimeQuote(
+      item,
+      expectedBySymbol,
+      root.ingestedAt,
+      observedNow,
+      trustProviderSession,
+    );
     if (quote) quotes.push(quote);
   }
   return Object.freeze(quotes);
@@ -678,6 +2116,7 @@ export function createTradingViewSidecarProvider(
   async function boundedResponseText(response: Response, maximumBytes: number): Promise<string> {
     const declaredLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+      await response.body?.cancel().catch(() => undefined);
       throw new TradingViewSidecarError(
         "invalid_response",
         "TradingView sidecar response exceeded the permitted size.",
@@ -705,6 +2144,13 @@ export function createTradingViewSidecarProvider(
         }
         chunks.push(value);
       }
+    } catch (error) {
+      await reader.cancel(error).catch(() => undefined);
+      if (error instanceof TradingViewSidecarError) throw error;
+      throw new TradingViewSidecarError(
+        "upstream_error",
+        "TradingView sidecar response stream failed.",
+      );
     } finally {
       reader.releaseLock();
     }
@@ -714,7 +2160,14 @@ export function createTradingViewSidecarProvider(
       bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      throw new TradingViewSidecarError(
+        "invalid_response",
+        "TradingView sidecar returned invalid UTF-8.",
+      );
+    }
   }
 
   async function openRealtimeResponse(
@@ -818,6 +2271,7 @@ export function createTradingViewSidecarProvider(
     const decoder = new TextDecoder();
     const expectedBySymbol = new Map(requests.map((request) => [request.symbol, request]));
     let canceled = false;
+    let sourceConnected = false;
 
     return new ReadableStream<Quote>({
       start(controller) {
@@ -847,16 +2301,26 @@ export function createTradingViewSidecarProvider(
               if (root?.type !== "ready") {
                 throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid ready event.");
               }
-              const quotes = normalizeRealtimeSnapshot(root, requests, now());
-              for (const quote of quotes) controller.enqueue(quote);
               if (root.state !== "connected") {
                 throw new TradingViewSidecarError("upstream_error", "TradingView realtime source is reconnecting.");
               }
+              sourceConnected = true;
+              const quotes = normalizeRealtimeSnapshot(root, requests, now());
+              for (const quote of quotes) controller.enqueue(quote);
             } else if (eventName === "quote") {
               if (root?.schemaVersion !== REALTIME_QUOTES_SCHEMA_VERSION || root.type !== "quote") {
                 throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid quote event.");
               }
-              const quote = normalizeRealtimeQuote(root.item, expectedBySymbol, root.ingestedAt, now());
+              if (!sourceConnected) {
+                throw new TradingViewSidecarError("upstream_error", "TradingView realtime source is not connected.");
+              }
+              const quote = normalizeRealtimeQuote(
+                root.item,
+                expectedBySymbol,
+                root.ingestedAt,
+                now(),
+                true,
+              );
               if (quote) controller.enqueue(quote);
             } else if (eventName === "status") {
               if (
@@ -868,8 +2332,10 @@ export function createTradingViewSidecarProvider(
                 throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid status event.");
               }
               if (root.state !== "connected") {
+                sourceConnected = false;
                 throw new TradingViewSidecarError("upstream_error", "TradingView realtime source disconnected.");
               }
+              sourceConnected = true;
             }
             eventName = "";
             dataLines = [];
@@ -979,12 +2445,14 @@ export function createTradingViewSidecarProvider(
     });
   }
 
-  async function requestLatestCloses(symbols: readonly string[]): Promise<readonly SyntheticLatestClose[]> {
+  async function requestLatestCloses(
+    symbols: readonly string[],
+    context: ProviderRequestContext,
+  ): Promise<readonly SyntheticLatestClose[]> {
     const normalizedSymbols = normalizeSyntheticSymbols(symbols);
 
     const url = new URL("v1/latest-closes", baseUrl);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const linked = linkedRequestController(context);
     let response: Response;
     try {
       response = await fetchImplementation(url, {
@@ -995,30 +2463,55 @@ export function createTradingViewSidecarProvider(
           ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ symbols: normalizedSymbols }),
-        signal: controller.signal,
+        cache: "no-store",
+        signal: linked.controller.signal,
       });
     } catch {
-      if (controller.signal.aborted) {
+      linked.cleanup();
+      if (linked.timedOut()) {
         throw new TradingViewSidecarError("request_timeout", "TradingView sidecar request timed out.");
       }
       throw new TradingViewSidecarError("upstream_error", "TradingView sidecar request failed.");
-    } finally {
-      clearTimeout(timer);
     }
-    if (!response.ok) {
-      throw new TradingViewSidecarError(
-        "upstream_error",
-        "TradingView sidecar returned an unsuccessful response.",
-        response.status,
-      );
-    }
-    let payload: unknown;
     try {
-      payload = await response.json();
-    } catch {
-      throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned invalid JSON.");
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new TradingViewSidecarError(
+          "upstream_error",
+          "TradingView sidecar returned an unsuccessful response.",
+          response.status,
+        );
+      }
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.toLowerCase().startsWith("application/json")) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new TradingViewSidecarError(
+          "invalid_response",
+          "TradingView sidecar returned an invalid content type.",
+        );
+      }
+      const text = await boundedResponseText(response, MAX_LATEST_CLOSE_SNAPSHOT_BYTES);
+      let payload: unknown;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw new TradingViewSidecarError(
+          "invalid_response",
+          "TradingView sidecar returned invalid JSON.",
+        );
+      }
+      return normalizeLatestCloses(payload, normalizedSymbols, syntheticExchanges);
+    } catch (error) {
+      if (linked.timedOut()) {
+        throw new TradingViewSidecarError(
+          "request_timeout",
+          "TradingView sidecar request timed out.",
+        );
+      }
+      throw error;
+    } finally {
+      linked.cleanup();
     }
-    return normalizeLatestCloses(payload, normalizedSymbols, syntheticExchanges);
   }
 
   async function requestLatestCloseStream(
@@ -1217,10 +2710,7 @@ export function createTradingViewSidecarProvider(
       getLatestCloses: async (
         symbols: readonly string[],
         context: ProviderRequestContext,
-      ): Promise<readonly SyntheticLatestClose[]> => {
-        void context;
-        return requestLatestCloses(symbols);
-      },
+      ): Promise<readonly SyntheticLatestClose[]> => requestLatestCloses(symbols, context),
       getLatestCloseStream: async (
         symbols: readonly string[],
         context: ProviderRequestContext,

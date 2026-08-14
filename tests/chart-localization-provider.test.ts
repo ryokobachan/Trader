@@ -37,7 +37,8 @@ test("the main price and strategy charts also receive the selected locale", asyn
 
   assert.equal(chartCalls.length, 3);
   assert.equal(localizedCalls.length, chartCalls.length);
-  assert.match(source, /\[activeIndicators, chartType, displayCandles, displayVolumes, fullData, indicatorSettings, locale, marketBars, priceLineColor, range, stock\.currency, timeScaleSync\]/);
+  assert.match(source, /runtime\.chart\.applyOptions\(\{\s*localization:\s*\{\s*locale:\s*chartLocaleTag\(locale\)\s*\}/);
+  assert.match(source, /\[activeIndicators, chartType, indicatorSettings, locale, marketBars, priceLineColor, stock\.currency\]/);
   assert.match(source, /\[locale, mode, period, seed\]/);
   assert.match(source, /\[locale, seed\]/);
 });

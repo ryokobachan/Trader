@@ -9,6 +9,7 @@ import {
 } from "../../../../../platform/provider-contracts";
 import { providerEnvironment } from "../../../../../platform/provider-environment.server";
 import { ProviderRegistryError } from "../../../../../platform/provider-registry";
+import { providerDataMode } from "../../../../../platform/watchlist-quotes.server";
 import { createProviderRuntime } from "@api/index.server";
 
 type RouteContext = { params: Promise<{ symbol: string }> };
@@ -36,8 +37,12 @@ export async function GET(request: Request, context: RouteContext) {
   const url = new URL(request.url);
   const range = (url.searchParams.get("range") || "1y") as MarketBarRange;
   const interval = (url.searchParams.get("interval") || "1d") as MarketBarInterval;
+  const fresh = url.searchParams.get("fresh");
   if (!SYMBOL_PATTERN.test(symbol) || !RANGES.has(range) || !INTERVALS.has(interval)) {
     return errorResponse(400, "invalid_request", "銘柄・期間・時間足の指定を確認してください。", requestId);
+  }
+  if (fresh !== null && fresh !== "1") {
+    return errorResponse(400, "invalid_fresh", "fresh must be 1 when provided.", requestId);
   }
   const rawCount = url.searchParams.get("count");
   let count: number | undefined;
@@ -60,7 +65,11 @@ export async function GET(request: Request, context: RouteContext) {
 
   try {
     const runtime = createProviderRuntime(providerEnvironment());
-    const providerContext = { requestId } as const;
+    const providerContext = {
+      requestId,
+      signal: request.signal,
+      ...(fresh === "1" ? { fresh: true } : {}),
+    } as const;
     const instrument = await runtime.instrument.getUSStockBySymbol(symbol, providerContext);
     if (!instrument) return errorResponse(404, "symbol_not_found", "対象の米国株が見つかりません。", requestId);
     if (!runtime.market.getBars) return errorResponse(501, "bars_not_supported", "選択中のProviderは価格履歴に対応していません。", requestId);
@@ -90,14 +99,19 @@ export async function GET(request: Request, context: RouteContext) {
       requestedCount: count ?? providerBars.requestedCount ?? null,
       returnedCount: items.length,
       selectedProviders: { instrument: runtime.selectedProviderIds.instrument, market: runtime.selectedProviderIds.bars },
-      dataMode: runtime.selectedProviderIds.bars === "mock" ? "fixture" : "provider",
+      dataMode: providerDataMode(
+        runtime.selectedProviderIds.instrument,
+        runtime.selectedProviderIds.bars,
+      ),
       asOf: bars.provenance.asOf,
     };
     return Response.json(response, {
       headers: {
-        "Cache-Control": ["1d", "1wk", "1mo"].includes(interval)
-          ? "private, max-age=300"
-          : "private, max-age=20",
+        "Cache-Control": fresh === "1"
+          ? "private, no-store"
+          : ["1d", "1wk", "1mo"].includes(interval)
+            ? "private, max-age=300"
+            : "private, max-age=20",
         "X-Request-Id": requestId,
       },
     });

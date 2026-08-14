@@ -9,6 +9,18 @@ test("stock detail has complete English-default and Japanese navigation copy", (
   assert.equal(translate("ja", "detail.tab.financials"), "財務・決算");
   assert.equal(translate("en", "detail.section.targetHistory"), "Price target history");
   assert.equal(translate("ja", "detail.section.targetHistory"), "目標価格の推移一覧");
+  assert.equal(translate("en", "detail.analyst.table.ratingPrevious"), "Previous rating");
+  assert.equal(translate("en", "detail.analyst.table.ratingCurrent"), "New rating");
+  assert.equal(translate("ja", "detail.analyst.table.ratingPrevious"), "変更前レーティング");
+  assert.equal(translate("ja", "detail.analyst.table.ratingCurrent"), "変更後レーティング");
+  assert.equal(translate("en", "detail.technical.rating.overall"), "Overall");
+  assert.equal(translate("ja", "detail.technical.rating.overall"), "総合");
+  assert.equal(translate("en", "detail.technical.rating.verdict.strong_buy"), "Strong buy");
+  assert.equal(translate("ja", "detail.technical.rating.verdict.strong_sell"), "強い売り");
+  assert.equal(
+    translate("ja", "detail.technical.rating.dailyMeta", { count: 300, date: "2026/08/13" }),
+    "日足 · 300本 · 2026/08/13まで",
+  );
   assert.equal(
     translate("en", "detail.empty.notProvided", { subject: translate("en", "detail.subject.analyst") }),
     "analyst data was not provided by the selected source.",

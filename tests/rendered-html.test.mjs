@@ -51,7 +51,7 @@ test("server-renders the Unicorn stock analysis mock", async () => {
   assert.match(html, /Technicals/);
   assert.match(html, /Analysts/);
   assert.match(html, /Company profile/);
-  assert.match(html, /10:32 JST · 15 min delayed/);
+  assert.doesNotMatch(html, /10:32 JST · 15 min delayed/);
   assert.doesNotMatch(html, /15分遅延/);
   assert.match(html, /Indicators/);
   assert.match(html, /Strategies/);

@@ -103,6 +103,10 @@ The UI calls only Unicorn routes such as `/api/v1/instruments/search`,
 same-origin `/api/v1/watchlists/quotes/stream` SSE endpoint. Provider files
 normalize vendor responses into the canonical DTOs in
 [`src/app/platform/provider-contracts.ts`](../src/app/platform/provider-contracts.ts).
+The quote snapshot advertises whether the selected market provider supports
+that SSE contract. On Sites it instead advertises the ordinary HTTPS long-poll
+route, which waits inside the Worker for the same guest websocket quote and
+returns a completed JSON response without relying on downstream SSE framing.
 
 For current prices, the TradingView adapter derives a direct USD listing from
 the resolved instrument MIC (for example `NASDAQ:AAPL`) and talks to the
@@ -110,12 +114,28 @@ process-wide Python websocket broker. It does not use `{symbol}USDT.P` for the
 equity quote. The latter remains a separate perpetual reference price served by
 the snapshot route `/api/v1/watchlists/after-hours` and the same-origin SSE
 route `/api/v1/watchlists/after-hours/stream`. Its canonical provider currency
-stays `USDT` even when product copy presents a USD-equivalent comparison.
+stays `USDT` even when product copy presents the reference value as a
+USD-equivalent comparison.
+
+USDT.P is treated as a continuous market: an upstream tick is current through
+the exact five-minute age boundary and becomes unavailable immediately after
+it. Both the sidecar stream/snapshot and hosted scanner snapshot return a null
+close for stale values; the browser independently expires a retained value, so
+a reconnect failure cannot keep an old price on screen.
+
+Reference-price routing is deliberately independent from the ordinary equity
+`market` provider. With a configured sidecar URL, snapshots and SSE use the
+sidecar. Without one, the snapshot route resolves the same server-derived,
+ordered `{EXCHANGE}:{symbol}USDT.P` candidates through TradingView's crypto
+scanner and the HTTPS long-poll route opens the same guest TradingView quote
+websocket used by the local sidecar. It must never substitute an FMP or other direct USD
+aftermarket price.
 
 Keep `UNICORN_TRADINGVIEW_SIDECAR_TOKEN` server-side. Local development may use
-loopback HTTP; a non-loopback or hosted Sites deployment requires an externally
-reachable HTTPS sidecar plus a bearer token. The browser must never connect to
-the sidecar directly.
+loopback HTTP. An external sidecar must use HTTPS plus a bearer token. Hosted
+Sites can use the server-side scanner snapshot fallback and Worker-native
+TradingView websocket long polling without a sidecar. The browser must never connect to
+either upstream directly.
 
 ## Add a provider
 

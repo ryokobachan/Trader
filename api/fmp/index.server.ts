@@ -219,6 +219,27 @@ function numberValue(...values: unknown[]): number | undefined {
   return undefined;
 }
 
+function positiveNumber(...values: unknown[]): number | undefined {
+  const value = numberValue(...values);
+  return value !== undefined && value > 0 ? value : undefined;
+}
+
+function validOhlcv(
+  open: number,
+  high: number,
+  low: number,
+  close: number,
+  volume: number,
+): boolean {
+  return open > 0
+    && high > 0
+    && low > 0
+    && close > 0
+    && volume >= 0
+    && high >= Math.max(open, close, low)
+    && low <= Math.min(open, close, high);
+}
+
 function booleanValue(value: unknown): boolean | undefined {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
@@ -311,6 +332,35 @@ function usCountry(value: unknown): boolean {
     || country === "UNITED STATES OF AMERICA";
 }
 
+const US_LISTING_EXCHANGES = new Set([
+  "AMEX",
+  "ARCA",
+  "BATS",
+  "CBOE",
+  "NASDAQ",
+  "NASDAQ CAPITAL MARKET",
+  "NASDAQ GLOBAL MARKET",
+  "NASDAQ GLOBAL SELECT",
+  "NASDAQ GLOBAL SELECT MARKET",
+  "NASDAQCM",
+  "NASDAQGM",
+  "NASDAQGS",
+  "NEW YORK STOCK EXCHANGE",
+  "NYSE",
+  "NYSE AMERICAN",
+  "NYSE ARCA",
+  "NYSE MKT",
+  "NYSEARCA",
+]);
+
+function normalizedExchangeName(value: string): string {
+  return value.toUpperCase().replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function isUsListingExchange(value: string): boolean {
+  return US_LISTING_EXCHANGES.has(normalizedExchangeName(value));
+}
+
 function exchangeMic(value: string): string {
   const exchange = value.toUpperCase();
   if (exchange.includes("NASDAQ")) return "XNAS";
@@ -339,6 +389,11 @@ function assetTypeFromProfile(profile: JsonRecord): Instrument["assetType"] | nu
     return "adr";
   }
   return "common_stock";
+}
+
+/** FMP uses hyphens for U.S. share classes even when users enter a dot. */
+function normalizedFmpListedSymbol(value: unknown): string | null {
+  return normalizedSymbol(value)?.replaceAll(".", "-") ?? null;
 }
 
 function sourceAsOf(context: ProviderRequestContext, fallback: string): string {
@@ -428,15 +483,25 @@ function instrumentFromProfile(
   client: FmpClient,
   ingestedAt: string,
 ): Instrument | null {
-  const symbol = normalizedSymbol(profile.symbol);
+  const symbol = normalizedFmpListedSymbol(profile.symbol);
   const name = stringValue(profile.companyName, profile.name);
   const active = booleanValue(profile.isActivelyTrading);
   const assetType = assetTypeFromProfile(profile);
   const currency = stringValue(profile.currency)?.toUpperCase();
-  if (!symbol || !name || active !== true || !usCountry(profile.country) || !assetType) return null;
+  const reportedExchange = stringValue(profile.exchangeShortName, profile.exchange);
+  if (!symbol || !name || active !== true || !assetType) return null;
   if (currency && currency !== "USD") return null;
+  // `country` is the issuer domicile in FMP, not the listing venue. Accept a
+  // foreign issuer only when FMP explicitly identifies a supported U.S.
+  // exchange. Retain the legacy fallback for U.S. issuers whose profile omits
+  // an exchange, but never infer a U.S. listing from an unknown venue.
+  if (reportedExchange) {
+    if (!isUsListingExchange(reportedExchange)) return null;
+  } else if (!usCountry(profile.country)) {
+    return null;
+  }
 
-  const exchange = stringValue(profile.exchangeShortName, profile.exchange) || "US";
+  const exchange = reportedExchange || "US";
   const mic = exchangeMic(exchange);
   const asOf = sourceAsOf(context, ingestedAt);
   return {
@@ -581,15 +646,17 @@ export function createFmpProvider(
         ]);
 
         const candidates = new Map<string, string>();
+        const exactSymbol = normalizedFmpListedSymbol(normalizedQuery);
+        if (exactSymbol) candidates.set(exactSymbol, exactSymbol);
         for (const row of [...recordsFrom(symbolPayload), ...recordsFrom(namePayload)]) {
-          const symbol = normalizedSymbol(row.symbol);
+          const symbol = normalizedFmpListedSymbol(row.symbol);
           if (symbol && !candidates.has(symbol)) candidates.set(symbol, symbol);
         }
         const symbols = [...candidates.keys()].slice(0, Math.min(50, normalizedLimit * 3));
         const profiles = await mapWithConcurrency(symbols, 4, async (symbol) => {
           const payload = await client.get("profile", { symbol });
           const profile = firstRecord(payload);
-          return profile && normalizedSymbol(profile.symbol) === symbol ? profile : undefined;
+          return profile && normalizedFmpListedSymbol(profile.symbol) === symbol ? profile : undefined;
         });
         const ingestedAt = now().toISOString();
         return profiles
@@ -598,28 +665,45 @@ export function createFmpProvider(
           .slice(0, normalizedLimit);
       },
       getUSStockBySymbol: async (requestedSymbol, context) => {
-        const symbol = normalizedSymbol(requestedSymbol);
+        const symbol = normalizedFmpListedSymbol(requestedSymbol);
         if (!symbol) return null;
         const profile = firstRecord(await client.get("profile", { symbol }));
-        if (!profile || normalizedSymbol(profile.symbol) !== symbol) return null;
+        if (!profile || normalizedFmpListedSymbol(profile.symbol) !== symbol) return null;
         return instrumentFromProfile(profile, context, client, now().toISOString());
       },
     },
     market: {
-      getQuote: async (instrument, context) => {
+      getQuote: async (instrument) => {
         const record = firstRecord(await client.get("quote", { symbol: instrument.symbol }));
         if (!record) return null;
         const price = numberValue(record.price);
-        if (price === undefined || price <= 0) return null;
-        const change = numberValue(record.change) ?? 0;
-        const previousClose = numberValue(record.previousClose) ?? price - change;
-        if (previousClose <= 0) return null;
+        const previousClose = numberValue(record.previousClose);
+        const open = numberValue(record.open);
+        const high = numberValue(record.dayHigh, record.high);
+        const low = numberValue(record.dayLow, record.low);
+        const volume = numberValue(record.volume);
         const rawTimestamp = numberValue(record.timestamp);
+        if (
+          price === undefined
+          || price <= 0
+          || previousClose === undefined
+          || previousClose <= 0
+          || open === undefined
+          || open <= 0
+          || high === undefined
+          || high <= 0
+          || low === undefined
+          || low <= 0
+          || high < low
+          || volume === undefined
+          || volume < 0
+          || rawTimestamp === undefined
+        ) return null;
+        const change = numberValue(record.change) ?? price - previousClose;
         const ingestedAt = now().toISOString();
-        const asOf = isoDateTime(rawTimestamp) || sourceAsOf(context, ingestedAt);
-        const observedDelay = rawTimestamp === undefined
-          ? 0
-          : Math.max(0, Math.trunc((now().getTime() - new Date(asOf).getTime()) / 1000));
+        const asOf = isoDateTime(rawTimestamp);
+        if (!asOf) return null;
+        const observedDelay = Math.max(0, Math.trunc((now().getTime() - new Date(asOf).getTime()) / 1000));
         return {
           instrumentId: instrument.instrumentId,
           price,
@@ -627,10 +711,10 @@ export function createFmpProvider(
           changePercent: numberValue(record.changesPercentage, record.changePercentage)
             ?? (previousClose === 0 ? 0 : (change / previousClose) * 100),
           previousClose,
-          open: numberValue(record.open) ?? price,
-          high: numberValue(record.dayHigh, record.high) ?? price,
-          low: numberValue(record.dayLow, record.low) ?? price,
-          volume: numberValue(record.volume) ?? 0,
+          open,
+          high,
+          low,
+          volume,
           marketCap: numberValue(record.marketCap),
           currency: "USD",
           marketState: marketState(record),
@@ -662,7 +746,16 @@ export function createFmpProvider(
           const high = numberValue(row.high);
           const low = numberValue(row.low);
           const close = numberValue(row.close);
-          if (!time || open === undefined || high === undefined || low === undefined || close === undefined) continue;
+          const volume = numberValue(row.volume);
+          if (
+            !time
+            || open === undefined
+            || high === undefined
+            || low === undefined
+            || close === undefined
+            || volume === undefined
+            || !validOhlcv(open, high, low, close, volume)
+          ) continue;
           const adjustedClose = numberValue(row.adjClose, row.adjustedClose);
           byTime.set(time, {
             time,
@@ -670,7 +763,7 @@ export function createFmpProvider(
             high,
             low,
             close,
-            volume: numberValue(row.volume) ?? 0,
+            volume,
             ...(adjustedClose === undefined ? {} : { adjustedClose }),
           });
         }
@@ -932,17 +1025,18 @@ export function createFmpProvider(
         const gradesCount = [strongBuy, buy, hold, sell, strongSell]
           .filter((value): value is number => value !== undefined)
           .reduce((sum, value) => sum + value, 0);
+        const hasGradeDistribution = gradesCount > 0;
         const values = {
-          targetLow: numberValue(target.targetLow, target.low),
-          targetHigh: numberValue(target.targetHigh, target.high),
-          targetConsensus: numberValue(target.targetConsensus, target.consensus),
-          targetMedian: numberValue(target.targetMedian, target.median),
-          strongBuy,
-          buy,
-          hold,
-          sell,
-          strongSell,
-          analystCount: numberValue(
+          targetLow: positiveNumber(target.targetLow, target.low),
+          targetHigh: positiveNumber(target.targetHigh, target.high),
+          targetConsensus: positiveNumber(target.targetConsensus, target.consensus),
+          targetMedian: positiveNumber(target.targetMedian, target.median),
+          strongBuy: hasGradeDistribution ? strongBuy : undefined,
+          buy: hasGradeDistribution ? buy : undefined,
+          hold: hasGradeDistribution ? hold : undefined,
+          sell: hasGradeDistribution ? sell : undefined,
+          strongSell: hasGradeDistribution ? strongSell : undefined,
+          analystCount: positiveNumber(
             target.analystCount,
             estimate.numberAnalystEstimatedEps,
             estimate.numberAnalystsEstimatedEps,
@@ -969,6 +1063,8 @@ export function createFmpProvider(
       getCompanyNews: async (instrument) => {
         const payload = await client.get("news/stock", { symbols: instrument.symbol, limit: 20 });
         const ingestedAt = now().toISOString();
+        const seenIds = new Set<string>();
+        const seenUrls = new Set<string>();
         return recordsFrom(payload)
           .map((row): CompanyNewsItem | null => {
             const title = stringValue(row.title);
@@ -995,6 +1091,13 @@ export function createFmpProvider(
             };
           })
           .filter((item): item is CompanyNewsItem => Boolean(item))
+          .filter((item) => {
+            const canonicalUrl = item.url.toString();
+            if (seenIds.has(item.id) || seenUrls.has(canonicalUrl)) return false;
+            seenIds.add(item.id);
+            seenUrls.add(canonicalUrl);
+            return true;
+          })
           .sort((left, right) => right.publishedAt.localeCompare(left.publishedAt));
       },
     },

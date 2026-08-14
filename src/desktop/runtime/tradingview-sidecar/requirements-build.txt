@@ -1,0 +1,16 @@
+# The application dependencies remain owned by the existing sidecar.
+-r ../../../../api/tradingview-websocket/requirements.txt
+
+# Keep the frozen ABI stable on arm64 Python 3.12. Newer NumPy and pandas
+# releases have already dropped older Python/macOS combinations.
+numpy==1.26.4
+pandas==2.2.3
+# Its arm64 wheel embeds curl dylibs with a macOS 14 deployment target, which
+# establishes the effective minimum OS for the finished one-file helper.
+curl_cffi==0.13.0
+# yfinance's earnings scraper calls pandas.read_html(), whose parser is an
+# optional pandas dependency and therefore is not installed by yfinance itself.
+lxml==6.0.2
+
+# Pin the packager so local and release builds use the same bootloader/hooks.
+pyinstaller==6.22.0

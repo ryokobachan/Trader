@@ -12,6 +12,7 @@ import {
   type MarketBars,
   type MarketSessionState,
   type ProviderEnvironment,
+  type ProviderRequestContext,
   type ProviderRegistration,
   type Quote,
 } from "@/app/platform/provider-contracts";
@@ -1073,10 +1074,24 @@ function barsFromChartResult(result: JsonRecord): readonly ParsedBar[] {
     const high = finiteArrayValue(quote.high, index);
     const low = finiteArrayValue(quote.low, index);
     const close = finiteArrayValue(quote.close, index);
-    if (unixTime === null || open === null || high === null || low === null || close === null) {
+    const volume = finiteArrayValue(quote.volume, index);
+    if (
+      unixTime === null
+      || open === null
+      || high === null
+      || low === null
+      || close === null
+      || volume === null
+      || open <= 0
+      || high <= 0
+      || low <= 0
+      || close <= 0
+      || volume < 0
+      || high < Math.max(open, close, low)
+      || low > Math.min(open, close, high)
+    ) {
       continue;
     }
-    const volume = finiteArrayValue(quote.volume, index) ?? 0;
     const adjustedClose = finiteArrayValue(adjusted?.adjclose, index);
     items.push(Object.freeze({
       time: new Date(unixTime * 1_000).toISOString(),
@@ -1132,12 +1147,23 @@ function quoteFromChart(
   const previousClose = finiteNumber(meta.chartPreviousClose)
     ?? finiteNumber(meta.previousClose);
   if (previousClose === null || previousClose <= 0 || latest.close <= 0) return null;
-  const open = finiteNumber(meta.regularMarketOpen) ?? latest.open;
-  const high = finiteNumber(meta.regularMarketDayHigh) ?? latest.high;
-  const low = finiteNumber(meta.regularMarketDayLow) ?? latest.low;
-  const volume = finiteNumber(meta.regularMarketVolume) ?? latest.volume;
+  const open = finiteNumber(meta.regularMarketOpen);
+  const high = finiteNumber(meta.regularMarketDayHigh);
+  const low = finiteNumber(meta.regularMarketDayLow);
+  const volume = finiteNumber(meta.regularMarketVolume);
   const price = latest.close;
-  if (open <= 0 || high <= 0 || low <= 0) return null;
+  if (
+    open === null
+    || high === null
+    || low === null
+    || volume === null
+    || open <= 0
+    || high <= 0
+    || low <= 0
+    || volume < 0
+    || high < Math.max(open, low)
+    || low > Math.min(open, high)
+  ) return null;
   const change = price - previousClose;
   const asOfSeconds = requestedAsOf ? Date.parse(requestedAsOf) / 1_000 : Date.now() / 1_000;
   const stateAt = Number.isFinite(asOfSeconds) ? asOfSeconds : Date.now() / 1_000;
@@ -1214,28 +1240,20 @@ function quoteFromSpark(
     ?? finiteNumber(meta.previousClose);
   if (previousClose === null || previousClose <= 0) return null;
 
-  const periods = asRecord(meta.currentTradingPeriod);
-  const regular = asRecord(periods?.regular);
-  const regularStart = unixSeconds(regular?.start);
-  const regularEnd = unixSeconds(regular?.end);
-  const regularPoints = regularStart === null || regularEnd === null
-    ? points
-    : points.filter((point) => point.time >= regularStart && point.time < regularEnd);
-  const sessionPoints = regularPoints.length > 0 ? regularPoints : points;
-  const open = finiteNumber(meta.regularMarketOpen) ?? sessionPoints[0]?.close ?? null;
-  const high = finiteNumber(meta.regularMarketDayHigh)
-    ?? Math.max(...sessionPoints.map((point) => point.close));
-  const low = finiteNumber(meta.regularMarketDayLow)
-    ?? Math.min(...sessionPoints.map((point) => point.close));
-  const volume = finiteNumber(meta.regularMarketVolume) ?? 0;
+  const open = finiteNumber(meta.regularMarketOpen);
+  const high = finiteNumber(meta.regularMarketDayHigh);
+  const low = finiteNumber(meta.regularMarketDayLow);
+  const volume = finiteNumber(meta.regularMarketVolume);
   if (
     open === null
     || open <= 0
-    || !Number.isFinite(high)
+    || high === null
     || high <= 0
-    || !Number.isFinite(low)
+    || low === null
     || low <= 0
-    || high < low
+    || high < Math.max(open, low)
+    || low > Math.min(open, high)
+    || volume === null
     || volume < 0
   ) return null;
 
@@ -1391,12 +1409,17 @@ export const yahooProviderRegistration: ProviderRegistration = {
       path: "v1/yahoo/profile" | "v1/yahoo/earnings",
       symbol: string,
       limit?: number,
+      context?: ProviderRequestContext,
     ): Promise<unknown | undefined> {
       if (!sidecarBaseUrl) return undefined;
       const url = new URL(path, sidecarBaseUrl);
       url.searchParams.set("symbol", symbol);
       if (limit !== undefined) url.searchParams.set("limit", String(limit));
+      if (context?.fresh) url.searchParams.set("fresh", "1");
       const controller = new AbortController();
+      const abortFromContext = () => controller.abort(context?.signal?.reason);
+      if (context?.signal?.aborted) abortFromContext();
+      else context?.signal?.addEventListener("abort", abortFromContext, { once: true });
       const timeout = setTimeout(() => controller.abort(), sidecarTimeoutMs);
       let response: Response;
       try {
@@ -1414,6 +1437,7 @@ export const yahooProviderRegistration: ProviderRegistration = {
         throw new YahooProviderError("upstream_error", "Yahoo sidecar request failed.");
       } finally {
         clearTimeout(timeout);
+        context?.signal?.removeEventListener("abort", abortFromContext);
       }
       if (!response.ok) {
         throw new YahooProviderError(
@@ -1516,12 +1540,15 @@ export const yahooProviderRegistration: ProviderRegistration = {
       requestSize: 24,
     });
 
-    async function fetchProfileWithFallback(instrument: Instrument): Promise<CompanyProfile | null> {
+    async function fetchProfileWithFallback(
+      instrument: Instrument,
+      context: ProviderRequestContext,
+    ): Promise<CompanyProfile | null> {
       const symbol = normalizedSymbol(instrument.symbol);
       if (!symbol) return null;
       let nativeFailure: unknown;
       try {
-        const item = await fetchQuoteSummary(symbol);
+        const item = await fetchQuoteSummary(symbol, context.fresh);
         const result = quoteSummaryResult(item.payload);
         if (result) {
           return profileFromQuoteSummary(
@@ -1534,7 +1561,12 @@ export const yahooProviderRegistration: ProviderRegistration = {
       } catch (error) {
         nativeFailure = error;
       }
-      const sidecarPayload = await fetchYahooSidecar("v1/yahoo/profile", symbol);
+      const sidecarPayload = await fetchYahooSidecar(
+        "v1/yahoo/profile",
+        symbol,
+        undefined,
+        context,
+      );
       if (sidecarPayload !== undefined) return yahooSidecarProfile(sidecarPayload, instrument);
       if (nativeFailure) throw nativeFailure;
       return null;
@@ -1542,6 +1574,7 @@ export const yahooProviderRegistration: ProviderRegistration = {
 
     async function fetchEarningsWithFallback(
       instrument: Instrument,
+      context: ProviderRequestContext,
     ): Promise<readonly EarningsEvent[]> {
       const symbol = normalizedSymbol(instrument.symbol);
       if (!symbol) return [];
@@ -1557,6 +1590,7 @@ export const yahooProviderRegistration: ProviderRegistration = {
         "v1/yahoo/earnings",
         symbol,
         YAHOO_SIDECAR_EARNINGS_LIMIT,
+        context,
       );
       if (sidecarPayload !== undefined) {
         return yahooSidecarEarnings(
@@ -1569,13 +1603,13 @@ export const yahooProviderRegistration: ProviderRegistration = {
       return nativeItems;
     }
 
-    async function fetchQuoteSummary(symbol: string): Promise<Readonly<{
+    async function fetchQuoteSummary(symbol: string, fresh = false): Promise<Readonly<{
       payload: unknown;
       sourceUrl: string;
       ingestedAt: string;
     }>> {
       const cached = quoteSummaryCache.get(symbol);
-      if (cached && cached.expiresAt > Date.now()) return cached;
+      if (!fresh && cached && cached.expiresAt > Date.now()) return cached;
       const pending = quoteSummaryPromises.get(symbol);
       if (pending) return pending;
 
@@ -1624,6 +1658,7 @@ export const yahooProviderRegistration: ProviderRegistration = {
     async function fetchFundamentals(
       instrument: Instrument,
       requestedAsOf?: string,
+      fresh = false,
     ): Promise<FundamentalsSnapshot | null> {
       const symbol = normalizedSymbol(instrument.symbol);
       if (!symbol) return null;
@@ -1636,7 +1671,7 @@ export const yahooProviderRegistration: ProviderRegistration = {
           const url = fundamentalsTimeseriesUrl(symbol, types, period1, period2);
           return fetchJson(fetchImplementation, url, timeoutMs);
         })),
-        Promise.allSettled([fetchQuoteSummary(symbol)]),
+        Promise.allSettled([fetchQuoteSummary(symbol, fresh)]),
       ]);
       const timeseriesPayloads = timeseriesSettled
         .filter((item): item is PromiseFulfilledResult<unknown> => item.status === "fulfilled")
@@ -1792,9 +1827,13 @@ export const yahooProviderRegistration: ProviderRegistration = {
         },
       },
       fundamentals: {
-        getProfile: (instrument) => fetchProfileWithFallback(instrument),
-        getFundamentals: (instrument, context) => fetchFundamentals(instrument, context.asOf),
-        getEarnings: (instrument) => fetchEarningsWithFallback(instrument),
+        getProfile: (instrument, context) => fetchProfileWithFallback(instrument, context),
+        getFundamentals: (instrument, context) => fetchFundamentals(
+          instrument,
+          context.asOf,
+          context.fresh,
+        ),
+        getEarnings: (instrument, context) => fetchEarningsWithFallback(instrument, context),
       },
       news: {
         getCompanyNews: async (instrument) => {

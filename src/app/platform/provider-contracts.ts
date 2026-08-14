@@ -8,6 +8,7 @@ export const SYMBOL_WORKSPACE_SCHEMA_VERSION = "unicorn.symbol-workspace.v1" as 
 export const ANALYST_RATING_HISTORY_SCHEMA_VERSION = "unicorn.analyst-rating-history.v1" as const;
 export const WATCHLIST_AFTER_HOURS_SCHEMA_VERSION = "unicorn.watchlist-after-hours.v1" as const;
 export const WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION = "unicorn.watchlist-after-hours-stream.v1" as const;
+export const WATCHLIST_AFTER_HOURS_POLL_SCHEMA_VERSION = "unicorn.watchlist-after-hours-poll.v1" as const;
 export const WATCHLIST_AFTER_HOURS_MAX_SYMBOLS = 50 as const;
 export const WATCHLIST_QUOTES_SCHEMA_VERSION = "unicorn.watchlist-quotes.v1" as const;
 export const WATCHLIST_QUOTES_MAX_SYMBOLS = 50 as const;
@@ -132,19 +133,52 @@ export type MarketBars = Readonly<{
   provenance: DataProvenance;
 }>;
 
+/**
+ * A continuous USDT perpetual tick must be no more than five minutes old to
+ * be presented as current. Exactly five minutes remains usable; one
+ * millisecond beyond the boundary does not.
+ */
+export const SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS = 5 * 60_000;
+export const SYNTHETIC_LATEST_CLOSE_FUTURE_SKEW_MS = 60_000;
+
 /** Latest price for the configured ticker-derived perpetual reference market. */
 export type SyntheticLatestClose = Readonly<{
   /** Canonical U.S.-equity ticker supplied by the watchlist. */
   symbol: string;
   /** Exact resolved upstream identifier, for example `BITGET:OKLOUSDT.P`. */
   sourceSymbol: string;
-  /** Null means none of the configured source candidates returned a usable bar. */
+  /** Null means no configured source returned a present, sufficiently fresh tick. */
   close: number | null;
   currency: "USDT";
   source: string;
   /** Upstream bar timestamp; null when `close` is null. */
   updatedAt: string | null;
 }>;
+
+/** Strict display boundary for ticker-derived continuous USDT perpetuals. */
+export function isFreshSyntheticLatestClose(
+  item: SyntheticLatestClose | null | undefined,
+  observedAtMilliseconds = Date.now(),
+  maximumAgeMilliseconds = SYNTHETIC_LATEST_CLOSE_MAX_AGE_MS,
+): item is SyntheticLatestClose & Readonly<{ close: number; updatedAt: string }> {
+  if (
+    !item
+    || item.currency !== "USDT"
+    || item.source !== "tradingview-websocket"
+    || typeof item.close !== "number"
+    || !Number.isFinite(item.close)
+    || item.close <= 0
+    || typeof item.updatedAt !== "string"
+    || !Number.isFinite(observedAtMilliseconds)
+    || !Number.isFinite(maximumAgeMilliseconds)
+    || maximumAgeMilliseconds < 0
+  ) return false;
+  const updatedAtMilliseconds = Date.parse(item.updatedAt);
+  if (!Number.isFinite(updatedAtMilliseconds)) return false;
+  const ageMilliseconds = observedAtMilliseconds - updatedAtMilliseconds;
+  return ageMilliseconds >= -SYNTHETIC_LATEST_CLOSE_FUTURE_SKEW_MS
+    && ageMilliseconds <= maximumAgeMilliseconds;
+}
 
 export type CompanyProfile = Readonly<{
   instrumentId: string;
@@ -347,6 +381,8 @@ export type ProviderRequestContext = Readonly<{
   requestId: string;
   asOf?: string;
   signal?: AbortSignal;
+  /** Bypass provider-owned result caches for an explicit user refresh. */
+  fresh?: boolean;
 }>;
 
 export interface InstrumentProvider {
@@ -448,6 +484,7 @@ export type SymbolSummary = Readonly<{
     instrument: string;
     market: string;
   }>;
+  dataMode: "fixture" | "provider";
   asOf: string;
 }>;
 
@@ -500,6 +537,26 @@ export type WatchlistAfterHoursResponse = Readonly<{
   exchanges?: readonly string[];
   items: readonly SyntheticLatestClose[];
   selectedProvider: string;
+  /** False when this provider supports snapshot polling but no realtime transport. */
+  streamSupported?: boolean;
+  /** Present only when a configured sidecar exposes a realtime stream. */
+  streamTransport?: "websocket" | "sse";
+  /** A normal HTTPS request can wait server-side for the next TradingView tick. */
+  longPollSupported?: boolean;
+  asOf: string;
+}>;
+
+export type WatchlistAfterHoursPollCursor = Readonly<{
+  symbol: string;
+  sourceSymbol: string;
+  close: number;
+  updatedAt: string;
+}>;
+
+export type WatchlistAfterHoursPollResponse = Readonly<{
+  schemaVersion: typeof WATCHLIST_AFTER_HOURS_POLL_SCHEMA_VERSION;
+  items: readonly SyntheticLatestClose[];
+  timedOut: boolean;
   asOf: string;
 }>;
 
@@ -524,6 +581,12 @@ export type WatchlistQuotesResponse = Readonly<{
     instrument: string;
     market: string;
   }>;
+  /** Fixture responses must never be merged into live quote UI state. */
+  dataMode: "fixture" | "provider";
+  /** False when the selected market provider supports snapshots but not SSE. */
+  streamSupported?: boolean;
+  /** A normal HTTPS request can wait server-side for the next TradingView quote. */
+  longPollSupported?: boolean;
   asOf: string;
 }>;
 

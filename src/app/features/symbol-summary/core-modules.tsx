@@ -146,7 +146,7 @@ function localizedRating(value: string, t: (key: string) => string) {
 }
 
 function localizedMarketStatus(value: string | undefined, t: (key: string) => string) {
-  if (!value) return t("summary.marketOpen");
+  if (!value || value.trim() === "—") return "—";
   const normalized = value.toLowerCase();
   if (normalized.includes("プレマーケット") || normalized.includes("pre-market")) return t("summary.market.preMarket");
   if (normalized.includes("アフター") || normalized.includes("after hour")) return t("summary.market.afterHours");
@@ -167,8 +167,13 @@ function localizedEarningsSession(value: string, t: (key: string) => string) {
 }
 
 function localizedAssetType(value: string | undefined, t: (key: string) => string) {
-  if (!value || value === "普通株" || value.toLowerCase() === "common stock") return t("summary.assetType.commonStock");
+  if (!value) return "—";
+  if (value === "普通株" || value.toLowerCase() === "common stock") return t("summary.assetType.commonStock");
   return value;
+}
+
+function positiveFinite(value: number) {
+  return Number.isFinite(value) && value > 0;
 }
 
 function parseSignedPercent(value: string) {
@@ -213,6 +218,11 @@ function IdentityQuoteModule({
   const currencyCode = stock.currencyCode ?? (stock.currency === "$" ? "USD" : stock.currency === "¥" ? "JPY" : stock.currency);
   const afterHoursClose = validSummaryAfterHoursClose(stock, afterHours);
   const afterHoursTone = compareSummaryPrices(stock.price, afterHoursClose);
+  const hasCurrentQuote = positiveFinite(stock.price);
+  const hasCurrentChange = hasCurrentQuote
+    && Number.isFinite(stock.change)
+    && Number.isFinite(stock.changeValue);
+  const marketStatus = localizedMarketStatus(intelligence.marketStatus, t);
   return (
     <section
       className="right-symbol-summary stock-summary-identity"
@@ -234,10 +244,15 @@ function IdentityQuoteModule({
         <span>{stock.market}</span><span>{stock.sector}</span><span>{localizedAssetType(stock.assetTypeLabel, t)}</span>
       </div>
       <div className="summary-quote">
-        <strong>{formatSummaryCurrentPrice(stock)}</strong><small>{currencyCode}</small>
-        <span className={stock.change >= 0 ? "positive" : "negative-text"}>
-          {stock.changeValue >= 0 ? "+" : ""}{stock.changeValue.toFixed(stock.currency === "$" ? 2 : 1)} · {stock.change >= 0 ? "+" : ""}{stock.change.toFixed(2)}%
-        </span>
+        <div className="summary-current-price">
+          <strong>{formatSummaryCurrentPrice(stock)}</strong>
+          {hasCurrentQuote && <small>{currencyCode}</small>}
+        </div>
+        {hasCurrentChange ? (
+          <span className={stock.change >= 0 ? "positive" : "negative-text"}>
+            {stock.changeValue >= 0 ? "+" : ""}{stock.changeValue.toFixed(stock.currency === "$" ? 2 : 1)} · {stock.change >= 0 ? "+" : ""}{stock.change.toFixed(2)}%
+          </span>
+        ) : <span>—</span>}
       </div>
       <div className="summary-after-hours" data-tone={afterHoursTone}>
         <span>{t("summary.afterHours")}</span>
@@ -247,7 +262,7 @@ function IdentityQuoteModule({
         </span>
       </div>
       <div className="summary-market-status">
-        <i />{localizedMarketStatus(intelligence.marketStatus, t)}<span>{intelligence.dataFreshness}</span>
+        {marketStatus !== "—" && <i />}{marketStatus}<span>{intelligence.dataFreshness}</span>
       </div>
     </section>
   );
@@ -255,17 +270,19 @@ function IdentityQuoteModule({
 
 function PriceRangeModule({ stock, intelligence }: SymbolSummaryModuleProps) {
   const { t } = useI18n();
+  const dayRangePosition = clampPercent(intelligence.dayRangePosition);
+  const yearRangePosition = clampPercent(intelligence.yearRangePosition);
   return (
     <section className="stock-summary-section" {...moduleDataAttributes(PRICE_RANGE_MANIFEST)}>
       <SectionTitle manifest={PRICE_RANGE_MANIFEST} />
       <div className="summary-range-block">
         <div className="summary-range-heading"><span>{t("summary.todayRange")}</span><strong>{formatSymbolPrice(stock, stock.low)} — {formatSymbolPrice(stock, stock.high)}</strong></div>
-        <div className="summary-range-track"><i style={{ left: `${clampPercent(intelligence.dayRangePosition)}%` }} /></div>
+        <div className="summary-range-track">{dayRangePosition !== null && <i style={{ left: `${dayRangePosition}%` }} />}</div>
         <div className="summary-range-labels"><span>{formatSymbolPrice(stock, stock.low)}</span><b>{formatSymbolPrice(stock)}</b><span>{formatSymbolPrice(stock, stock.high)}</span></div>
       </div>
       <div className="summary-range-block">
         <div className="summary-range-heading"><span>{t("summary.yearRange")}</span><strong>{intelligence.yearLow} — {intelligence.yearHigh}</strong></div>
-        <div className="summary-range-track"><i style={{ left: `${clampPercent(intelligence.yearRangePosition)}%` }} /></div>
+        <div className="summary-range-track">{yearRangePosition !== null && <i style={{ left: `${yearRangePosition}%` }} />}</div>
         <div className="summary-range-labels"><span>{intelligence.yearLow}</span><b>{formatSymbolPrice(stock)}</b><span>{intelligence.yearHigh}</span></div>
       </div>
     </section>
@@ -308,8 +325,8 @@ function FinancialsModule({ stock, intelligence }: SymbolSummaryModuleProps) {
     <section className="stock-summary-section" {...moduleDataAttributes(FINANCIALS_MANIFEST)}>
       <SectionTitle manifest={FINANCIALS_MANIFEST} />
       <dl className="summary-stat-list">
-        <div><dt>{t("summary.revenueFy")}</dt><dd>{stock.revenue}<small className={stock.revenueGrowth.startsWith("+") ? "positive" : "negative-text"}>{stock.revenueGrowth} YoY</small></dd></div>
-        <div><dt>{t("summary.basicEpsTtm")}</dt><dd>{stock.eps}<small className={stock.epsGrowth.startsWith("+") ? "positive" : "negative-text"}>{stock.epsGrowth} YoY</small></dd></div>
+        <div><dt>{t("summary.revenueFy")}</dt><dd>{stock.revenue}{stock.revenueGrowth !== "—" && <small className={stock.revenueGrowth.startsWith("+") ? "positive" : "negative-text"}>{stock.revenueGrowth} YoY</small>}</dd></div>
+        <div><dt>{t("summary.basicEpsTtm")}</dt><dd>{stock.eps}{stock.epsGrowth !== "—" && <small className={stock.epsGrowth.startsWith("+") ? "positive" : "negative-text"}>{stock.epsGrowth} YoY</small>}</dd></div>
         <div><dt>{t("summary.peTtm")}</dt><dd>{stock.pe}</dd></div>
         <div><dt>{t("summary.dividendYieldForecast")}</dt><dd>{stock.dividend}</dd></div>
         <div><dt>{t("summary.beta1y")}</dt><dd>{intelligence.beta}</dd></div>
@@ -413,18 +430,28 @@ function TechnicalRatingModule({ intelligence }: SymbolSummaryModuleProps) {
 
 function AnalystConsensusModule({ stock }: SymbolSummaryModuleProps) {
   const { t } = useI18n();
-  const analystRating = stock.buy > stock.analysts / 2 ? "buy" : stock.sell > stock.buy ? "sell" : "neutral";
-  const displayRating = localizedRating(analystRating, t);
-  const upside = ((stock.target / stock.price - 1) * 100).toFixed(1);
+  const buyCount = Number.isFinite(stock.buy) && stock.buy >= 0 ? stock.buy : 0;
+  const neutralCount = Number.isFinite(stock.neutral) && stock.neutral >= 0 ? stock.neutral : 0;
+  const sellCount = Number.isFinite(stock.sell) && stock.sell >= 0 ? stock.sell : 0;
+  const recommendationCount = buyCount + neutralCount + sellCount;
+  const hasRecommendationData = recommendationCount > 0;
+  const analystRating = hasRecommendationData
+    ? buyCount > recommendationCount / 2 ? "buy" : sellCount > buyCount ? "sell" : "neutral"
+    : null;
+  const displayRating = analystRating === null ? "—" : localizedRating(analystRating, t);
+  const hasAnalystCount = Number.isFinite(stock.analysts) && stock.analysts > 0;
+  const hasTarget = positiveFinite(stock.target);
+  const hasUpside = hasTarget && positiveFinite(stock.price);
+  const upside = hasUpside ? (stock.target / stock.price - 1) * 100 : null;
   return (
     <section className="stock-summary-section" {...moduleDataAttributes(ANALYST_MANIFEST)}>
       <SectionTitle manifest={ANALYST_MANIFEST} />
       <div className="summary-analyst-head">
-        <div><span>{t("summary.consensus")}</span><strong className={ratingTone(analystRating)}>{displayRating}</strong><small>{t("summary.analystCount", { count: stock.analysts })}</small></div>
-        <div><span>{t("summary.averagePriceTarget")}</span><strong>{formatSymbolPrice(stock, stock.target)}</strong><small className={Number(upside) >= 0 ? "positive" : "negative-text"}>{Number(upside) >= 0 ? "+" : ""}{upside}%</small></div>
+        <div><span>{t("summary.consensus")}</span><strong className={analystRating === null ? "" : ratingTone(analystRating)}>{displayRating}</strong><small>{hasAnalystCount ? t("summary.analystCount", { count: stock.analysts }) : "—"}</small></div>
+        <div><span>{t("summary.averagePriceTarget")}</span><strong>{formatSymbolPrice(stock, stock.target)}</strong>{upside !== null && <small className={upside >= 0 ? "positive" : "negative-text"}>{upside >= 0 ? "+" : ""}{upside.toFixed(1)}%</small>}</div>
       </div>
-      <div className="summary-consensus-bar"><i style={{ flex: Math.max(0, stock.sell) }} /><i style={{ flex: Math.max(0, stock.neutral) }} /><i style={{ flex: Math.max(0, stock.buy) }} /></div>
-      <div className="summary-consensus-labels"><span>{t("summary.rating.sell")} {stock.sell}</span><span>{t("summary.rating.neutral")} {stock.neutral}</span><span>{t("summary.rating.buy")} {stock.buy}</span></div>
+      {hasRecommendationData && <div className="summary-consensus-bar"><i style={{ flex: sellCount }} /><i style={{ flex: neutralCount }} /><i style={{ flex: buyCount }} /></div>}
+      <div className="summary-consensus-labels"><span>{t("summary.rating.sell")} {hasRecommendationData ? sellCount : "—"}</span><span>{t("summary.rating.neutral")} {hasRecommendationData ? neutralCount : "—"}</span><span>{t("summary.rating.buy")} {hasRecommendationData ? buyCount : "—"}</span></div>
       <div className="summary-target-range"><span>{t("summary.low")} {formatSymbolPrice(stock, stock.targetLow)}</span><b>{t("summary.average")} {formatSymbolPrice(stock, stock.target)}</b><span>{t("summary.high")} {formatSymbolPrice(stock, stock.targetHigh)}</span></div>
     </section>
   );

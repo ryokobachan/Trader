@@ -3,6 +3,10 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import { installProviderEnvironmentBindings } from "../app/platform/provider-environment.server";
 import { installD1Binding } from "../db";
+import {
+  WATCHLIST_AFTER_HOURS_STREAM_PATH,
+  handleWatchlistAfterHoursWebSocketUpgrade,
+} from "../app/platform/watchlist-after-hours-websocket.server";
 
 interface Env {
   ASSETS: Fetcher;
@@ -26,6 +30,13 @@ const worker = {
     installProviderEnvironmentBindings(env as unknown as Readonly<Record<string, unknown>>);
     installD1Binding(env.DB);
     const url = new URL(request.url);
+
+    if (
+      url.pathname === WATCHLIST_AFTER_HOURS_STREAM_PATH
+      && request.headers.get("upgrade")?.toLowerCase() === "websocket"
+    ) {
+      return handleWatchlistAfterHoursWebSocketUpgrade(request);
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
