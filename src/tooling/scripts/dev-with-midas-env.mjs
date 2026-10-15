@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -191,7 +192,7 @@ async function runDevelopmentServer() {
 
 const isDirectExecution = Boolean(
   process.argv[1]
-  && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url),
+  && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url),
 );
 
 if (isDirectExecution) {

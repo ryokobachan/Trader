@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
@@ -164,7 +165,7 @@ async function run() {
 
 const isDirectExecution = Boolean(
   process.argv[1]
-  && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url),
+  && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url),
 );
 
 if (isDirectExecution) {
