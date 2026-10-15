@@ -56,6 +56,8 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
+    // Client components also render in SSR; prebundle the icon barrel there.
+    environments: { ssr: { optimizeDeps: { include: ["@phosphor-icons/react"] } } },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
