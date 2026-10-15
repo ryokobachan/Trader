@@ -350,7 +350,7 @@ function chartBase(host: HTMLDivElement, locale: Locale) {
       background: { type: ColorType.Solid, color: "#08090b" },
       textColor: "#a8adb7",
       fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
-      fontSize: 14,
+      fontSize: 15,
       attributionLogo: false,
     },
     grid: {
@@ -514,7 +514,7 @@ export function AnalystTargetHistoryChart({
       lastValueVisible: true,
     });
     const high = chart.addSeries(LineSeries, {
-      color: "#2add7f",
+      color: "#00ffa1",
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       lineType: LineType.WithSteps,

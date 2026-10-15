@@ -71,6 +71,8 @@ test("server-renders the Trader stock analysis mock", async () => {
   assert.doesNotMatch(html, /TradingView-style summary/);
   assert.match(html, /⌘ F/);
   assert.doesNotMatch(html, /PROVIDER DATA|LOADING DATA|FIXTURE DATA/);
+  assert.doesNotMatch(html, /<footer class="status-bar"/);
+  assert.match(html, /class="loading-spinner" aria-hidden="true"/);
   assert.doesNotMatch(html, /aria-label="共有"|aria-label="プロフィール"/);
   assert.doesNotMatch(html, /aria-label="分析情報"/);
   assert.doesNotMatch(html, /aria-label="描画ツール"/);

@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import {
   AreaSeries,
@@ -64,6 +65,7 @@ import type {
   SymbolDetailTabId,
 } from "./platform/trader-config";
 import { CompanyLogo } from "./components/CompanyLogo";
+import { LoadingIndicator } from "./components/LoadingIndicator";
 import { companyLogoPathForUSStock } from "./platform/company-logo";
 import {
   formatSummaryAfterHoursPrice,
@@ -1066,7 +1068,7 @@ function generateSeries(
     volumes.push({
       time: point.time,
       value: point.volume,
-      color: adjustedClose >= open ? "rgba(42, 221, 127, .38)" : "rgba(252, 63, 66, .36)",
+      color: adjustedClose >= open ? "rgba(0, 255, 161, .38)" : "rgba(252, 63, 66, .36)",
     });
 
   });
@@ -1135,7 +1137,7 @@ function PriceChart({
         return {
           ...point,
           color: candle && candle.close >= candle.open
-            ? "rgba(42, 221, 127, .38)"
+            ? "rgba(0, 255, 161, .38)"
             : "rgba(252, 63, 66, .36)",
         };
       })
@@ -1145,7 +1147,7 @@ function PriceChart({
   const latestCandle = displayCandles.at(-1);
   const priceLineColor = latestCandle && latestCandle.close < latestCandle.open
     ? "#fc3f42"
-    : "#2add7f";
+    : "#00ffa1";
   const dataIdentity = `${stock.ticker}:${range}:${interval}:${candleCount}`;
 
   useEffect(() => {
@@ -1165,7 +1167,7 @@ function PriceChart({
         background: { type: ColorType.Solid, color: "#000000" },
         textColor: "#8e8e93",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif",
-        fontSize: 14,
+        fontSize: 15,
       },
       grid: {
         vertLines: { color: "#171717" },
@@ -1193,13 +1195,13 @@ function PriceChart({
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#2add7f",
+      upColor: "#00ffa1",
       downColor: "#fc3f42",
       borderVisible: false,
-      wickUpColor: "#2add7f",
+      wickUpColor: "#00ffa1",
       wickDownColor: "#fc3f42",
       priceFormat: { type: "price", precision: 2, minMove: 0.01 },
-      priceLineColor: "#2add7f",
+      priceLineColor: "#00ffa1",
       priceLineWidth: 1,
       lastValueVisible: true,
       visible: true,
@@ -1427,7 +1429,7 @@ function PortfolioValueChart({
         background: { type: ColorType.Solid, color: "#000000" },
         textColor: "#8e8e93",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif",
-        fontSize: 14,
+        fontSize: 15,
       },
       grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
       rightPriceScale: { borderColor: "#242424" },
@@ -1471,7 +1473,7 @@ function PortfolioProfitChart({ seed, ariaLabel }: { seed: number; ariaLabel: st
       return {
         time: date.toISOString().slice(0, 10) as Time,
         value: Number(raw.toFixed(2)),
-        color: raw >= 0 ? "#2add7f" : "#fc3f42",
+        color: raw >= 0 ? "#00ffa1" : "#fc3f42",
       };
     });
     const chart = createChart(host, {
@@ -1484,7 +1486,7 @@ function PortfolioProfitChart({ seed, ariaLabel }: { seed: number; ariaLabel: st
         background: { type: ColorType.Solid, color: "#000000" },
         textColor: "#8e8e93",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif",
-        fontSize: 14,
+        fontSize: 15,
       },
       grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
       rightPriceScale: { borderColor: "#242424" },
@@ -1762,9 +1764,8 @@ function DetailSourceChip({ source }: { source: StockDetailSource }) {
   );
 }
 
-function StockDetailEmptyState({ message }: { message: string }) {
-  const { t } = useI18n();
-  return <div className="stock-detail-empty"><span>{message}</span><small>{t("detail.empty.noInference")}</small></div>;
+function StockDetailEmptyState({ message }: { message: ReactNode }) {
+  return <div className="stock-detail-empty">{message}</div>;
 }
 
 function formatAnalystTarget(value: number | undefined, locale: Locale) {
@@ -1784,7 +1785,7 @@ function AnalystRatingHistoryTable({
   status: AnalystHistoryStatus;
 }) {
   const { locale, t } = useI18n();
-  if (status === "loading") return <div className="analyst-history-state" role="status">{t("detail.analyst.loading")}</div>;
+  if (status === "loading") return <div className="analyst-history-state" role="status"><LoadingIndicator label={t("detail.analyst.loading")} /></div>;
   if (status === "error") return <div className="analyst-history-state is-error" role="alert">{t("detail.analyst.error")}</div>;
   const rows = [...(history?.items ?? [])].sort((left, right) => right.eventTime.localeCompare(left.eventTime));
   if (rows.length === 0) return <div className="analyst-history-state">{t("detail.analyst.empty")}</div>;
@@ -1820,7 +1821,7 @@ function AnalystRatingHistoryTable({
 
 function detailEmptyMessage(status: MarketDataStatus, subjectKey: string, t: TranslateMessage) {
   const subject = t(subjectKey);
-  if (status === "loading") return t("detail.empty.loading", { subject });
+  if (status === "loading") return <LoadingIndicator label={t("detail.empty.loading", { subject })} />;
   if (status === "error") return t("detail.empty.error", { subject });
   return t("detail.empty.notProvided", { subject });
 }
@@ -1839,7 +1840,7 @@ function MetricSection({
   source: StockDetailSource;
   metrics: readonly StockDetailMetric[];
   context?: string;
-  emptyMessage: string;
+  emptyMessage: ReactNode;
   onOpenDetails?: () => void;
 }) {
   const { locale, t } = useI18n();
@@ -1934,7 +1935,7 @@ function CompanyProfileSection({
   emptyMessage,
 }: {
   profile: StockDetailViewModel["profile"];
-  emptyMessage: string;
+  emptyMessage: ReactNode;
 }) {
   const { locale, t } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -1993,7 +1994,7 @@ function FundamentalMetricSections({
   metrics: readonly StockDetailMetric[];
   source: StockDetailSource;
   context?: string;
-  emptyMessage: string;
+  emptyMessage: ReactNode;
 }) {
   const { t } = useI18n();
   const configuredGroups = FUNDAMENTAL_METRIC_GROUPS.flatMap((group) => {
@@ -2075,7 +2076,7 @@ function EarningsSection({
 }: {
   earnings: readonly EarningsEvent[];
   source: StockDetailSource;
-  emptyMessage: string;
+  emptyMessage: ReactNode;
 }) {
   const { t } = useI18n();
   const recentEarnings = [...earnings]
@@ -2152,7 +2153,7 @@ function StockDetailPage({
   const quote = detail.quote;
   const identityMeta = [identity?.exchange ?? stock.market, identity?.sector].filter(Boolean).join(" · ");
   const detailStatus = dataStatus === "loading"
-    ? t("detail.status.loading")
+    ? <LoadingIndicator label={t("detail.status.loading")} />
     : dataStatus === "error"
       ? t("detail.status.partialError")
       : detail.warnings.length > 0
@@ -3157,7 +3158,7 @@ function StrategyHome({
     </div>
   ) : strategyCatalogStatus === "loading" ? (
     <div className="strategy-request-notice loading" role="status">
-      <ClockCounterClockwise size={16} /> {st("notice.loading")}
+      <LoadingIndicator label={st("notice.loading")} />
     </div>
   ) : null;
 
@@ -3221,7 +3222,7 @@ function StrategyHome({
             {listedStrategies.length === 0 && <div className="strategy-report-empty"><MagnifyingGlass size={24} /><strong>{st("empty.title")}</strong><span>{st("empty.description")}</span></div>}
           </div>
         </div>
-        <footer className="strategy-status-bar"><span><span /> {st("status.catalog", { status: strategyCatalogStatus === "ready" ? st("common.connected") : strategyCatalogStatus === "error" ? st("common.error") : st("common.loading") })}</span></footer>
+        <footer className="strategy-status-bar"><span><span /> {strategyCatalogStatus === "loading" ? <LoadingIndicator /> : st("status.catalog", { status: strategyCatalogStatus === "ready" ? st("common.connected") : strategyCatalogStatus === "error" ? st("common.error") : "" })}</span></footer>
         {dialog === "create" && (
           <DialogShell title={st("create.title")} eyebrow={st("create.eyebrow")} onClose={() => setDialog(null)}>
             <form className="dialog-body dialog-form-grid" onSubmit={createStrategy}>
@@ -3285,12 +3286,12 @@ function StrategyHome({
         </div>}
 
         {tab === "取引" && <div className="portfolio-tab-panel transactions-panel" role="tabpanel">
-          <div className="portfolio-table-title"><div><h2>{st("transactions.title")}</h2><span>{transactionLoadStatus === "loading" ? st("transactions.loading") : st("common.count", { count: transactions.length })} · {transactionMutationStatus === "saving" ? st("transactions.saving") : transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("transactions.saveError") : st("transactions.savedToD1")}</span></div><div className="transaction-actions"><div className="segmented-control">{(["取引", "現金"] as const).map((item) => <button type="button" className={transactionTab === item ? "active" : ""} onClick={() => setTransactionTab(item)} key={item}>{portfolioTransactionTabLabel(locale, item)}</button>)}</div><button type="button" onClick={() => setDialog("import")}><DownloadSimple size={15} /> {st("transactions.import")}</button><button type="button" onClick={() => onAction(st("toast.transactionsExported"))}><UploadSimple size={15} /> {st("transactions.export")}</button><button type="button" className="primary-action" onClick={() => openTransaction()}><Plus size={15} /> {st("detail.addTransaction")}</button></div></div>
+          <div className="portfolio-table-title"><div><h2>{st("transactions.title")}</h2><span>{transactionLoadStatus === "loading" ? <LoadingIndicator label={st("transactions.loading")} /> : st("common.count", { count: transactions.length })} · {transactionMutationStatus === "saving" ? st("transactions.saving") : transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("transactions.saveError") : st("transactions.savedToD1")}</span></div><div className="transaction-actions"><div className="segmented-control">{(["取引", "現金"] as const).map((item) => <button type="button" className={transactionTab === item ? "active" : ""} onClick={() => setTransactionTab(item)} key={item}>{portfolioTransactionTabLabel(locale, item)}</button>)}</div><button type="button" onClick={() => setDialog("import")}><DownloadSimple size={15} /> {st("transactions.import")}</button><button type="button" onClick={() => onAction(st("toast.transactionsExported"))}><UploadSimple size={15} /> {st("transactions.export")}</button><button type="button" className="primary-action" onClick={() => openTransaction()}><Plus size={15} /> {st("detail.addTransaction")}</button></div></div>
           {transactionTab === "取引" ? <div className="portfolio-table-scroll"><div className="transactions-table" role="table" aria-label={st("transactions.aria")}><div className="transactions-row transactions-head"><span>{st("transactions.date")}</span><span>{st("transactions.symbol")}</span><span>{st("transactions.type")}</span><span>{st("transactions.quantity")}</span><span>{st("transactions.price")}</span><span>{st("transactions.fee")}</span><span>{st("transactions.total")}</span><span /></div>{transactions.map((transaction) => <button type="button" className="transactions-row" key={transaction.id} onClick={() => openTransaction(transaction.ticker)}><span>{transaction.date}</span><span><b>{transaction.ticker}</b></span><span><i className={`transaction-side ${transaction.side}`}>{portfolioTransactionSideLabel(locale, transaction.side)}</i></span><span>{transaction.shares.toLocaleString("en-US")}</span><span>${transaction.price.toLocaleString("en-US")}</span><span>${transaction.fee.toFixed(2)}</span><span>${(transaction.shares * transaction.price).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span><CaretRight size={14} /></button>)}</div></div> : <div className="cash-ledger"><Wallet size={26} /><h3>{st("transactions.cashBalance", { value: `$${cashValue.toLocaleString("en-US")}` })}</h3><p>{st("transactions.cashDescription")}</p><button type="button" onClick={() => { setTransactionSide("配当"); openTransaction(); }}>{st("transactions.addCash")}</button></div>}
         </div>}
 
       </div>
-      <footer className="strategy-status-bar"><span><span /> {st("status.transactions", { status: transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("common.error") : transactionLoadStatus === "loading" ? st("common.loading") : st("common.connected") })}</span><span>{st("status.strategyDisclaimer")}</span></footer>
+      <footer className="strategy-status-bar"><span><span /> {transactionLoadStatus === "loading" ? <LoadingIndicator /> : st("status.transactions", { status: transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("common.error") : st("common.connected") })}</span><span>{st("status.strategyDisclaimer")}</span></footer>
 
       {dialog === "transaction" && <DialogShell title={st("transaction.dialogTitle")} eyebrow={selected.name} onClose={() => setDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={submitTransaction}><label><span>{st("transaction.symbol")}</span><select value={transactionTicker} onChange={(event) => { const ticker = event.target.value; setTransactionTicker(ticker); const next = strategyMarketMarks[ticker]?.price ?? strategyStockModels[ticker]?.price; setTransactionPrice(Number.isFinite(next) && (next ?? 0) > 0 ? String(next) : ""); }}>{STOCKS.map((item) => <option value={item.ticker} key={item.ticker}>{item.ticker} · {item.name}</option>)}</select></label><label><span>{st("transaction.type")}</span><select value={transactionSide} onChange={(event) => setTransactionSide(event.target.value as PortfolioTransaction["side"])}><option value="買付">{st("transaction.buy")}</option><option value="売却">{st("transaction.sell")}</option><option value="配当">{st("transaction.dividend")}</option></select></label><label><span>{st("transaction.quantity")}</span><input type="number" min="0.01" step="0.01" value={transactionShares} onChange={(event) => setTransactionShares(event.target.value)} /></label><label><span>{st("transaction.price")}</span><input type="number" min="0" step="0.01" value={transactionPrice} onChange={(event) => setTransactionPrice(event.target.value)} /></label><footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={transactionMutationStatus === "saving"}>{transactionMutationStatus === "saving" ? st("transaction.saving") : st("transaction.save")}</button></footer></form></DialogShell>}
       {dialog === "import" && <DialogShell title={st("import.title")} eyebrow="CSV IMPORT" onClose={() => setDialog(null)}><div className="dialog-body"><label className="file-drop"><UploadSimple size={24} /><strong>{st("import.dropCsv")}</strong><span>{st("import.description")}</span><input type="file" accept=".csv" /></label></div><footer className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="button" className="primary-action" onClick={() => { setDialog(null); onAction(st("toast.transactionsImported", { count: 5 })); }}>{st("import.action")}</button></footer></DialogShell>}
@@ -3837,11 +3838,6 @@ export default function Home() {
   const afterHoursTickerKey = afterHoursEnabled ? afterHoursTickers.join("\u0000") : "";
   const searchView = resolveInstrumentSearchView(searchStatus, searchResults.length);
   const watched = watchedTickers.includes(selectedTicker);
-  const dataStatus: MarketDataStatus = workspaceStatus === "error" || barsStatus === "error"
-    ? "error"
-    : workspaceStatus === "loading" || barsStatus === "loading"
-      ? "loading"
-      : workspaceStatus === "provider" && barsStatus === "provider" ? "provider" : "fixture";
   const researchDataStatus: MarketDataStatus = workspaceStatus === "error" || dailyBarsStatus === "error"
     ? "error"
     : workspaceStatus === "loading" || dailyBarsStatus === "loading"
@@ -6195,7 +6191,7 @@ export default function Home() {
           <div className={`chart-stack ${subIndicatorSpecs.length > 0 ? "has-subindicators" : ""}`}>
             <div className="chart-stage">
               <PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} interval={interval} candleCount={chartCandleCount} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} timeScaleSync={chartTimeScaleSync} />
-              {barsStatus === "loading" && <div className="chart-data-state" role="status">{t("chart.historyLoading")}</div>}
+              {barsStatus === "loading" && <div className="chart-data-state" role="status"><LoadingIndicator label={t("chart.historyLoading")} /></div>}
               {barsStatus === "error" && <div className="chart-data-state is-error" role="alert"><span>{t("chart.historyError")}</span><button type="button" onClick={() => forceChartBarsRefreshRef.current?.()}>{t("common.retry")}</button></div>}
               <div className="chart-watermark">{stock.ticker}</div>
               <div className="chart-indicator-legend" aria-label={indicatorText(locale, "chartIndicators")}>
@@ -6295,9 +6291,7 @@ export default function Home() {
               ))}
               {visibleNews.length === 0 && (
                 <div className="empty-state">
-                  {t(workspaceStatus === "loading"
-                    ? "status.fetching"
-                    : workspaceStatus === "provider"
+                  {workspaceStatus === "loading" ? <LoadingIndicator /> : t(workspaceStatus === "provider"
                       ? "news.empty"
                       : "status.connectionError")}
                 </div>
@@ -6314,13 +6308,6 @@ export default function Home() {
           <IconButton label={t("sidebar.close")} onClick={() => setUtilityPanel(null)}><SidebarSimple size={18} /></IconButton>
         </aside>}
 
-        <footer className="status-bar">
-          <span className="status-delay"><ClockCounterClockwise size={13} /> {detailBarsProvenance ? `${detailBarsProvenance.providerId} · ${t("status.chart")}` : detailWorkspace ? `${detailWorkspace.selectedProviders.market} · ${detailWorkspace.quote.delaySeconds > 0 ? t("status.delayed", { seconds: detailWorkspace.quote.delaySeconds }) : t("status.noDelayGuarantee")}` : t("status.waiting")}</span>
-          <span className="status-timezone">UTC+9</span>
-          <span className="status-spacer" />
-          <span className="connection-state status-connection"><span /> {t(dataStatus === "error" ? "status.connectionError" : dataStatus === "loading" ? "status.fetching" : "status.connected")}</span>
-          <span className="status-disclaimer">{dataStatus === "fixture" ? t("status.fixtureDisclaimer") : detailWorkspace?.asOf ? t("status.providerAsOf", { time: new Date(detailWorkspace.asOf).toLocaleTimeString(numberLocale, { hour: "2-digit", minute: "2-digit" }) }) : ""}</span>
-        </footer>
       </div> : primaryView === "stock-detail" ? <StockDetailPage stock={stock} targetPriceMarketBars={detailDailyMarketBars} earnings={detailWorkspace?.earnings ?? []} analystHistory={selectedAnalystHistory} analystHistoryStatus={analystHistoryStatus} detail={stockDetailViewModel} dataStatus={researchDataStatus} workspaceStatus={workspaceStatus} barsStatus={dailyBarsStatus} watched={watched} activeSection={activeStockDetailSection} onBack={() => setPrimaryView("chart")} onActiveSectionChange={selectStockDetailSection} onToggleWatched={() => toggleWatched(stock.ticker)} /> : <StrategyHome onOpenChart={openChartFromStrategy} onAction={showToast} />}
 
       {searchOpen && (
@@ -6342,11 +6329,6 @@ export default function Home() {
               />
               <button type="button" onClick={() => setSearchOpen(false)} aria-label={t("common.close")}><X size={18} /></button>
             </div>
-            <div className="dialog-filter-row search-scope-row" aria-label={t("search.scope")}>
-              <span className="search-scope-pill">{t("search.usStocks")}</span>
-              <span>{t("search.exchanges")}</span>
-              <small>{searchView === "loading" ? t("search.searching") : searchView === "error" ? t("search.providerError") : t("search.commonAndAdr")}</small>
-            </div>
             <div className="search-results" aria-live="polite" aria-busy={searchView === "loading"}>
               {searchView === "results" && <div className="search-results-heading">{t(query.trim() ? "search.results" : "search.candidates")}</div>}
               {searchView === "results" && searchResults.map((item) => {
@@ -6360,7 +6342,7 @@ export default function Home() {
                   </button>
                 );
               })}
-              {searchView === "loading" && <div className="empty-state" role="status">{t(query.trim() ? "search.loadingQuery" : "search.loadingCandidates")}</div>}
+              {searchView === "loading" && <div className="empty-state" role="status"><LoadingIndicator label={t(query.trim() ? "search.loadingQuery" : "search.loadingCandidates")} /></div>}
               {searchView === "empty" && <div className="empty-state">{t("search.empty")}</div>}
               {searchView === "error" && <div className="empty-state search-error-state" role="alert"><span>{t("search.retryHint")}</span><button type="button" onClick={() => { setSearchResults([]); setSearchStatus("loading"); setSearchRetryNonce((value) => value + 1); }}>{t("common.retry")}</button></div>}
             </div>

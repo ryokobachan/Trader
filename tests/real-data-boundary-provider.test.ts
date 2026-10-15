@@ -126,10 +126,7 @@ test("workspace-derived summary and news accept provider data only", () => {
     pageSource,
     /dailyBarsStatus === "provider" && dailyMarketBarsSymbol === selectedTicker \? dailyMarketBars : \[\]/,
   );
-  assert.match(
-    pageSource,
-    /workspaceStatus === "provider" && barsStatus === "provider" \? "provider" : "fixture"/,
-  );
+  assert.doesNotMatch(pageSource, /<footer className="status-bar"/);
   assert.match(
     pageSource,
     /workspaceStatus === "provider" && dailyBarsStatus === "provider" \? "provider" : "fixture"/,

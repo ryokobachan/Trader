@@ -7,7 +7,7 @@ test("chart history feedback depends on the bars request, not the workspace quot
 
   assert.match(
     source,
-    /\{barsStatus === "loading" && <div className="chart-data-state" role="status">\{t\("chart\.historyLoading"\)\}<\/div>\}/,
+    /\{barsStatus === "loading" && <div className="chart-data-state" role="status"><LoadingIndicator label=\{t\("chart\.historyLoading"\)\} \/><\/div>\}/,
   );
   assert.match(
     source,

@@ -177,7 +177,7 @@ function SubIndicatorPane({
         background: { type: ColorType.Solid, color: "#000000" },
         textColor: "#a6a6aa",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif",
-        fontSize: 14,
+        fontSize: 15,
       },
       grid: { vertLines: { color: "#151515" }, horzLines: { color: "#151515" } },
       rightPriceScale: {
@@ -301,7 +301,7 @@ function SubIndicatorPane({
       if (runtimeSeries.kind === "histogram") {
         runtimeSeries.api.setData(seriesDefinition.points.map((point) => ({
           ...point,
-          color: point.value >= 0 ? "rgba(42, 221, 127, .68)" : "rgba(252, 63, 66, .68)",
+          color: point.value >= 0 ? "rgba(0, 255, 161, .68)" : "rgba(252, 63, 66, .68)",
         })) as HistogramData<Time>[]);
       } else {
         runtimeSeries.api.setData(seriesDefinition.points as LineData<Time>[]);

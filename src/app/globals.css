@@ -11,17 +11,17 @@
   --muted-2: #8e8e93;
   --blue: #2962ff;
   --blue-soft: #16244d;
-  --green: #2add7f;
-  --green-soft: rgb(42 221 127 / 16%);
+  --green: #00ffa1;
+  --green-soft: rgb(0 255 161 / 16%);
   --red: #fc3f42;
   --red-soft: rgb(252 63 66 / 16%);
   --amber: #e0a94f;
   --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Hiragino Sans", "Yu Gothic UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --type-base: 15px;
-  --type-secondary: 14px;
-  --type-micro: 13px;
-  --type-numeric: 15px;
+  --type-base: 16px;
+  --type-secondary: 15px;
+  --type-micro: 14px;
+  --type-numeric: 16px;
 }
 
 * {
@@ -72,7 +72,7 @@ textarea:focus-visible {
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .global-toolbar {
@@ -99,7 +99,7 @@ textarea:focus-visible {
 }
 
 .brand-lockup strong {
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.12em;
 }
 
@@ -113,7 +113,7 @@ textarea:focus-visible {
 .demo-badge.provider-data {
   color: var(--green);
   border-color: rgba(85, 214, 190, .42);
-  background: rgba(42, 221, 127, .12);
+  background: rgba(0, 255, 161, .12);
 }
 
 .chart-data-state {
@@ -127,7 +127,7 @@ textarea:focus-visible {
   border-radius: 6px;
   background: rgba(13, 13, 13, .92);
   color: #d1d4dc;
-  font-size: 13px;
+  font-size: 14px;
   text-align: center;
   box-shadow: 0 8px 30px rgba(0, 0, 0, .35);
 }
@@ -164,7 +164,7 @@ textarea:focus-visible {
 
 .symbol-search-trigger b {
   color: var(--text-strong);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .symbol-search-trigger small {
@@ -180,7 +180,7 @@ textarea:focus-visible {
   border-radius: 4px;
   padding: 2px 5px;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .toolbar-divider {
@@ -209,7 +209,7 @@ textarea:focus-visible {
 .interval-group button {
   min-width: 30px;
   padding: 0 6px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .interval-group button:hover,
@@ -229,7 +229,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 6px;
   padding: 0 9px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .toolbar-spacer {
@@ -242,7 +242,7 @@ textarea:focus-visible {
   border-radius: 4px;
   padding: 4px 7px;
   color: #8da5df;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.08em;
 }
@@ -287,7 +287,7 @@ textarea:focus-visible {
 }
 
 .profile-button span {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -377,12 +377,12 @@ textarea:focus-visible {
 
 .chart-symbol-button b {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .chart-symbol-button small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .ticker-avatar {
@@ -395,7 +395,7 @@ textarea:focus-visible {
   border-radius: 50%;
   background: #e7e9ec;
   color: #121417;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -417,7 +417,7 @@ textarea:focus-visible {
   display: grid;
   place-items: center;
   color: var(--text);
-  font-size: 0.72em;
+  font-size: 14px;
   font-weight: 800;
 }
 
@@ -457,7 +457,7 @@ textarea:focus-visible {
   gap: 10px;
   color: var(--muted-2);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .ohlc-summary b {
@@ -483,7 +483,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .chart-actions > button:not(.icon-button):hover,
@@ -520,7 +520,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   padding: 0 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .range-buttons button:hover,
@@ -539,7 +539,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 6px;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .market-state > span,
@@ -599,7 +599,7 @@ textarea:focus-visible {
   padding: 0 7px;
   pointer-events: auto;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   backdrop-filter: blur(5px);
 }
 
@@ -616,7 +616,7 @@ textarea:focus-visible {
 .subindicator-readout b {
   color: var(--text-strong);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .right-panel {
@@ -660,7 +660,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 7px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .right-tab-button:hover,
@@ -699,7 +699,7 @@ textarea:focus-visible {
 
 .right-panel-heading strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .panel-title-button {
@@ -711,7 +711,7 @@ textarea:focus-visible {
   color: var(--text-strong);
   padding: 0;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -734,7 +734,7 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--line-soft);
   color: var(--muted-2);
   padding: 0 10px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .watchlist-columns span:not(:first-child) {
@@ -752,7 +752,7 @@ textarea:focus-visible {
   background: transparent;
   padding: 0 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .watch-row:hover {
@@ -829,12 +829,12 @@ textarea:focus-visible {
 
 .watch-symbol b {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .watch-symbol small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .watch-price {
@@ -861,7 +861,7 @@ textarea:focus-visible {
 
 .summary-title-row strong {
   color: var(--text-strong);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .summary-title-row span {
@@ -869,7 +869,7 @@ textarea:focus-visible {
   color: var(--muted);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-title-row > button {
@@ -930,18 +930,18 @@ textarea:focus-visible {
 .mini-data-grid span,
 .mini-data-grid small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .mini-data-grid b {
   color: #cdd2d9;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .company-description {
   margin: 10px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -951,7 +951,7 @@ textarea:focus-visible {
   justify-content: space-between;
   margin-top: 10px;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.06em;
 }
 
@@ -961,7 +961,7 @@ textarea:focus-visible {
 }
 
 .demo-source-row small {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .section-heading-actions {
@@ -979,7 +979,7 @@ textarea:focus-visible {
   padding: 3px 5px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .right-data-section {
@@ -1011,21 +1011,21 @@ textarea:focus-visible {
 
 .detail-metric > span:first-child {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .detail-metric b {
   overflow-wrap: anywhere;
   color: var(--text-strong);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   line-height: 1.35;
 }
 
 .detail-metric small {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .score-track {
@@ -1053,7 +1053,7 @@ textarea:focus-visible {
   border-top: 1px solid var(--line-soft);
   color: var(--muted-2);
   padding: 7px 12px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
@@ -1088,14 +1088,14 @@ textarea:focus-visible {
 
 .eyebrow {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .compact-heading strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .text-action {
@@ -1104,7 +1104,7 @@ textarea:focus-visible {
   color: #7295ff;
   padding: 4px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .text-action:hover {
@@ -1125,7 +1125,7 @@ textarea:focus-visible {
 
 .target-price-row span:first-child {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .target-price-row strong {
@@ -1145,7 +1145,7 @@ textarea:focus-visible {
 .upside-pill {
   padding: 4px 7px;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -1164,7 +1164,7 @@ textarea:focus-visible {
   justify-content: space-between;
   color: var(--muted-2);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .range-track {
@@ -1209,12 +1209,12 @@ textarea:focus-visible {
 
 .consensus-grid span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .consensus-grid strong {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .right-detail-scroll,
@@ -1251,7 +1251,7 @@ textarea:focus-visible {
   background: #10182a;
   color: #8eabff;
   padding: 4px 6px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .library-search {
@@ -1271,7 +1271,7 @@ textarea:focus-visible {
   outline: 0;
   background: transparent;
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .library-search input::placeholder {
@@ -1303,7 +1303,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .library-filters button:hover,
@@ -1360,7 +1360,7 @@ textarea:focus-visible {
   align-items: baseline;
   gap: 6px;
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-copy strong small {
@@ -1368,7 +1368,7 @@ textarea:focus-visible {
   color: var(--muted);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 450;
 }
 
@@ -1377,7 +1377,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .placement-pill {
@@ -1386,7 +1386,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   padding: 3px 4px;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .toggle-switch {
@@ -1424,7 +1424,7 @@ textarea:focus-visible {
   gap: 8px;
   color: var(--muted-2);
   padding: 12px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -1457,13 +1457,13 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-overview-grid strong {
   color: var(--text-strong);
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .strategy-quality-warning {
@@ -1474,7 +1474,7 @@ textarea:focus-visible {
   background: #151108;
   color: #b9a77e;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -1484,7 +1484,7 @@ textarea:focus-visible {
   border-radius: 3px;
   color: #e1bc62;
   padding: 2px 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
 }
 
@@ -1506,13 +1506,13 @@ textarea:focus-visible {
   color: var(--text-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .selected-strategy-summary p {
   margin: 8px 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -1526,13 +1526,13 @@ textarea:focus-visible {
   display: grid;
   gap: 3px;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .selected-strategy-summary b {
   color: #d5d5d7;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-status {
@@ -1541,7 +1541,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 2px 4px;
   text-transform: uppercase;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
   letter-spacing: 0.04em;
 }
@@ -1597,7 +1597,7 @@ textarea:focus-visible {
   color: var(--text-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-card-head svg {
@@ -1611,7 +1611,7 @@ textarea:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-metric-grid {
@@ -1635,20 +1635,20 @@ textarea:focus-visible {
 
 .strategy-metric-grid small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-metric-grid b {
   color: #dadadd;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-card-footer {
   display: flex;
   justify-content: space-between;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .right-news-row {
@@ -1670,18 +1670,18 @@ textarea:focus-visible {
 
 .right-news-row span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .right-news-row strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
 .right-news-row small {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -1721,7 +1721,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 9px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .bottom-tabs > button:not(.icon-button):hover,
@@ -1745,7 +1745,7 @@ textarea:focus-visible {
 
 .last-updated {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .bottom-content {
@@ -1768,20 +1768,20 @@ textarea:focus-visible {
   border-bottom: 1px solid #1b2026;
   color: #b9c0c8;
   padding: 0 13px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .table-row strong {
   color: var(--text-strong);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .table-head {
   min-height: 27px !important;
   background: #050505 !important;
   color: var(--muted-2) !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
   text-transform: uppercase;
 }
 
@@ -1829,7 +1829,7 @@ textarea:focus-visible {
 .strategy-title-row h3 {
   margin: 4px 0 0;
   color: var(--text-strong);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .status-pill {
@@ -1837,7 +1837,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 5px;
   padding: 4px 7px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .status-pill > span {
@@ -1850,7 +1850,7 @@ textarea:focus-visible {
 .strategy-summary > p {
   margin: 7px 0 11px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-rules {
@@ -1870,12 +1870,12 @@ textarea:focus-visible {
 
 .strategy-rules span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-rules strong {
   color: #d1d6dc;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-editor {
@@ -1893,13 +1893,13 @@ textarea:focus-visible {
 
 .editor-heading strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .editor-heading span,
 .editor-actions > span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-editor textarea {
@@ -1911,7 +1911,7 @@ textarea:focus-visible {
   background: #050505;
   color: #c7cdd4;
   padding: 8px 9px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -1926,7 +1926,7 @@ textarea:focus-visible {
   color: white;
   padding: 0 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -1960,7 +1960,7 @@ textarea:focus-visible {
 .news-time,
 .news-source {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .news-source {
@@ -1982,12 +1982,12 @@ textarea:focus-visible {
 
 .news-copy strong {
   color: #d5d9df;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .news-copy small {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .news-tag {
@@ -1997,7 +1997,7 @@ textarea:focus-visible {
   border-radius: 3px;
   color: #9ba4af;
   padding: 1px 4px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .screener-row {
@@ -2013,7 +2013,7 @@ textarea:focus-visible {
   padding: 0 13px;
   text-align: left;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .screener-row:hover:not(.table-head) {
@@ -2028,7 +2028,7 @@ textarea:focus-visible {
 
 .screener-row b {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .screener-row small {
@@ -2049,7 +2049,7 @@ textarea:focus-visible {
   background: #000000;
   color: var(--muted-2);
   padding: 0 10px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .status-bar > span {
@@ -2102,7 +2102,7 @@ textarea:focus-visible {
   outline: 0;
   background: transparent;
   color: var(--text-strong);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .dialog-search-row input::placeholder {
@@ -2142,7 +2142,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .dialog-filter-row button:hover,
@@ -2154,13 +2154,13 @@ textarea:focus-visible {
 .search-scope-row {
   gap: 8px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .search-scope-row small {
   margin-left: auto;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .search-scope-pill {
@@ -2187,7 +2187,7 @@ textarea:focus-visible {
 .search-results-heading {
   padding: 8px 9px 5px;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
 }
 
@@ -2219,7 +2219,7 @@ textarea:focus-visible {
 
 .result-main b {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .result-main small,
@@ -2229,7 +2229,7 @@ textarea:focus-visible {
   color: var(--muted);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .result-market {
@@ -2278,7 +2278,7 @@ textarea:focus-visible {
   color: var(--green);
   padding: 0 13px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 @media (max-width: 1260px) {
@@ -2465,7 +2465,7 @@ textarea:focus-visible {
 .subindicator-pane > header > strong {
   flex: 0 0 auto;
   color: #e7e7e9;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -2480,7 +2480,7 @@ textarea:focus-visible {
 .subindicator-pane > header b {
   overflow: hidden;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2495,7 +2495,7 @@ textarea:focus-visible {
   display: grid;
   place-items: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 @media (max-height: 720px) {
@@ -2509,12 +2509,12 @@ textarea:focus-visible {
 }
 
 /* Readable, chart-led symbol analysis */
-.stock-detail-page { font-size: 14px; }
-.stock-detail-profile-card p { font-size: 14px; }
-.stock-detail-page .detail-metric > span:first-child { font-size: 13px; }
+.stock-detail-page { font-size: 15px; }
+.stock-detail-profile-card p { font-size: 15px; }
+.stock-detail-page .detail-metric > span:first-child { font-size: 14px; }
 .stock-detail-page .detail-metric b,
 .stock-detail-page .detail-metric-link { font-size: 15px; }
-.stock-detail-page .detail-metric small { font-size: 13px; }
+.stock-detail-page .detail-metric small { font-size: 14px; }
 
 .detail-visual-card {
   overflow: hidden;
@@ -2547,7 +2547,7 @@ textarea:focus-visible {
 .detail-visual-card > header small,
 .detail-visual-card > header em {
   color: #9298a4;
-  font-size: 13px;
+  font-size: 14px;
   font-style: normal;
   line-height: 1.35;
 }
@@ -2579,7 +2579,7 @@ textarea:focus-visible {
   border-top: 1px solid #23262c;
   color: #b2b7c0;
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .detail-visual-card > footer > span {
@@ -2600,7 +2600,7 @@ textarea:focus-visible {
 .detail-visual-card > footer .estimate i { background: #4f8cff; }
 .detail-visual-card > footer .high i { background: var(--green); }
 .detail-visual-card > footer .reported i { background: #f4f5f7; }
-.detail-visual-card > footer small { margin-left: auto; color: #808691; font-size: 13px; }
+.detail-visual-card > footer small { margin-left: auto; color: #808691; font-size: 14px; }
 
 .detail-visual-toggle {
   display: inline-flex;
@@ -2616,7 +2616,7 @@ textarea:focus-visible {
   border-left: 1px solid #343841;
   background: transparent;
   color: #aeb3bd;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -2634,7 +2634,7 @@ textarea:focus-visible {
   background: #090a0c;
   color: #aeb3bd;
   padding: 16px;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .detail-visual-state.is-error,
@@ -2657,7 +2657,7 @@ textarea:focus-visible {
 }
 
 .analyst-consensus-kpis > div:first-child { border-left: 0; }
-.analyst-consensus-kpis span { color: #989ea9; font-size: 13px; }
+.analyst-consensus-kpis span { color: #989ea9; font-size: 14px; }
 .analyst-consensus-kpis strong { font-family: var(--font-mono); font-size: 15px; }
 
 .analyst-history-table-shell {
@@ -2672,7 +2672,7 @@ textarea:focus-visible {
   min-width: 1000px;
   border-collapse: collapse;
   color: #e6e8ec;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .analyst-rating-history-table th {
@@ -2683,7 +2683,7 @@ textarea:focus-visible {
   color: #a9afba;
   padding: 10px 12px;
   text-align: left;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -2695,8 +2695,8 @@ textarea:focus-visible {
 
 .analyst-rating-history-table td strong,
 .analyst-rating-history-table td small { display: block; }
-.analyst-rating-history-table td strong { font-size: 13px; }
-.analyst-rating-history-table td small { margin-top: 3px; color: #8e949f; font-size: 13px; }
+.analyst-rating-history-table td strong { font-size: 14px; }
+.analyst-rating-history-table td small { margin-top: 3px; color: #8e949f; font-size: 14px; }
 
 /* Column labels retain the meaning without color; these tones make revisions
  * quicker to scan and mirror the market-wide green/red convention. */
@@ -2717,15 +2717,15 @@ textarea:focus-visible {
 .analyst-rating-previous { color: #a9afba; }
 .analyst-target-cell { font-family: var(--font-mono); white-space: nowrap; }
 .analyst-target-previous { color: #a9afba; }
-.dialog-data-source { margin-right: auto; color: #8e949f; font-size: 13px; }
+.dialog-data-source { margin-right: auto; color: #8e949f; font-size: 14px; }
 
 /* TradingView-like summary density: 12px is the normal reading size; 10px is
  * reserved for metadata rather than primary labels. */
 .stock-summary-toolbar > strong,
-.stock-summary-section-title strong { font-size: 13px; }
+.stock-summary-section-title strong { font-size: 14px; }
 .stock-summary-settings-host > button,
 .stock-summary-settings label,
-.stock-summary-settings label strong { font-size: 13px; }
+.stock-summary-settings label strong { font-size: 14px; }
 .stock-summary-settings label small,
 .stock-summary-section-title span,
 .summary-market-meta span,
@@ -2743,13 +2743,13 @@ textarea:focus-visible {
 .summary-target-range,
 .summary-stat-list dd small,
 .summary-technical-footer small,
-.stock-summary-detail-button small { font-size: 13px; }
+.stock-summary-detail-button small { font-size: 14px; }
 
 .summary-current-price > small,
 .stock-summary-identity .summary-quote > span,
 .summary-range-labels b,
 .summary-stat-list dt,
-.summary-technical-footer { font-size: 13px; }
+.summary-technical-footer { font-size: 14px; }
 
 .summary-stat-list dd,
 .summary-event-card strong,
@@ -2757,7 +2757,7 @@ textarea:focus-visible {
 .summary-rating-grid strong,
 .summary-technical-footer strong,
 .summary-analyst-head strong,
-.stock-summary-detail-button strong { font-size: 13px; }
+.stock-summary-detail-button strong { font-size: 14px; }
 
 .summary-stat-list > div { min-height: 42px; }
 .summary-event-card > div { min-height: 66px; }
@@ -2786,7 +2786,7 @@ textarea:focus-visible {
 .summary-performance-meter[data-tone="negative-text"],
 .summary-technical-meter[data-tone="negative-text"] { accent-color: var(--red); }
 .summary-performance-meter-placeholder,
-.summary-technical-meter-placeholder { color: #777d87; font-size: 13px; }
+.summary-technical-meter-placeholder { color: #777d87; font-size: 14px; }
 
 .summary-performance-meter::-webkit-meter-bar,
 .summary-technical-meter::-webkit-meter-bar {
@@ -2796,7 +2796,7 @@ textarea:focus-visible {
 }
 
 .summary-technical-meter { margin-top: 4px; }
-.stock-summary-description { font-size: 13px; line-height: 1.55; }
+.stock-summary-description { font-size: 14px; line-height: 1.55; }
 
 @media (max-width: 700px) {
   .detail-history-chart { height: 214px; }
@@ -2921,7 +2921,7 @@ textarea:focus-visible {
 .toolbar-popover > span {
   color: var(--muted-2);
   padding: 6px 8px 4px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .watch-popover button,
@@ -2938,7 +2938,7 @@ textarea:focus-visible {
   padding: 6px 8px;
   text-align: left;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .watch-popover button:hover,
@@ -2997,7 +2997,7 @@ textarea:focus-visible {
   place-items: center;
   color: var(--muted-2);
   padding: 24px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .toolbar-popover {
@@ -3027,7 +3027,7 @@ textarea:focus-visible {
 .template-row small,
 .profile-menu small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .template-row {
@@ -3072,7 +3072,7 @@ textarea:focus-visible {
 
 .template-editor label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .template-editor input {
@@ -3084,7 +3084,7 @@ textarea:focus-visible {
   background: #080809;
   color: #fff;
   padding: 7px 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .template-editor input:focus {
@@ -3093,7 +3093,7 @@ textarea:focus-visible {
 
 .template-editor > small {
   color: var(--red);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .template-editor > div {
@@ -3153,7 +3153,7 @@ textarea:focus-visible {
 .portfolio-index-header p {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-index-content {
@@ -3182,14 +3182,14 @@ textarea:focus-visible {
 .portfolio-table-title h2 {
   margin: 0;
   color: #fff;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .portfolio-index-section-title span,
 .portfolio-main-card header span,
 .portfolio-table-title span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-index-section-title > button,
@@ -3206,7 +3206,7 @@ textarea:focus-visible {
   color: #d8d8db;
   padding: 0 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-card-grid {
@@ -3254,13 +3254,13 @@ textarea:focus-visible {
   color: #fff;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-card > span:nth-child(2) small,
 .portfolio-card-footer {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-card-value {
@@ -3276,7 +3276,7 @@ textarea:focus-visible {
   border-bottom: 1px solid #222;
   padding: 9px 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-card-metrics b {
@@ -3333,13 +3333,13 @@ textarea:focus-visible {
 .portfolio-create-grid strong {
   align-self: end;
   color: #fff;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-create-grid small {
   align-self: start;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-create-grid > button > svg {
@@ -3367,7 +3367,7 @@ textarea:focus-visible {
   color: #9ab0f5;
   padding: 0 16px 0 2px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .back-to-portfolios svg {
@@ -3397,7 +3397,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-header-actions {
@@ -3435,7 +3435,7 @@ textarea:focus-visible {
 
 .portfolio-tip strong {
   color: #dbe4ff;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-tip span {
@@ -3443,7 +3443,7 @@ textarea:focus-visible {
   color: #9faed1;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-tip button {
@@ -3454,7 +3454,7 @@ textarea:focus-visible {
   background: transparent;
   color: #9fb5ff;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-summary-cards {
@@ -3484,7 +3484,7 @@ textarea:focus-visible {
 .portfolio-summary-cards span,
 .portfolio-summary-cards small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-summary-cards strong {
@@ -3518,7 +3518,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 13px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-primary-tabs button:hover,
@@ -3595,7 +3595,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .segmented-control button.active,
@@ -3649,7 +3649,7 @@ textarea:focus-visible {
   padding: 0 12px;
   text-align: left;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .allocation-list button {
@@ -3686,7 +3686,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-table-title {
@@ -3714,7 +3714,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .toggle-label input,
@@ -3736,7 +3736,7 @@ textarea:focus-visible {
 .holding-view-tabs button {
   height: 41px;
   flex: 0 0 auto;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-table-scroll {
@@ -3762,7 +3762,7 @@ textarea:focus-visible {
   padding: 0 10px;
   text-align: right;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .holdings-row {
@@ -3783,7 +3783,7 @@ textarea:focus-visible {
   background: #0b0b0c;
   color: var(--muted-2);
   font-family: var(--font-apple);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .holdings-head > span:first-child,
@@ -3817,7 +3817,7 @@ textarea:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-apple);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .transactions-row {
@@ -3838,7 +3838,7 @@ textarea:focus-visible {
   padding: 3px 5px;
   font-family: var(--font-apple);
   font-style: normal;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .transaction-side.売却 {
@@ -3874,7 +3874,7 @@ textarea:focus-visible {
 
 .cash-ledger p {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .profitability-card {
@@ -3907,7 +3907,7 @@ textarea:focus-visible {
 .risk-card-grid span,
 .risk-card-grid small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .risk-card-grid strong {
@@ -3943,13 +3943,13 @@ textarea:focus-visible {
 
 .contribution-card small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .contribution-card b {
   text-align: right;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .contribution-track {
@@ -4015,7 +4015,7 @@ textarea:focus-visible {
   color: #fff;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .dialog-body {
@@ -4049,7 +4049,7 @@ textarea:focus-visible {
   color: #d8d8db;
   padding: 0 11px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .dialog-actions .danger-action {
@@ -4067,7 +4067,7 @@ textarea:focus-visible {
   display: grid;
   gap: 6px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .dialog-form-grid input,
@@ -4084,7 +4084,7 @@ textarea:focus-visible {
   background: #111112;
   color: #fff;
   padding: 7px 9px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .dialog-form-grid textarea {
@@ -4099,7 +4099,7 @@ textarea:focus-visible {
   background: #1c0d0d;
   color: var(--red);
   padding: 8px 9px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -4131,7 +4131,7 @@ textarea:focus-visible {
 
 .file-drop span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .file-drop input {
@@ -4151,7 +4151,7 @@ textarea:focus-visible {
   margin: 0;
   color: var(--muted);
   line-height: 1.6;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .share-dialog > div {
@@ -4192,12 +4192,12 @@ textarea:focus-visible {
 
 .settings-list strong {
   color: #fff;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .settings-list small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .settings-list select {
@@ -4206,7 +4206,7 @@ textarea:focus-visible {
   background: #141415;
   color: #ddd;
   padding: 5px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .snapshot-dialog {
@@ -4235,7 +4235,7 @@ textarea:focus-visible {
   border-radius: 3px;
   color: var(--muted-2);
   padding: 4px 6px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .analyst-detail-dialog {
@@ -4257,7 +4257,7 @@ textarea:focus-visible {
 .analyst-detail-dialog > section span,
 .analyst-detail-dialog > section small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .analyst-detail-dialog > section strong {
@@ -4279,7 +4279,7 @@ textarea:focus-visible {
   align-items: center;
   border-bottom: 1px solid #222;
   padding: 0 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .analyst-history-table > div:first-child {
@@ -4300,13 +4300,13 @@ textarea:focus-visible {
   margin: 0;
   color: var(--muted);
   line-height: 1.7;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .news-detail-dialog {
   color: #d4d4d7;
   line-height: 1.8;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .news-detail-dialog p {
@@ -4529,7 +4529,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 14px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .workspace-view-tabs > button:hover,
@@ -4563,7 +4563,7 @@ textarea:focus-visible {
 .workspace-view-tabs > small {
   color: var(--muted-2);
   padding-right: 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-toolbar-title {
@@ -4583,12 +4583,12 @@ textarea:focus-visible {
 
 .strategy-toolbar-title strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-toolbar-title small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .workspace-grid,
@@ -4699,13 +4699,13 @@ textarea:focus-visible {
   color: #b7bdc5;
   padding: 0;
   cursor: default;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .chart-indicator-row > b {
   color: #d6d9dd;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -4750,13 +4750,13 @@ textarea:focus-visible {
 
 .active-indicator-summary span {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
 .active-indicator-summary small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .active-indicator-manager-row {
@@ -4791,7 +4791,7 @@ textarea:focus-visible {
 
 .active-indicator-copy strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .active-indicator-copy small {
@@ -4799,7 +4799,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-manager-actions {
@@ -4825,11 +4825,11 @@ textarea:focus-visible {
 
 .empty-indicator-manager strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .empty-indicator-manager span {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -4844,7 +4844,7 @@ textarea:focus-visible {
   color: #fff;
   padding: 0 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 /* TradingView-style indicator browser */
@@ -4889,7 +4889,7 @@ textarea:focus-visible {
 
 .indicator-dialog-header strong {
   color: var(--text-strong);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .indicator-dialog-header > button,
@@ -4929,7 +4929,7 @@ textarea:focus-visible {
   outline: 0;
   background: transparent;
   color: var(--text-strong);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .indicator-dialog-search > span,
@@ -4939,7 +4939,7 @@ textarea:focus-visible {
   background: #101011;
   color: var(--muted);
   padding: 2px 6px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -4970,7 +4970,7 @@ textarea:focus-visible {
   padding: 0 10px;
   text-align: left;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-dialog-nav button:hover,
@@ -5012,13 +5012,13 @@ textarea:focus-visible {
 
 .indicator-result-heading strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-result-heading span,
 .indicator-result-heading small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-result-row {
@@ -5073,7 +5073,7 @@ textarea:focus-visible {
   color: var(--text-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-result-main small,
@@ -5082,7 +5082,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-result-main > svg {
@@ -5102,7 +5102,7 @@ textarea:focus-visible {
   justify-self: end;
   gap: 3px;
   color: #88a4ff;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-dialog-empty {
@@ -5118,12 +5118,12 @@ textarea:focus-visible {
 
 .indicator-dialog-empty strong {
   color: #d3d3d5;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-dialog-empty span {
   max-width: 360px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -5135,7 +5135,7 @@ textarea:focus-visible {
   color: var(--text-strong);
   padding: 0 11px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-dialog-footer {
@@ -5146,7 +5146,7 @@ textarea:focus-visible {
   border-top: 1px solid var(--line);
   color: var(--muted-2);
   padding: 0 12px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 /* Indicator settings dialog */
@@ -5175,12 +5175,12 @@ textarea:focus-visible {
 
 .indicator-settings-dialog > header strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-settings-dialog > header small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-settings-color {
@@ -5205,7 +5205,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 12px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .settings-tabs button:hover,
@@ -5239,7 +5239,7 @@ textarea:focus-visible {
   display: grid;
   gap: 6px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .settings-form-grid input[type="number"],
@@ -5252,7 +5252,7 @@ textarea:focus-visible {
   background: #111112;
   color: var(--text-strong);
   padding: 0 9px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .settings-form-grid input:focus,
@@ -5282,7 +5282,7 @@ textarea:focus-visible {
 .color-setting b {
   color: #d7d7d9;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .line-preview {
@@ -5309,7 +5309,7 @@ textarea:focus-visible {
 .visibility-settings p {
   margin: 0 0 8px;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .visibility-settings label {
@@ -5320,7 +5320,7 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--line-soft);
   color: #d0d0d3;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .visibility-settings input {
@@ -5330,7 +5330,7 @@ textarea:focus-visible {
 .visibility-settings small {
   color: var(--muted-2);
   text-align: right;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-settings-dialog > footer {
@@ -5359,7 +5359,7 @@ textarea:focus-visible {
   color: #d7d7da;
   padding: 0 11px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .indicator-settings-dialog > footer button:hover,
@@ -5411,7 +5411,7 @@ textarea:focus-visible {
 .strategy-home-header p {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-home-header > div:last-child {
@@ -5438,7 +5438,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 12px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-home-tabs button:hover,
@@ -5502,7 +5502,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-kpi-grid strong {
@@ -5547,7 +5547,7 @@ textarea:focus-visible {
 
 .strategy-launch-grid strong {
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-launch-grid small {
@@ -5555,7 +5555,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .launch-icon {
@@ -5593,7 +5593,7 @@ textarea:focus-visible {
 .strategy-inspector h2 {
   margin: 0;
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-section-title > button {
@@ -5604,7 +5604,7 @@ textarea:focus-visible {
   background: transparent;
   color: #789aff;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-pinned-grid {
@@ -5642,7 +5642,7 @@ textarea:focus-visible {
 .strategy-pinned-grid > button > span:first-child small {
   color: var(--muted-2);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-pinned-grid > button > strong {
@@ -5650,7 +5650,7 @@ textarea:focus-visible {
   color: var(--text-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .pinned-card-metrics {
@@ -5672,25 +5672,25 @@ textarea:focus-visible {
 
 .pinned-card-metrics small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .pinned-card-metrics b {
   color: #d5d5d8;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .pinned-card-footer {
   border-top: 1px solid var(--line-soft);
   color: #7695ef;
   padding-top: 7px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-table-heading > span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-table-toolbar {
@@ -5725,7 +5725,7 @@ textarea:focus-visible {
   outline: 0;
   background: transparent;
   color: var(--text-strong);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-table-toolbar > div {
@@ -5744,7 +5744,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-table-toolbar button:hover,
@@ -5775,7 +5775,7 @@ textarea:focus-visible {
   text-align: right;
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-data-row:last-child {
@@ -5812,12 +5812,12 @@ textarea:focus-visible {
 .strategy-data-row strong {
   color: var(--text-strong);
   font-family: var(--font-apple);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-data-row small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-data-head {
@@ -5826,7 +5826,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   cursor: default;
   font-family: var(--font-apple);
-  font-size: 13px;
+  font-size: 14px;
   text-transform: uppercase;
 }
 
@@ -5837,7 +5837,7 @@ textarea:focus-visible {
   color: var(--green);
   padding: 2px 4px;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-inspector {
@@ -5863,7 +5863,7 @@ textarea:focus-visible {
 .strategy-inspector > header small {
   color: var(--muted-2);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-inspector-title,
@@ -5885,19 +5885,19 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-inspector-title p {
   margin: 10px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
 }
 
 .inspector-forward > span:first-child {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .inspector-forward > strong {
@@ -5917,14 +5917,14 @@ textarea:focus-visible {
   display: grid;
   gap: 4px;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .inspector-forward > div b,
 .inspector-stats b {
   color: #d2d2d5;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .inspector-stats {
@@ -5961,12 +5961,12 @@ textarea:focus-visible {
 
 .guard-status strong {
   color: #e4bb67;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .guard-status small {
   color: #aa9977;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -5981,7 +5981,7 @@ textarea:focus-visible {
   align-items: center;
   gap: 6px;
   color: var(--green);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .validation-list .warning {
@@ -6002,7 +6002,7 @@ textarea:focus-visible {
   background: #151516;
   color: #d4d4d7;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-status-bar {
@@ -6014,7 +6014,7 @@ textarea:focus-visible {
   background: #000000;
   color: var(--muted-2);
   padding: 0 10px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-status-bar > span:first-child {
@@ -6024,7 +6024,7 @@ textarea:focus-visible {
   gap: 6px;
 }
 
-.strategy-status-bar > span:first-child > span {
+.strategy-status-bar > span:first-child > span:not(.loading-indicator) {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -6213,7 +6213,7 @@ textarea:focus-visible {
   background: transparent;
   color: #7fa6ff;
   padding: 0 2px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -6257,7 +6257,7 @@ textarea:focus-visible {
 .earnings-comparison-period > header strong {
   color: #f2f2f4;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .earnings-comparison-period > header small {
@@ -6281,11 +6281,11 @@ textarea:focus-visible {
 
 .earnings-comparison-metric > header strong {
   color: #d8d8dc;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .earnings-comparison-metric > header em {
-  font-size: 13px;
+  font-size: 14px;
   font-style: normal;
   white-space: nowrap;
 }
@@ -6301,7 +6301,7 @@ textarea:focus-visible {
 
 .earnings-comparison-row > span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .earnings-comparison-row > i {
@@ -6326,7 +6326,7 @@ textarea:focus-visible {
   overflow: hidden;
   color: #e9e9ec;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6356,11 +6356,11 @@ textarea:focus-visible {
 
 .summary-performance-grid > .summary-performance-item > span:first-child {
   color: #a4a4aa;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-performance-grid > .summary-performance-item > strong {
-  font-size: 14px;
+  font-size: 15px;
   text-align: right;
 }
 
@@ -6655,7 +6655,7 @@ textarea:focus-visible {
   }
 
   .strategy-kpi-grid strong {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .strategy-table-toolbar > div {
@@ -6816,7 +6816,7 @@ textarea:focus-visible {
 
 .stock-summary-toolbar > strong {
   color: #d8d8dc;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-settings-host {
@@ -6834,7 +6834,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-settings-host > button:hover {
@@ -6865,7 +6865,7 @@ textarea:focus-visible {
   border-radius: 4px;
   color: #d4d4d7;
   padding: 0 8px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -6894,12 +6894,12 @@ textarea:focus-visible {
 
 .stock-summary-section-title strong {
   color: #f3f3f4;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-section-title span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-kpis {
@@ -6928,7 +6928,7 @@ textarea:focus-visible {
   align-items: center;
   border-top: 1px solid var(--line-soft);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-signals > div > strong {
@@ -6936,14 +6936,14 @@ textarea:focus-visible {
   color: #fff;
   padding-right: 10px;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-signals > div > b {
   grid-column: 2;
   color: #b9b9bd;
   text-align: right;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-spacer {
@@ -6978,12 +6978,12 @@ textarea:focus-visible {
 }
 
 .stock-summary-detail-button strong {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-detail-button small {
   color: #9b9ba1;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-settings {
@@ -7007,7 +7007,7 @@ textarea:focus-visible {
 
 .stock-summary-settings label strong {
   color: #ededee;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -7016,7 +7016,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-identity {
@@ -7035,7 +7035,7 @@ textarea:focus-visible {
   border-radius: 3px;
   color: #8d8d92;
   padding: 2px 5px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.2;
 }
 
@@ -7065,7 +7065,7 @@ textarea:focus-visible {
 .summary-current-price > small {
   flex: 0 0 auto;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-summary-identity .summary-quote > span {
@@ -7073,7 +7073,7 @@ textarea:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-after-hours {
@@ -7089,7 +7089,7 @@ textarea:focus-visible {
 }
 
 .summary-after-hours > span {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-after-hours-value {
@@ -7104,14 +7104,14 @@ textarea:focus-visible {
 .summary-after-hours-value > small {
   flex: 0 0 auto;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-after-hours-value > strong {
   min-width: 0;
   color: #fff;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -7125,7 +7125,7 @@ textarea:focus-visible {
   gap: 5px;
   margin-top: 6px;
   color: #8ea79f;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-market-status > i {
@@ -7134,7 +7134,7 @@ textarea:focus-visible {
   flex: 0 0 5px;
   border-radius: 50%;
   background: var(--green);
-  box-shadow: 0 0 0 2px rgba(42, 221, 127, 0.12);
+  box-shadow: 0 0 0 2px rgba(0, 255, 161, 0.12);
 }
 
 .summary-market-status > span {
@@ -7158,13 +7158,13 @@ textarea:focus-visible {
 
 .summary-range-heading {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-range-heading strong {
   color: #d9d9dc;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -7190,12 +7190,12 @@ textarea:focus-visible {
 .summary-range-labels {
   color: var(--muted-2);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-range-labels b {
   color: #f5f5f6;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -7219,7 +7219,7 @@ textarea:focus-visible {
 
 .summary-stat-list dt {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-stat-list dd {
@@ -7228,14 +7228,14 @@ textarea:focus-visible {
   margin: 0;
   color: #ededee;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   text-align: right;
 }
 
 .summary-stat-list dd small {
   color: var(--muted-2);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-event-card {
@@ -7258,13 +7258,13 @@ textarea:focus-visible {
 .summary-event-card span,
 .summary-event-card small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-event-card strong {
   color: #eeeeef;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-performance-grid {
@@ -7286,14 +7286,14 @@ textarea:focus-visible {
 
 .summary-performance-grid span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-performance-grid strong {
   overflow: hidden;
   font-family: var(--font-mono);
   text-overflow: ellipsis;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-rating-grid {
@@ -7314,14 +7314,14 @@ textarea:focus-visible {
 
 .summary-rating-grid span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-rating-grid strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-technical-footer {
@@ -7333,18 +7333,18 @@ textarea:focus-visible {
   margin-top: 5px;
   border-top: 1px solid var(--line-soft);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-technical-footer strong {
   color: #ededee;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-technical-footer small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-analyst-head {
@@ -7364,13 +7364,13 @@ textarea:focus-visible {
 .summary-analyst-head span,
 .summary-analyst-head small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-analyst-head strong {
   color: #eeeeef;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-consensus-bar {
@@ -7396,7 +7396,7 @@ textarea:focus-visible {
 .summary-target-range {
   margin-top: 5px;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-target-range {
@@ -7414,7 +7414,7 @@ textarea:focus-visible {
 .stock-summary-description {
   margin: 0 0 7px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
   -webkit-line-clamp: 3;
 }
@@ -7462,7 +7462,7 @@ textarea:focus-visible {
   color: #c5c5ca;
   padding: 0 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-back svg {
@@ -7491,7 +7491,7 @@ textarea:focus-visible {
 .stock-detail-identity > span {
   grid-column: 1 / 3;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-identity h1 {
@@ -7508,7 +7508,7 @@ textarea:focus-visible {
 
 .stock-detail-identity small {
   color: #a3a3a9;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -7529,13 +7529,13 @@ textarea:focus-visible {
 
 .stock-detail-quote span {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-quote small {
   grid-column: 1 / 3;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-quote.unavailable {
@@ -7565,7 +7565,7 @@ textarea:focus-visible {
   color: var(--muted);
   padding: 0 14px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-nav button.active,
@@ -7631,13 +7631,13 @@ textarea:focus-visible {
 .stock-detail-section-heading h2 {
   margin: 3px 0 0;
   color: #fff;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .stock-detail-chart-card > header > span,
 .stock-detail-section-heading > span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-chart {
@@ -7668,7 +7668,7 @@ textarea:focus-visible {
 .stock-detail-profile-card p {
   margin: 12px 0 16px;
   color: #a5a5aa;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.65;
 }
 
@@ -7693,7 +7693,7 @@ textarea:focus-visible {
 
 .stock-detail-profile-card dt {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-profile-card dd {
@@ -7702,7 +7702,7 @@ textarea:focus-visible {
   color: #e4e4e7;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-profile-card dd a,
@@ -7771,7 +7771,7 @@ textarea:focus-visible {
   max-width: 720px;
   margin: 5px 0 0;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -7780,7 +7780,7 @@ textarea:focus-visible {
   margin-top: 4px;
   color: #9aa0aa;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -7810,14 +7810,14 @@ textarea:focus-visible {
 
 .technical-rating-card > header span {
   color: #d9dce2;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
 .technical-rating-card > header small {
   color: var(--muted-2);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .technical-rating-gauge {
@@ -7866,7 +7866,7 @@ textarea:focus-visible {
   gap: 5px;
   color: var(--muted-2);
   text-align: center;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .technical-rating-card > footer span {
@@ -7877,7 +7877,7 @@ textarea:focus-visible {
 .technical-rating-card > footer b {
   color: #d1d4dc;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .technical-rating-card > footer .is-sell b { color: var(--red); }
@@ -7886,7 +7886,7 @@ textarea:focus-visible {
 .technical-rating-card > footer small {
   grid-column: 1 / -1;
   color: #777d87;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .technical-signal-table-grid {
@@ -7917,7 +7917,7 @@ textarea:focus-visible {
 .technical-signal-table-card > header h3 {
   margin: 0;
   color: #d9dce2;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .technical-signal-table-card > header span {
@@ -7929,7 +7929,7 @@ textarea:focus-visible {
   border-radius: 999px;
   color: #9ca2ac;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .technical-signal-table-shell {
@@ -7942,7 +7942,7 @@ textarea:focus-visible {
   min-width: 440px;
   border-collapse: collapse;
   color: #d1d4dc;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .technical-signal-table th {
@@ -7953,7 +7953,7 @@ textarea:focus-visible {
   color: #8f96a1;
   padding: 8px 10px;
   text-align: left;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -7973,7 +7973,7 @@ textarea:focus-visible {
 .technical-signal-table td:nth-child(2) {
   color: #aeb4be;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -7985,14 +7985,14 @@ textarea:focus-visible {
   border-radius: 999px;
   padding: 3px 7px;
   color: #abb0ba;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   white-space: nowrap;
 }
 
 .technical-signal-verdict[data-signal="buy"] {
-  border-color: rgb(42 221 127 / 50%);
-  background: rgb(42 221 127 / 10%);
+  border-color: rgb(0 255 161 / 50%);
+  background: rgb(0 255 161 / 10%);
   color: var(--green);
 }
 
@@ -8012,7 +8012,7 @@ textarea:focus-visible {
   border-top: 1px solid #202329;
   padding: 10px 13px 11px;
   color: #757b85;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 
@@ -8121,7 +8121,7 @@ textarea:focus-visible {
   border-radius: 3px;
   color: #e8c56a;
   padding: 1px 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-style: normal;
 }
 
@@ -8226,7 +8226,7 @@ textarea:focus-visible {
   border-top: 1px solid var(--line);
   color: var(--muted-2);
   padding: 0 10px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-status > span:first-child {
@@ -8278,7 +8278,7 @@ textarea:focus-visible {
   color: #d4d4d7;
   padding: 0 11px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-report-header > div:last-child > button.primary-action {
@@ -8311,7 +8311,7 @@ textarea:focus-visible {
   background: #0c111c;
   color: #a9b9e6;
   padding: 7px 10px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-detail-scroll > .strategy-request-notice {
@@ -8326,7 +8326,7 @@ textarea:focus-visible {
 
 .strategy-request-notice strong {
   color: #e1e7f7;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-request-notice button {
@@ -8337,7 +8337,7 @@ textarea:focus-visible {
   background: #111a2d;
   color: #dce6ff;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-request-notice.conflict {
@@ -8377,7 +8377,7 @@ textarea:focus-visible {
 
 .strategy-report-kpis span {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-report-kpis strong {
@@ -8400,7 +8400,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-report-toolbar {
@@ -8423,7 +8423,7 @@ textarea:focus-visible {
 
 .strategy-report-toolbar label > span {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-report-toolbar select,
@@ -8434,7 +8434,7 @@ textarea:focus-visible {
   background: #0b0b0c;
   color: #d8d8dc;
   padding: 0 8px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-search-field {
@@ -8453,7 +8453,7 @@ textarea:focus-visible {
 
 .strategy-search-field > span {
   color: var(--muted) !important;
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 
 .strategy-report-toolbar > button {
@@ -8464,7 +8464,7 @@ textarea:focus-visible {
   color: #bdbdc1;
   padding: 0 10px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-report-table-scroll {
@@ -8486,7 +8486,7 @@ textarea:focus-visible {
   border-spacing: 0;
   border-collapse: separate;
   color: #c8c8cc;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-report-table th {
@@ -8500,7 +8500,7 @@ textarea:focus-visible {
   color: #bcbcc1;
   padding: 0 9px;
   text-align: left;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -8572,7 +8572,7 @@ textarea:focus-visible {
 
 .strategy-report-table td > strong {
   color: #e9e9eb;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-report-table td.positive > strong {
@@ -8592,7 +8592,7 @@ textarea:focus-visible {
 
 .candidate-date small {
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-category {
@@ -8602,7 +8602,7 @@ textarea:focus-visible {
   color: #d5d5d9;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
 }
 
@@ -8620,7 +8620,7 @@ textarea:focus-visible {
   border-radius: 3px;
   color: #8d8d94;
   padding: 2px 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-style: normal;
   white-space: nowrap;
 }
@@ -8652,7 +8652,7 @@ textarea:focus-visible {
   color: #fff;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-name-cell > span:first-child small {
@@ -8660,7 +8660,7 @@ textarea:focus-visible {
   color: #77777e;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-name-cell > svg {
@@ -8715,7 +8715,7 @@ textarea:focus-visible {
   border: 1px solid #343436;
   border-radius: 3px;
   padding: 3px 5px;
-  font-size: 13px;
+  font-size: 14px;
   font-style: normal;
   white-space: nowrap;
 }
@@ -8730,7 +8730,7 @@ textarea:focus-visible {
   color: var(--muted-2);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-custom-cell {
@@ -8739,7 +8739,7 @@ textarea:focus-visible {
 }
 
 .strategy-custom-cell strong {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .muted-value {
@@ -8758,11 +8758,11 @@ textarea:focus-visible {
 
 .strategy-report-empty strong {
   color: #dadadd;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .strategy-report-empty span {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 @media (max-width: 980px) {
@@ -8847,7 +8847,7 @@ textarea:focus-visible {
 
   .stock-detail-quote span {
     grid-column: 1;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .stock-detail-quote small {
@@ -9147,7 +9147,7 @@ textarea:focus-visible {
 .stock-detail-watch {
   height: 36px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.25;
 }
 
@@ -9158,7 +9158,7 @@ textarea:focus-visible {
 }
 
 .stock-detail-identity > span {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
@@ -9169,7 +9169,7 @@ textarea:focus-visible {
 }
 
 .stock-detail-identity small {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
 }
 
@@ -9183,13 +9183,13 @@ textarea:focus-visible {
 }
 
 .stock-detail-quote span {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
 }
 
 .stock-detail-quote small {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
@@ -9199,7 +9199,7 @@ textarea:focus-visible {
 
 .stock-detail-nav button {
   padding: 0 16px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
 }
 
@@ -9227,7 +9227,7 @@ textarea:focus-visible {
 
 .stock-detail-chart-card > header > span,
 .stock-detail-section-heading > span {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
@@ -9237,7 +9237,7 @@ textarea:focus-visible {
 
 .stock-detail-profile-card p {
   margin: 13px 0 17px;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.65;
 }
 
@@ -9248,12 +9248,12 @@ textarea:focus-visible {
 }
 
 .stock-detail-profile-card dt {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
 .stock-detail-profile-card dd {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.4;
 }
 
@@ -9276,39 +9276,39 @@ textarea:focus-visible {
 }
 
 .stock-detail-page .eyebrow {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
 .stock-detail-page .compact-heading strong {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
 }
 
 .stock-detail-page .detail-section-context {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
 .stock-detail-page .detail-source-chip {
   gap: 6px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
 .stock-detail-page .detail-source-chip b {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-page .detail-source-chip em {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-page .text-action {
   min-height: 30px;
   padding: 5px 6px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-page .right-data-section .detail-metric {
@@ -9318,7 +9318,7 @@ textarea:focus-visible {
 }
 
 .stock-detail-page .detail-metric > span:first-child {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
@@ -9326,29 +9326,29 @@ textarea:focus-visible {
 .stock-detail-page .detail-metric-link {
   overflow-wrap: anywhere;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 650;
   line-height: 1.4;
 }
 
 .stock-detail-page .detail-metric small {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
 .stock-detail-page .data-footnote {
   min-height: 36px;
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-empty {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.45;
 }
 
 .stock-detail-empty small {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-earnings-row {
@@ -9360,24 +9360,24 @@ textarea:focus-visible {
 }
 
 .stock-detail-earnings-row > header strong {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .stock-detail-earnings-row > header span,
 .stock-detail-earnings-row > p,
 .stock-detail-earnings-row small {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
 .stock-detail-earnings-row b {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.4;
 }
 
 .stock-detail-status {
   gap: 12px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.3;
 }
 
@@ -9389,31 +9389,31 @@ textarea:focus-visible {
 }
 
 .analyst-consensus-dialog > p {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
 .analyst-consensus-table > div {
   min-height: 42px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
 .analyst-consensus-table strong,
 .analyst-consensus-table span {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 /* Keep the high-frequency chart/sidebar labels readable without relaxing the
  * compact layout as much as the dedicated detail page. */
 .stock-summary-signals > div:not(.stock-summary-section-title),
 .stock-summary-signals > div > b {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
 .stock-summary-signals > div > strong {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
 }
 
@@ -9440,13 +9440,13 @@ textarea:focus-visible {
     height: 36px;
     overflow: visible;
     padding: 0 9px;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .stock-detail-avatar {
     width: 38px;
     height: 38px;
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .stock-detail-identity h1 {
@@ -9454,7 +9454,7 @@ textarea:focus-visible {
   }
 
   .stock-detail-identity small {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .stock-detail-quote strong {
@@ -9462,7 +9462,7 @@ textarea:focus-visible {
   }
 
   .stock-detail-quote span {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .stock-detail-nav {
@@ -9472,7 +9472,7 @@ textarea:focus-visible {
 
   .stock-detail-nav button {
     padding: 0 12px;
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .stock-detail-content {
@@ -9481,7 +9481,7 @@ textarea:focus-visible {
   }
 
   .stock-detail-profile-card p {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .stock-detail-page .right-data-section .detail-metric {
@@ -9541,11 +9541,11 @@ textarea:focus-visible {
 /* Final readable density pass. Supporting copy uses at least 13px; financial values
  * and primary controls use 14–16px. */
 .market-app {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .market-app small {
-  font-size: 13px !important;
+  font-size: 14px !important;
   line-height: 1.35;
 }
 
@@ -9559,7 +9559,7 @@ textarea:focus-visible {
 .placement-pill,
 .detail-source-chip,
 .data-footnote {
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 
 .global-toolbar button,
@@ -9571,7 +9571,7 @@ textarea:focus-visible {
 .modal-backdrop input,
 .modal-backdrop select,
 .modal-backdrop textarea {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .interval-group button,
@@ -9586,7 +9586,7 @@ textarea:focus-visible {
 .stock-summary-detail-button strong,
 .indicator-copy strong,
 .right-news-row strong {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .chart-symbol-button small,
@@ -9601,7 +9601,7 @@ textarea:focus-visible {
 .summary-analyst-head,
 .summary-consensus-labels,
 .summary-target-range {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .watch-row,
@@ -9616,7 +9616,7 @@ textarea:focus-visible {
 .summary-stat-list,
 .summary-performance-grid,
 .summary-rating-grid {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .watch-popover button small {
@@ -9627,7 +9627,7 @@ textarea:focus-visible {
 .dialog-helper-copy {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
 }
 
@@ -9749,7 +9749,7 @@ textarea:focus-visible {
 .portfolio-title-block span,
 .portfolio-main-card > header span,
 .portfolio-table-title span {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
@@ -9765,7 +9765,7 @@ textarea:focus-visible {
 .portfolio-tip button,
 .back-to-portfolios,
 .toggle-label {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .portfolio-main-card h2,
@@ -9782,7 +9782,7 @@ textarea:focus-visible {
 .contribution-card button,
 .transactions-row,
 .transaction-actions > button {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .segmented-control button,
@@ -9809,7 +9809,7 @@ textarea:focus-visible {
   background: #020202;
   color: #d7d7da;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15px;
   text-align: right;
 }
 
@@ -9829,7 +9829,7 @@ textarea:focus-visible {
   background: #101011;
   color: #a5a5aa;
   font-family: var(--font-apple);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 550;
 }
 
@@ -9864,7 +9864,7 @@ textarea:focus-visible {
 }
 
 .holdings-data-table .holding-symbol strong {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .technical-rating {
@@ -9875,7 +9875,7 @@ textarea:focus-visible {
   background: #19191b;
   padding: 0 8px;
   font-family: var(--font-apple);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
 }
 
@@ -9890,7 +9890,7 @@ textarea:focus-visible {
 .stock-detail-earnings-row > p,
 .stock-detail-earnings-row b,
 .analyst-consensus-table > div {
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .stock-detail-profile-card dt,
@@ -9900,7 +9900,7 @@ textarea:focus-visible {
 .stock-detail-earnings-row small,
 .stock-detail-chart-card > header > span,
 .stock-detail-section-heading > span {
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .stock-detail-page .detail-metric b,
@@ -9953,11 +9953,11 @@ textarea:focus-visible {
 
 .summary-performance-grid > .summary-performance-item > span:first-child {
   color: #a4a4aa;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .summary-performance-grid > .summary-performance-item > strong {
-  font-size: 14px;
+  font-size: 15px;
   text-align: right;
 }
 
@@ -9969,10 +9969,10 @@ textarea:focus-visible {
 .workspace-view-tabs > button { min-height: 40px; padding: 0 16px; font-size: 15px; }
 .workspace-view-tabs .workspace-nav-spacer { flex: 1; }
 .company-logo-fallback { background: #202023; }
-.watch-row { min-height: 52px; font-size: 14px; }
+.watch-row { min-height: 52px; font-size: 15px; }
 .watch-symbol b { font-size: 15px; }
-.watch-symbol small { font-size: 13px; line-height: 1.35; }
-.watchlist-columns { min-height: 32px; font-size: 13px; }
+.watch-symbol small { font-size: 14px; line-height: 1.35; }
+.watchlist-columns { min-height: 32px; font-size: 14px; }
 .symbol-search-trigger { min-height: 40px; }
 .summary-quote strong { font-size: 28px; }
 .stock-summary-section-title > span { display: none; }
@@ -9980,12 +9980,12 @@ textarea:focus-visible {
 .chart-data-state.is-error { display: flex; align-items: center; gap: 14px; }
 .chart-data-state.is-error button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-raised); color: var(--text); font: inherit; cursor: pointer; }
 .strategy-report-header h1 { font-size: 26px; letter-spacing: -.03em; }
-.strategy-report-table th { font-size: 13px; }
-.strategy-report-table td { font-size: 14px; padding-top: 18px; padding-bottom: 18px; }
+.strategy-report-table th { font-size: 14px; }
+.strategy-report-table td { font-size: 15px; padding-top: 18px; padding-bottom: 18px; }
 .strategy-report-table .strategy-name-cell strong { font-size: 15px; }
 .strategy-report-kpis { gap: 16px; }
 .strategy-report-kpis strong { font-size: 26px; }
-.status-bar, .strategy-status-bar { font-size: 13px; }
+.status-bar, .strategy-status-bar { font-size: 14px; }
 
 .strategy-report-table { table-layout: fixed; width: 100%; min-width: 1120px; }
 .strategy-report-table th:nth-child(1) { width: 112px; }
@@ -9999,7 +9999,7 @@ textarea:focus-visible {
 .strategy-report-toolbar select, .strategy-search-field, .strategy-report-toolbar > button { height: 38px; }
 .strategy-category { white-space: normal; line-height: 1.4; }
 .strategy-name-badges { gap: 5px; margin-top: 8px; }
-.strategy-name-badges > i { border: 0; padding-left: 0; background: transparent; font-size: 13px; font-weight: 400; }
+.strategy-name-badges > i { border: 0; padding-left: 0; background: transparent; font-size: 14px; font-weight: 400; }
 .strategy-name-badges > i + i { margin-left: 6px; color: var(--muted); }
 .strategy-name-badges > i.strategy-sample-badge { color: var(--amber); }
 .strategy-audit-cell { text-align: center; }
@@ -10015,3 +10015,24 @@ textarea:focus-visible {
   .strategy-report-toolbar .strategy-search-field { grid-column: 1 / -1; }
   .strategy-report-toolbar > button { display: none; }
 }
+
+/* Loading stays visual; its accessible label remains available to assistive technology. */
+.loading-indicator { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; color: var(--muted); line-height: 1; }
+.loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid rgb(255 255 255 / 18%); border-top-color: currentColor; border-radius: 50%; animation: trader-loading-spin .75s linear infinite; }
+@keyframes trader-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-spinner { animation: none; } }
+.workspace-grid, .workspace-grid.bottom-collapsed { grid-template-rows: minmax(0, 1fr); }
+.market-app { font-size: 16px; }
+.market-app small { font-size: 14px !important; }
+.chart-symbol-button b, .watch-row, .watch-price, .quote-summary > span { font-size: 16px; }
+.stock-detail-page .section-heading .eyebrow, .stock-summary-identity .asset-type, .strategy-report-kpis > div:nth-child(2) > small { display: none; }
+.market-app .talib-workbench :is(p, small, label, input, select, footer),
+.market-app .financial-availability-label, .market-app .financial-comparison-table-heading > span,
+.market-app .financial-history-summary-item small, .market-app .options-distribution-chart text { font-size: 14px; }
+.chart-data-state:not(.is-error) { padding: 0; border: 0; background: transparent; }
+.strategy-request-notice.loading { justify-content: center; background: transparent; border-color: transparent; }
+
+.market-app .talib-workbench :is(span, button),
+.market-app .options-chain-panel :is(p, span, small, label, select, input, button, th, td),
+.market-app .options-history-plot svg text { font-size: 14px; }
+.market-app .options-reference-prices strong { font-size: 22px; }

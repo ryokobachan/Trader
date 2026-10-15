@@ -2,6 +2,7 @@
 
 import { Star } from "@phosphor-icons/react";
 import { CompanyLogo } from "../../components/CompanyLogo";
+import { LoadingIndicator } from "../../components/LoadingIndicator";
 import { useI18n } from "../../platform/i18n";
 import {
   clampPercent,
@@ -262,7 +263,7 @@ function IdentityQuoteModule({
         </span>
       </div>
       <div className="summary-market-status">
-        {marketStatus !== "—" && <i />}{marketStatus}<span>{intelligence.dataFreshness}</span>
+        {marketStatus !== "—" && <i />}{marketStatus}<span>{intelligence.dataFreshness === t("status.fetching") ? <LoadingIndicator /> : intelligence.dataFreshness}</span>
       </div>
     </section>
   );
