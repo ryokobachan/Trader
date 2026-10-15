@@ -514,7 +514,7 @@ export function AnalystTargetHistoryChart({
       lastValueVisible: true,
     });
     const high = chart.addSeries(LineSeries, {
-      color: "#37c982",
+      color: "#2add7f",
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       lineType: LineType.WithSteps,

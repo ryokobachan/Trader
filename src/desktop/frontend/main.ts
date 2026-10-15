@@ -6,6 +6,4 @@ if (logo) logo.src = logoUrl;
 
 if (navigator.language.toLowerCase().startsWith("ja")) {
   document.documentElement.lang = "ja";
-  const status = document.querySelector<HTMLElement>("#status");
-  if (status) status.textContent = "ローカルワークスペースを起動しています…";
 }
