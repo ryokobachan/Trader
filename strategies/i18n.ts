@@ -83,7 +83,7 @@ const EN_STRATEGY_MESSAGES = {
   "toast.portfolioCreated": "New strategy portfolio created.",
   "toast.portfolioCreateFailed": "Could not create the strategy.",
   "detail.aria": "Strategy portfolio details",
-  "detail.back": "Strategies",
+  "detail.back": "Strategy",
   "detail.selectPortfolio": "Select portfolio",
   "detail.addTransaction": "Add transaction",
   "detail.portfolioMenu": "Portfolio menu",

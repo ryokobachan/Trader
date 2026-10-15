@@ -62,7 +62,7 @@ test("seeded charts are limited to built-in illustrative strategies", async () =
     source,
     /<StrategyChartUnavailable className="portfolio-analysis-chart"[^>]*message=\{st\("chart\.unavailable"\)\}/,
   );
-  assert.match(source, /st\(illustrativeStrategyChartsAvailable \? "tip\.description" : "tip\.userDataDescription"\)/);
+  assert.match(source, /st\("status\.strategyDisclaimer"\)/);
 });
 
 test("transaction reads and writes are scoped to a strategy and stale responses are ignored", async () => {

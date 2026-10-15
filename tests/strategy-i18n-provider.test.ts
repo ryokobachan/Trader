@@ -18,6 +18,7 @@ test("strategy feature defaults to readable English and supports Japanese", () =
   const japanese = createStrategyTranslator("ja");
 
   assert.equal(english("index.title"), "Strategy");
+  assert.equal(english("detail.back"), "Strategy");
   assert.equal(english("detail.addTransaction"), "Add transaction");
   assert.equal(english("detail.editStrategy"), "Edit strategy");
   assert.equal(english("sample.userSupplied"), "USER-SUPPLIED");
