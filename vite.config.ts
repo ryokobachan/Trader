@@ -58,9 +58,13 @@ export default defineConfig(async () => {
   return {
     // Client components also render in SSR; prebundle the icon barrel there.
     environments: { ssr: { optimizeDeps: { include: ["@phosphor-icons/react"] } } },
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      watch: {
+        ...(isCodexSeatbeltSandbox ? { useFsEvents: false, usePolling: true } : {}),
+        // Native build outputs must not invalidate the running web workspace.
+        ignored: [/[\\/]src[\\/]desktop[\\/](?:frontend-dist|tauri[\\/](?:target|binaries|gen))(?:[\\/]|$)/],
+      },
+    },
     plugins: [
       vinext(),
       sites(),
