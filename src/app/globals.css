@@ -111,7 +111,7 @@ textarea:focus-visible {
 }
 
 .demo-badge.provider-data {
-  color: #55d6be;
+  color: var(--green);
   border-color: rgba(85, 214, 190, .42);
   background: rgba(42, 221, 127, .12);
 }
@@ -133,7 +133,7 @@ textarea:focus-visible {
 }
 
 .chart-data-state.is-error {
-  color: #ffb4ab;
+  color: var(--red);
   border-color: rgba(252, 63, 66, .48);
 }
 
@@ -1136,10 +1136,10 @@ textarea:focus-visible {
 
 .upside-pill,
 .status-pill {
-  border: 1px solid #27514b;
+  border: 1px solid #27513b;
   border-radius: 5px;
   background: var(--green-soft);
-  color: #7fd4c9;
+  color: var(--green);
 }
 
 .upside-pill {
@@ -1150,7 +1150,7 @@ textarea:focus-visible {
 }
 
 .upside-pill.negative {
-  border-color: #5e2e31;
+  border-color: #5e2e2f;
   background: var(--red-soft);
   color: var(--red);
 }
@@ -1179,7 +1179,7 @@ textarea:focus-visible {
   position: absolute;
   inset: 0 14% 0 18%;
   border-radius: 4px;
-  background: #526c67;
+  background: #526c5e;
 }
 
 .current-marker {
@@ -2063,7 +2063,7 @@ textarea:focus-visible {
 }
 
 .connection-state {
-  color: #7aa99f;
+  color: var(--green);
 }
 
 .search-backdrop {
@@ -2272,10 +2272,10 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid #315a53;
+  border: 1px solid #315a44;
   border-radius: 6px;
-  background: #152924;
-  color: #a7ded4;
+  background: #15291e;
+  color: var(--green);
   padding: 0 13px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
   font-size: 10px;
@@ -2638,7 +2638,7 @@ textarea:focus-visible {
 }
 
 .detail-visual-state.is-error,
-.analyst-history-state.is-error { color: #f28b82; }
+.analyst-history-state.is-error { color: var(--red); }
 
 .analyst-consensus-kpis {
   display: grid;
@@ -3833,8 +3833,8 @@ textarea:focus-visible {
 .transaction-side {
   display: inline-block;
   border-radius: 3px;
-  background: #13251f;
-  color: #72bdac;
+  background: #13251c;
+  color: var(--green);
   padding: 3px 5px;
   font-family: var(--font-apple);
   font-style: normal;
@@ -3842,8 +3842,8 @@ textarea:focus-visible {
 }
 
 .transaction-side.売却 {
-  background: #2a1718;
-  color: #e98986;
+  background: #2a1717;
+  color: var(--red);
 }
 
 .transaction-side.配当 {
@@ -4054,7 +4054,7 @@ textarea:focus-visible {
 
 .dialog-actions .danger-action {
   border-color: #713738;
-  background: #33191a;
+  background: #331919;
 }
 
 .dialog-form-grid {
@@ -4096,8 +4096,8 @@ textarea:focus-visible {
   display: block;
   border: 1px solid #713738;
   border-radius: 5px;
-  background: #1c0d0e;
-  color: #e49a9a;
+  background: #1c0d0d;
+  color: var(--red);
   padding: 8px 9px;
   font-size: 9px;
   line-height: 1.45;
@@ -4291,7 +4291,7 @@ textarea:focus-visible {
   display: grid;
   place-items: center;
   gap: 10px;
-  color: #e77b79;
+  color: var(--red);
   text-align: center;
 }
 
@@ -5831,10 +5831,10 @@ textarea:focus-visible {
 }
 
 .audit-badge {
-  border: 1px solid #2f514b;
+  border: 1px solid #2f513f;
   border-radius: 3px;
-  background: #0e201d;
-  color: #75b5a9;
+  background: #0e2017;
+  color: var(--green);
   padding: 2px 4px;
   white-space: nowrap;
   font-size: 6px;
@@ -5980,7 +5980,7 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #7eb7ad;
+  color: var(--green);
   font-size: 8px;
 }
 
@@ -6468,7 +6468,7 @@ textarea:focus-visible {
 }
 
 .watch-popover .watchlist-delete-action {
-  color: #ff8c8a;
+  color: var(--red);
 }
 
 .watch-popover .watchlist-delete-action:hover,
@@ -6489,7 +6489,7 @@ textarea:focus-visible {
   display: block;
   overflow: hidden;
   border-radius: 99px;
-  background: linear-gradient(90deg, #211516 0 49.6%, #24262b 49.6% 50.4%, #12211e 50.4% 100%);
+  background: linear-gradient(90deg, #211515 0 49.6%, #24262b 49.6% 50.4%, #12211e 50.4% 100%);
 }
 
 .summary-performance-track > i {
@@ -8348,8 +8348,8 @@ textarea:focus-visible {
 
 .strategy-request-notice.error {
   border-color: #713738;
-  background: #1c0d0e;
-  color: #df8b8b;
+  background: #1c0d0d;
+  color: var(--red);
 }
 
 .strategy-report-kpis {
@@ -8688,9 +8688,9 @@ textarea:focus-visible {
 }
 
 .strategy-name-badges .strategy-sample-badge.transaction_snapshot {
-  border-color: #245441;
-  background: #0c231a;
-  color: #6ac99e;
+  border-color: #24543b;
+  background: #0c2317;
+  color: var(--green);
 }
 
 .strategy-name-badges .strategy-sample-badge.user_supplied {
@@ -8720,9 +8720,9 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
-.strategy-audit-cell i.low { border-color: #214d43; color: #63bdac; }
+.strategy-audit-cell i.low { border-color: #214d36; color: var(--green); }
 .strategy-audit-cell i.medium { border-color: #5b4622; color: #d5aa61; }
-.strategy-audit-cell i.high { border-color: #633134; color: #ef7b78; }
+.strategy-audit-cell i.high { border-color: #633132; color: var(--red); }
 
 .strategy-audit-cell small,
 .strategy-custom-cell small {
