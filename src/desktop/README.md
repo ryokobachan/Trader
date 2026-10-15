@@ -112,3 +112,18 @@ WebView-managed interface preferences are separate from this database.
 
 The log is intended for local startup and runtime diagnostics and can be
 removed while Trader is not running.
+
+## Icon appearance
+
+The canonical artwork contains the ribbon foreground only. Do not bake a rounded
+background tile, frame, or blue/black panel into it: on macOS Tahoe with Dark
+icon style, IconServices supplies the shared dark background and edge treatment.
+The native rendered icon must be checked in addition to inspecting the PNG.
+The local macOS 26.3.1 verification compared the background of the rendered
+Trader icon with Codex and Terminal; this does not claim full Icon Composer
+appearance-variant support on other macOS versions.
+
+Apple describes the system masking and appearance treatment in the
+[app icon guidelines](https://developer.apple.com/design/human-interface-guidelines/app-icons)
+and the separation of foreground artwork from backgrounds in the
+[Icon Composer workflow](https://developer.apple.com/documentation/xcode/creating-your-app-icon-using-icon-composer).

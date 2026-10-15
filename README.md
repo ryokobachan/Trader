@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/trader-logo-v5.png" alt="Trader logo" width="144">
+  <img src="public/trader-logo-v6.png" alt="Trader logo" width="144">
 </p>
 
 # Trader

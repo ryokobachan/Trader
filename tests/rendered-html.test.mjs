@@ -39,7 +39,7 @@ test("server-renders the Trader stock analysis mock", async () => {
   assert.match(html, /<title>Trader — Stock Analysis Workspace<\/title>/i);
   assert.match(html, /aria-label="Trader"/);
   assert.match(html, /TRADER/);
-  assert.match(html, /src="\/trader-logo-v5\.png"/);
+  assert.match(html, /src="\/trader-logo-v6\.png"/);
   assert.doesNotMatch(html, /🦄/u);
   assert.doesNotMatch(html, /Pulseboard/i);
   assert.match(html, /AAPL/);
@@ -81,21 +81,21 @@ test("server-renders the Trader stock analysis mock", async () => {
 test("uses the supplied Trader logo for the favicon and shell metadata", async () => {
   const brand = await readFile(new URL("../src/app/platform/brand.ts", import.meta.url), "utf8");
   const layout = await readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8");
-  const logo = await readFile(new URL("../public/trader-logo-v5.png", import.meta.url));
+  const logo = await readFile(new URL("../public/trader-logo-v6.png", import.meta.url));
   await access(new URL("../public/favicon.ico", import.meta.url));
-  await access(new URL("../public/favicon-trader-v5.ico", import.meta.url));
-  await access(new URL("../public/favicon-trader-v5-16.png", import.meta.url));
-  await access(new URL("../public/favicon-trader-v5-32.png", import.meta.url));
-  await access(new URL("../public/apple-touch-icon-trader-v5.png", import.meta.url));
+  await access(new URL("../public/favicon-trader-v6.ico", import.meta.url));
+  await access(new URL("../public/favicon-trader-v6-16.png", import.meta.url));
+  await access(new URL("../public/favicon-trader-v6-32.png", import.meta.url));
+  await access(new URL("../public/apple-touch-icon-trader-v6.png", import.meta.url));
   assert.equal(
     createHash("sha256").update(logo).digest("hex"),
-    "cb6970020b71677586c238490e9af910630a2337cb152239d96b504fe5839fa8",
+    "1407452f607c3296bfc752ba3ef58c677c17e90463a54d9a5f981e6084fc50b2",
   );
-  assert.match(brand, /logoPath:\s*"\/trader-logo-v5\.png"/);
-  assert.match(brand, /favicon16Path:\s*"\/favicon-trader-v5-16\.png"/);
-  assert.match(brand, /favicon32Path:\s*"\/favicon-trader-v5-32\.png"/);
-  assert.match(brand, /faviconIcoPath:\s*"\/favicon-trader-v5\.ico"/);
-  assert.match(brand, /appleTouchIconPath:\s*"\/apple-touch-icon-trader-v5\.png"/);
+  assert.match(brand, /logoPath:\s*"\/trader-logo-v6\.png"/);
+  assert.match(brand, /favicon16Path:\s*"\/favicon-trader-v6-16\.png"/);
+  assert.match(brand, /favicon32Path:\s*"\/favicon-trader-v6-32\.png"/);
+  assert.match(brand, /faviconIcoPath:\s*"\/favicon-trader-v6\.ico"/);
+  assert.match(brand, /appleTouchIconPath:\s*"\/apple-touch-icon-trader-v6\.png"/);
   assert.match(layout, /sizes:\s*"16x16"/);
   assert.match(layout, /sizes:\s*"32x32"/);
   assert.match(layout, /sizes:\s*"180x180"/);
@@ -183,7 +183,7 @@ test("serves normalized fixture data through server-side Provider APIs", async (
 
 // The first pixel of the first scanline has zero filter predictors for RGBA8.
 test("brand PNGs have a transparent exterior instead of an opaque matte", async () => {
-  for (const name of ["trader-logo-v5.png", "apple-touch-icon-trader-v5.png", "favicon-trader-v5-16.png", "favicon-trader-v5-32.png"]) {
+  for (const name of ["trader-logo-v6.png", "apple-touch-icon-trader-v6.png", "favicon-trader-v6-16.png", "favicon-trader-v6-32.png"]) {
     const png = await readFile(new URL(`../public/${name}`, import.meta.url));
     assert.equal(png[24], 8, `${name}: 8-bit PNG`);
     assert.equal(png[25], 6, `${name}: RGBA PNG`);
@@ -195,5 +195,47 @@ test("brand PNGs have a transparent exterior instead of an opaque matte", async 
     }
     const pixels = inflateSync(Buffer.concat(chunks));
     assert.equal(pixels[4], 0, `${name}: exterior alpha must be zero`);
+  }
+});
+
+function pngRgba(png) {
+  assert.equal(png[24], 8);
+  assert.equal(png[25], 6);
+  const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
+  const chunks = [];
+  for (let offset = 8; offset < png.length;) {
+    const length = png.readUInt32BE(offset);
+    if (png.toString("ascii", offset + 4, offset + 8) === "IDAT") chunks.push(png.subarray(offset + 8, offset + 8 + length));
+    offset += length + 12;
+  }
+  const raw = inflateSync(Buffer.concat(chunks)), stride = width * 4;
+  const pixels = Buffer.alloc(stride * height);
+  const paeth = (a, b, c) => {
+    const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+    return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+  };
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    assert.ok(filter <= 4);
+    for (let x = 0; x < stride; x++) {
+      const index = y * stride + x;
+      const left = x >= 4 ? pixels[index - 4] : 0;
+      const up = y ? pixels[index - stride] : 0;
+      const diagonal = y && x >= 4 ? pixels[index - stride - 4] : 0;
+      const predictor = [0, left, up, Math.floor((left + up) / 2), paeth(left, up, diagonal)][filter];
+      pixels[index] = (raw[y * (stride + 1) + 1 + x] + predictor) & 255;
+    }
+  }
+  return { width, height, pixels };
+}
+
+test("the icon foreground leaves the system background visible above and below the ribbon", async () => {
+  for (const name of ["trader-logo-v6.png", "apple-touch-icon-trader-v6.png", "favicon-trader-v6-16.png", "favicon-trader-v6-32.png"]) {
+    const { width, height, pixels } = pngRgba(await readFile(new URL(`../public/${name}`, import.meta.url)));
+    for (const fraction of [1 / 8, 7 / 8]) {
+      const x = Math.floor(width / 2), y = Math.floor(height * fraction);
+      assert.equal(pixels[(y * width + x) * 4 + 3], 0, `${name}: no baked icon tile`);
+    }
+    assert.ok(pixels.some((value, index) => index % 4 === 3 && value > 200), `${name}: foreground is present`);
   }
 });

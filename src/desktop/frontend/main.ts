@@ -1,4 +1,4 @@
-import logoUrl from "../../../public/apple-touch-icon-trader-v5.png?url";
+import logoUrl from "../../../public/apple-touch-icon-trader-v6.png?url";
 import "./loading.css";
 
 const logo = document.querySelector<HTMLImageElement>("#logo");

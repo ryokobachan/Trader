@@ -11,10 +11,10 @@ const binariesDirectory = path.join(desktopRoot, "tauri", "binaries");
 const runtimeBinary = path.join(binariesDirectory, `trader-runtime-${targetTriple}`);
 const marketBinary = path.join(binariesDirectory, `trader-market-sidecar-${targetTriple}`);
 const marketBuildDirectory = path.join(desktopRoot, "runtime", "tradingview-sidecar");
-const iconSource = path.join(repositoryRoot, "public", "trader-logo-v5.png");
+const iconSource = path.join(repositoryRoot, "public", "trader-logo-v6.png");
 const iconsDirectory = path.join(desktopRoot, "tauri", "icons");
 
-// Preserve the transparent exterior of the source artwork.
+// Foreground only: macOS supplies the icon background and appearance treatment.
 const iconsetSizes = Object.freeze([
   ["icon_16x16.png", 16],
   ["icon_16x16@2x.png", 32],
