@@ -10025,7 +10025,7 @@ textarea:focus-visible {
 .market-app { font-size: 16px; }
 .market-app small { font-size: 14px !important; }
 .chart-symbol-button b, .watch-row, .watch-price, .quote-summary > span { font-size: 16px; }
-.stock-detail-page .section-heading .eyebrow, .stock-summary-identity .asset-type, .strategy-report-kpis > div:nth-child(2) > small { display: none; }
+.stock-detail-page .eyebrow, .strategy-report-kpis > div:nth-child(2) > small { display: none; }
 .market-app .talib-workbench :is(p, small, label, input, select, footer),
 .market-app .financial-availability-label, .market-app .financial-comparison-table-heading > span,
 .market-app .financial-history-summary-item small, .market-app .options-distribution-chart text { font-size: 14px; }
@@ -10036,3 +10036,7 @@ textarea:focus-visible {
 .market-app .options-chain-panel :is(p, span, small, label, select, input, button, th, td),
 .market-app .options-history-plot svg text { font-size: 14px; }
 .market-app .options-reference-prices strong { font-size: 22px; }
+
+.metric-reading-help { margin: 12px 0 20px; color: var(--muted); font-size: 14px; }
+.metric-reading-help > summary { cursor: pointer; width: fit-content; }
+.metric-reading-help p { line-height: 1.65; }

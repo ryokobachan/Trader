@@ -242,7 +242,7 @@ function IdentityQuoteModule({
         </button>
       </div>
       <div className="summary-market-meta">
-        <span>{stock.market}</span><span>{stock.sector}</span><span>{localizedAssetType(stock.assetTypeLabel, t)}</span>
+        <span>{stock.market}</span><span>{stock.sector}</span>{localizedAssetType(stock.assetTypeLabel, t) !== t("summary.assetType.commonStock") && <span>{localizedAssetType(stock.assetTypeLabel, t)}</span>}
       </div>
       <div className="summary-quote">
         <div className="summary-current-price">
