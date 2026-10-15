@@ -1,3 +1,4 @@
+import { serverEventStream } from "../../../../../platform/server-events";
 import { createProviderRuntime } from "@api/index.server";
 import {
   WATCHLIST_QUOTES_MAX_SYMBOLS,
@@ -18,7 +19,6 @@ import {
 } from "../../../../../platform/request-owner.server";
 
 const SYMBOL_PATTERN = /^[A-Z][A-Z0-9.-]{0,9}$/;
-const HEARTBEAT_MS = 15_000;
 
 function errorResponse(status: number, code: string, message: string, requestId: string) {
   return Response.json(
@@ -100,48 +100,10 @@ export async function GET(request: Request) {
       requestId,
       signal: request.signal,
     });
-    const reader = source.getReader();
-    const encoder = new TextEncoder();
-    let heartbeat: ReturnType<typeof setInterval> | undefined;
-    let closed = false;
-
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode(": connected\n\n"));
-        heartbeat = setInterval(() => {
-          if (!closed) controller.enqueue(encoder.encode(": heartbeat\n\n"));
-        }, HEARTBEAT_MS);
-
-        void (async () => {
-          try {
-            while (!closed) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              const symbol = symbolByInstrumentId.get(value.instrumentId);
-              if (!symbol || !isUsableCurrentQuote(value)) continue;
-              const message: WatchlistQuoteStreamMessage = {
-                schemaVersion: WATCHLIST_QUOTE_STREAM_SCHEMA_VERSION,
-                type: "quote",
-                symbol,
-                quote: value,
-              };
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(message)}\n\n`));
-            }
-            if (!closed) controller.close();
-          } catch {
-            if (!closed) controller.error(new Error("Quote stream unavailable."));
-          } finally {
-            closed = true;
-            if (heartbeat) clearInterval(heartbeat);
-            reader.releaseLock();
-          }
-        })();
-      },
-      async cancel(reason) {
-        closed = true;
-        if (heartbeat) clearInterval(heartbeat);
-        await reader.cancel(reason).catch(() => undefined);
-      },
+    const body = serverEventStream(source, (value): WatchlistQuoteStreamMessage | null => {
+      const symbol = symbolByInstrumentId.get(value.instrumentId);
+      if (!symbol || !isUsableCurrentQuote(value)) return null;
+      return { schemaVersion: WATCHLIST_QUOTE_STREAM_SCHEMA_VERSION, type: "quote", symbol, quote: value };
     });
 
     return new Response(body, {

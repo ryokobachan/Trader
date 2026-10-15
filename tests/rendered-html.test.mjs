@@ -44,7 +44,7 @@ test("server-renders the Trader stock analysis mock", async () => {
   assert.doesNotMatch(html, /Pulseboard/i);
   assert.match(html, /AAPL/);
   assert.match(html, /Watchlist/);
-  assert.match(html, /Symbol overview/);
+  assert.match(html, /Overview/);
   assert.match(html, /Price range/);
   assert.match(html, /Key statistics/);
   assert.match(html, /Next earnings/);
@@ -55,7 +55,8 @@ test("server-renders the Trader stock analysis mock", async () => {
   assert.doesNotMatch(html, /10:32 JST · 15 min delayed/);
   assert.doesNotMatch(html, /15分遅延/);
   assert.match(html, /Indicators/);
-  assert.match(html, /Strategies/);
+  assert.match(html, /aria-label="Strategy"/);
+  assert.doesNotMatch(html, /aria-label="(?:Strategies|Institutions|Ideas|Data sources|X analysis)"/);
   assert.match(html, /aria-label="Workspace"/);
   assert.match(html, /watchlist-detail-layout/);
   assert.match(html, /aria-label="AAPL symbol overview"/);

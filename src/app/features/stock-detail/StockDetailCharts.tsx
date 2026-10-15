@@ -350,7 +350,7 @@ function chartBase(host: HTMLDivElement, locale: Locale) {
       background: { type: ColorType.Solid, color: "#08090b" },
       textColor: "#a8adb7",
       fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif',
-      fontSize: 12,
+      fontSize: 14,
       attributionLogo: false,
     },
     grid: {

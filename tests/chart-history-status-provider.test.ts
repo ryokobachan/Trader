@@ -11,7 +11,7 @@ test("chart history feedback depends on the bars request, not the workspace quot
   );
   assert.match(
     source,
-    /\{barsStatus === "error" && <div className="chart-data-state is-error" role="alert">\{t\("chart\.historyError"\)\}<\/div>\}/,
+    /\{barsStatus === "error" && <div className="chart-data-state is-error" role="alert"><span>\{t\("chart\.historyError"\)\}<\/span><button type="button" onClick=\{\(\) => forceChartBarsRefreshRef\.current\?\.\(\)\}>\{t\("common\.retry"\)\}<\/button><\/div>\}/,
   );
   assert.doesNotMatch(
     source,

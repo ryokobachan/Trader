@@ -205,7 +205,7 @@ test("technical ratings use the same diverging green and red track as performanc
 test("symbol summary SSR defaults to English and localizes provider enum values", () => {
   const html = renderSummary("en");
 
-  assert.match(html, />Symbol overview</);
+  assert.match(html, />Overview</);
   assert.match(html, /Display items/);
   assert.match(html, />Price range</);
   assert.match(html, />Today&#x27;s range</);

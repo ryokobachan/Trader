@@ -1,3 +1,4 @@
+import { serverEventStream } from "../../../../../platform/server-events";
 import {
   WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION,
   type WatchlistAfterHoursStreamMessage,
@@ -19,7 +20,6 @@ import {
   tradingViewWorkerLatestCloseStreamSupported,
 } from "@api/tradingview-websocket/index.server";
 
-const HEARTBEAT_MS = 15_000;
 
 export async function GET(request: Request) {
   const requestId = request.headers.get("x-request-id")?.slice(0, 128) || crypto.randomUUID();
@@ -58,46 +58,11 @@ export async function GET(request: Request) {
         symbols,
         context,
       );
-    const reader = source.getReader();
-    const encoder = new TextEncoder();
-    let heartbeat: ReturnType<typeof setInterval> | undefined;
-    let closed = false;
-
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(encoder.encode(": connected\n\n"));
-        heartbeat = setInterval(() => {
-          if (!closed) controller.enqueue(encoder.encode(": heartbeat\n\n"));
-        }, HEARTBEAT_MS);
-
-        void (async () => {
-          try {
-            while (!closed) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              const message: WatchlistAfterHoursStreamMessage = {
-                schemaVersion: WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION,
-                type: "quote",
-                item: value,
-              };
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify(message)}\n\n`));
-            }
-            if (!closed) controller.close();
-          } catch {
-            if (!closed) controller.error(new Error("After-hours stream unavailable."));
-          } finally {
-            closed = true;
-            if (heartbeat) clearInterval(heartbeat);
-            reader.releaseLock();
-          }
-        })();
-      },
-      async cancel(reason) {
-        closed = true;
-        if (heartbeat) clearInterval(heartbeat);
-        await reader.cancel(reason).catch(() => undefined);
-      },
-    });
+    const body = serverEventStream(source, (value): WatchlistAfterHoursStreamMessage => ({
+      schemaVersion: WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION,
+      type: "quote",
+      item: value,
+    }));
 
     return new Response(body, {
       headers: {

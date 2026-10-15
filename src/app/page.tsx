@@ -1165,7 +1165,7 @@ function PriceChart({
         background: { type: ColorType.Solid, color: "#000000" },
         textColor: "#8e8e93",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif",
-        fontSize: 12,
+        fontSize: 14,
       },
       grid: {
         vertLines: { color: "#171717" },
@@ -1427,7 +1427,7 @@ function PortfolioValueChart({
         background: { type: ColorType.Solid, color: "#000000" },
         textColor: "#8e8e93",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif",
-        fontSize: 12,
+        fontSize: 14,
       },
       grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
       rightPriceScale: { borderColor: "#242424" },
@@ -1484,7 +1484,7 @@ function PortfolioProfitChart({ seed, ariaLabel }: { seed: number; ariaLabel: st
         background: { type: ColorType.Solid, color: "#000000" },
         textColor: "#8e8e93",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif",
-        fontSize: 12,
+        fontSize: 14,
       },
       grid: { vertLines: { color: "#171717" }, horzLines: { color: "#171717" } },
       rightPriceScale: { borderColor: "#242424" },
@@ -2778,6 +2778,7 @@ function StrategyHome({
   }, [locale, strategyRefreshVersion]);
 
   useEffect(() => {
+    if (screen !== "detail") return;
     const controller = new AbortController();
     const symbols = [...STRATEGY_MARKET_SYMBOLS];
     const quoteRequest = fetch("/api/v1/watchlists/quotes", {
@@ -2842,7 +2843,7 @@ function StrategyHome({
     });
 
     return () => controller.abort();
-  }, [strategyRefreshVersion]);
+  }, [screen, strategyRefreshVersion]);
 
   useEffect(() => {
     if (!strategyCatalogReady || !selectedStrategyIsVisible) return;
@@ -3164,16 +3165,16 @@ function StrategyHome({
     return (
       <section className="strategy-home-shell portfolio-index-shell strategy-report-shell" aria-label={st("index.aria")}>
         <header className="portfolio-index-header strategy-report-header">
-          <div><span className="eyebrow">{st("index.eyebrow")}</span><h1>{st("index.title")}</h1><p>{st("index.description")}</p></div>
+          <div><h1>{st("index.title")}</h1></div>
           <div><button type="button" onClick={() => { refreshStrategyCatalog(); onAction(st("toast.strategyRefreshed")); }}><ClockCounterClockwise size={15} /> {st("action.refresh")}</button><button type="button" className="primary-action" disabled={!strategyCatalogReady || strategyMutationStatus !== "idle"} onClick={openCreateStrategy}><Plus size={16} /> {st("action.addStrategy")}</button></div>
         </header>
         <div className={`portfolio-index-content strategy-report-content ${strategyNotice ? "has-notice" : ""}`}>
           {strategyNotice}
           <section className="strategy-report-kpis" aria-label={st("summary.aria")}>
-            <div><span>{st("summary.visible")}</span><strong>{listedStrategies.length}</strong><small>{st("summary.total", { count: strategies.length })}</small></div>
+            <div><span>{st("summary.visible")}</span><strong>{listedStrategies.length}</strong></div>
             <div><span>{st("summary.profitable")}</span><strong>{profitableCount} / {listedStrategies.length}</strong><small>{st("summary.periodEvaluation", { period: activeStrategyDurationLabel })}</small></div>
             <div><span>{st("summary.bestProfit")}</span><strong className="positive">{bestStrategy ? `+${(metricsFor(bestStrategy).profit ?? 0).toFixed(1)}%` : "—"}</strong><small>{bestStrategy?.name ?? st("common.none")}</small></div>
-            <div><span>{st("summary.averageSharpe")}</span><strong>{averageSharpe?.toFixed(2) ?? "—"}</strong><small>{st("summary.visibleSubset")}</small></div>
+            <div><span>{st("summary.averageSharpe")}</span><strong>{averageSharpe?.toFixed(2) ?? "—"}</strong></div>
           </section>
 
           <section className="strategy-report-toolbar" aria-label={st("filter.aria")}>
@@ -3195,7 +3196,7 @@ function StrategyHome({
                 <th aria-sort={strategySortKey === "recoveryFactor" ? (strategySortDirection === "asc" ? "ascending" : "descending") : "none"}><button type="button" onClick={() => applyStrategySort("recoveryFactor")}>{st("table.recoveryFactor", { period: activeStrategyDurationLabel })} <CaretDown size={11} /></button></th>
                 <th aria-sort={strategySortKey === "sharpe" ? (strategySortDirection === "asc" ? "ascending" : "descending") : "none"}><button type="button" onClick={() => applyStrategySort("sharpe")}>{st("table.sharpe", { period: activeStrategyDurationLabel })} <CaretDown size={11} /></button></th>
                 <th>{st("table.audit")}</th>
-                <th>{st("table.custom")}</th>
+                {listedStrategies.some((item) => item.performance.forwardReturn !== null) && <th>{st("table.custom")}</th>}
                 <th aria-sort={strategySortKey === "winRate" ? (strategySortDirection === "asc" ? "ascending" : "descending") : "none"}><button type="button" onClick={() => applyStrategySort("winRate")}>{st("table.winRate", { period: activeStrategyDurationLabel })} <CaretDown size={11} /></button></th>
               </tr></thead>
               <tbody>
@@ -3203,15 +3204,15 @@ function StrategyHome({
                   const metric = metricsFor(strategy);
                   const riskTone = (score: number) => score >= 65 ? "high" : score >= 40 ? "medium" : "low";
                   return <tr key={strategy.id}>
-                    <td><span className="candidate-date">{strategy.candidateAt.split(" ")[0]}<small>{strategy.candidateAt.split(" ")[1]}</small></span></td>
-                    <td><span className="strategy-category">{strategy.category}</span><span className="strategy-source-tags">{strategy.sourceLabels.map((label) => <i key={label}>{label}</i>)}</span></td>
-                    <td><button type="button" className="strategy-name-cell" onClick={() => openPortfolio(strategy.id)}><span><strong>{strategy.name}</strong><small>{strategy.headline}</small></span><span className="strategy-name-badges"><i className={`strategy-sample-badge ${strategy.performance.provenance}`}>{performanceProvenanceLabel(strategy)}</i><i className={`strategy-status ${strategy.status}`}>{strategy.status === "pinned" ? st("filter.adopted") : st("filter.notAdopted")}</i><i>{st("table.symbolCount", { count: strategy.performance.symbols ?? "—" })}</i><i>{st("table.tradeCount", { count: strategy.performance.trades ?? "—" })}</i></span><CaretRight size={15} /></button></td>
+                    <td><span className="candidate-date" title={strategy.candidateAt}>{strategy.candidateAt.split(" ")[0]}</span></td>
+                    <td><span className="strategy-category" title={strategy.sourceLabels.join(" · ")}>{strategy.category}</span></td>
+                    <td><button type="button" className="strategy-name-cell" title={strategy.headline} onClick={() => openPortfolio(strategy.id)}><span><strong>{strategy.name}</strong></span><span className="strategy-name-badges"><i className={`strategy-sample-badge ${strategy.performance.provenance}`}>{performanceProvenanceLabel(strategy)}</i>{strategy.status === "pinned" && <i className={`strategy-status ${strategy.status}`}>{st("filter.adopted")}</i>}<i>{st("table.symbolCount", { count: strategy.performance.symbols ?? "—" })}</i><i>{st("table.tradeCount", { count: strategy.performance.trades ?? "—" })}</i></span><CaretRight size={15} /></button></td>
                     <td className={metric.profit === null ? "" : metric.profit >= 0 ? "positive" : "negative-text"}><strong>{metric.profit === null ? "—" : `${metric.profit >= 0 ? "+" : ""}${metric.profit.toFixed(1)}%`}</strong></td>
                     <td className={metric.maxDrawdown === null ? "" : "negative-text"}><strong>{metric.maxDrawdown === null ? "—" : `${metric.maxDrawdown.toFixed(1)}%`}</strong></td>
                     <td><strong>{metric.recoveryFactor?.toFixed(2) ?? "—"}</strong></td>
                     <td><strong>{metric.sharpe?.toFixed(2) ?? "—"}</strong></td>
-                    <td><div className="strategy-audit-cell"><span>{strategy.audit.overfit === null ? <i>{st("audit.overfitNotEvaluated")}</i> : <i className={riskTone(strategy.audit.overfit)}>{st("audit.overfit", { score: strategy.audit.overfit })}</i>}{strategy.audit.leakage === null ? <i>{st("audit.leakageNotEvaluated")}</i> : <i className={riskTone(strategy.audit.leakage)}>{st("audit.leakage", { score: strategy.audit.leakage })}</i>}</span><small>{strategy.audit.verdict}</small></div></td>
-                    <td><div className="strategy-custom-cell"><strong className={strategy.performance.forwardReturn === null ? "" : strategy.forwardReturn >= 0 ? "positive" : "negative-text"}>{strategy.performance.forwardReturn === null ? "—" : `${strategy.forwardReturn >= 0 ? "+" : ""}${strategy.forwardReturn.toFixed(1)}%`}</strong><small>{strategy.performance.provenance === "illustrative_catalog" ? st("sample.illustrative") : performanceProvenanceLabel(strategy)}</small></div></td>
+                    <td><div className="strategy-audit-cell" title={strategy.audit.verdict}>{strategy.audit.overfit === null && strategy.audit.leakage === null ? <span>—</span> : <span>{strategy.audit.overfit === null ? <i>{st("audit.overfitNotEvaluated")}</i> : <i className={riskTone(strategy.audit.overfit)}>{st("audit.overfit", { score: strategy.audit.overfit })}</i>}{strategy.audit.leakage === null ? <i>{st("audit.leakageNotEvaluated")}</i> : <i className={riskTone(strategy.audit.leakage)}>{st("audit.leakage", { score: strategy.audit.leakage })}</i>}</span>}</div></td>
+                    {listedStrategies.some((item) => item.performance.forwardReturn !== null) && <td><div className="strategy-custom-cell"><strong className={strategy.performance.forwardReturn === null ? "" : strategy.forwardReturn >= 0 ? "positive" : "negative-text"}>{strategy.performance.forwardReturn === null ? "—" : `${strategy.forwardReturn >= 0 ? "+" : ""}${strategy.forwardReturn.toFixed(1)}%`}</strong><small>{strategy.performance.provenance === "illustrative_catalog" ? st("sample.illustrative") : performanceProvenanceLabel(strategy)}</small></div></td>}
                     <td><strong>{metric.winRate === null ? "—" : `${metric.winRate.toFixed(1)}%`}</strong></td>
                   </tr>;
                 })}
@@ -3220,7 +3221,7 @@ function StrategyHome({
             {listedStrategies.length === 0 && <div className="strategy-report-empty"><MagnifyingGlass size={24} /><strong>{st("empty.title")}</strong><span>{st("empty.description")}</span></div>}
           </div>
         </div>
-        <footer className="strategy-status-bar"><span><span /> {st("status.catalog", { status: strategyCatalogStatus === "ready" ? st("common.connected") : strategyCatalogStatus === "error" ? st("common.error") : st("common.loading") })}</span><span>{st("status.mockDisclaimer")}</span></footer>
+        <footer className="strategy-status-bar"><span><span /> {st("status.catalog", { status: strategyCatalogStatus === "ready" ? st("common.connected") : strategyCatalogStatus === "error" ? st("common.error") : st("common.loading") })}</span></footer>
         {dialog === "create" && (
           <DialogShell title={st("create.title")} eyebrow={st("create.eyebrow")} onClose={() => setDialog(null)}>
             <form className="dialog-body dialog-form-grid" onSubmit={createStrategy}>
@@ -6062,6 +6063,7 @@ export default function Home() {
         <button type="button" role="tab" aria-selected={primaryView !== "strategy"} className={primaryView !== "strategy" ? "active" : ""} onClick={() => setPrimaryView("chart")}><ChartBar size={15} /> {t("nav.chart")}</button>
         <button type="button" role="tab" aria-label={t("nav.strategies")} aria-selected={primaryView === "strategy"} className={primaryView === "strategy" ? "active" : ""} onClick={() => setPrimaryView("strategy")}><Lightning size={15} /> {t("nav.strategies")}</button>
         <span />
+        <span className="workspace-nav-spacer" />
         <IconButton className="workspace-settings-button" label={t("nav.settings")} onClick={openWorkspaceSettings}><Gear size={18} /></IconButton>
       </nav>
 
@@ -6195,7 +6197,7 @@ export default function Home() {
             <div className="chart-stage">
               <PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} interval={interval} candleCount={chartCandleCount} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} timeScaleSync={chartTimeScaleSync} />
               {barsStatus === "loading" && <div className="chart-data-state" role="status">{t("chart.historyLoading")}</div>}
-              {barsStatus === "error" && <div className="chart-data-state is-error" role="alert">{t("chart.historyError")}</div>}
+              {barsStatus === "error" && <div className="chart-data-state is-error" role="alert"><span>{t("chart.historyError")}</span><button type="button" onClick={() => forceChartBarsRefreshRef.current?.()}>{t("common.retry")}</button></div>}
               <div className="chart-watermark">{stock.ticker}</div>
               <div className="chart-indicator-legend" aria-label={indicatorText(locale, "chartIndicators")}>
                 {activeIndicatorDefinitions.map((indicator) => {
@@ -6318,7 +6320,7 @@ export default function Home() {
           <span className="status-timezone">UTC+9</span>
           <span className="status-spacer" />
           <span className="connection-state status-connection"><span /> {t(dataStatus === "error" ? "status.connectionError" : dataStatus === "loading" ? "status.fetching" : "status.connected")}</span>
-          <span className="status-disclaimer">{dataStatus === "provider" ? t("status.providerAsOf", { time: workspace?.asOf ? new Date(workspace.asOf).toLocaleString(numberLocale) : "—" }) : t("status.fixtureDisclaimer")}</span>
+          <span className="status-disclaimer">{dataStatus === "fixture" ? t("status.fixtureDisclaimer") : detailWorkspace?.asOf ? t("status.providerAsOf", { time: new Date(detailWorkspace.asOf).toLocaleTimeString(numberLocale, { hour: "2-digit", minute: "2-digit" }) }) : ""}</span>
         </footer>
       </div> : primaryView === "stock-detail" ? <StockDetailPage stock={stock} targetPriceMarketBars={detailDailyMarketBars} earnings={detailWorkspace?.earnings ?? []} analystHistory={selectedAnalystHistory} analystHistoryStatus={analystHistoryStatus} detail={stockDetailViewModel} dataStatus={researchDataStatus} workspaceStatus={workspaceStatus} barsStatus={dailyBarsStatus} watched={watched} activeSection={activeStockDetailSection} onBack={() => setPrimaryView("chart")} onActiveSectionChange={selectStockDetailSection} onToggleWatched={() => toggleWatched(stock.ticker)} /> : <StrategyHome onOpenChart={openChartFromStrategy} onAction={showToast} />}
 

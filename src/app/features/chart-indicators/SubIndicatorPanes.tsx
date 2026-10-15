@@ -177,7 +177,7 @@ function SubIndicatorPane({
         background: { type: ColorType.Solid, color: "#000000" },
         textColor: "#a6a6aa",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif",
-        fontSize: 12,
+        fontSize: 14,
       },
       grid: { vertLines: { color: "#151515" }, horzLines: { color: "#151515" } },
       rightPriceScale: {
