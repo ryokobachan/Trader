@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Trader Strategies"
+  short_description: "Explore, compare, and manage Trader strategies"
+  default_prompt: "Use $manage-trader-strategies to explore registered strategies, compare candidates, and safely update the selected strategy."

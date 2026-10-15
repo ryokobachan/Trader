@@ -1,5 +1,5 @@
-export const CHART_TEMPLATE_STORAGE_KEY = "unicorn.chart-templates.v1";
-export const CHART_TEMPLATE_SCHEMA_VERSION = "unicorn.chart-templates.v1";
+export const CHART_TEMPLATE_STORAGE_KEY = "trader.chart-templates.v1";
+export const CHART_TEMPLATE_SCHEMA_VERSION = "trader.chart-templates.v1";
 export const MAX_CHART_TEMPLATE_NAME_LENGTH = 60;
 
 export const CHART_INDICATOR_IDS = [

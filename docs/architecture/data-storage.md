@@ -11,7 +11,7 @@ The current application persists watchlists, built-in strategy presentation
 overrides, owner-scoped custom strategies, soft-delete tombstones, audit events,
 and strategy portfolio transactions in the Cloudflare D1 `DB` binding. Browser
 display preferences remain in local storage. Provider responses, chart bars,
-fundamentals, and backtest artifacts are not persisted by Unicorn.
+fundamentals, and backtest artifacts are not persisted by Trader.
 
 The remaining stores below are a future reference architecture. Their URI names
 are intentionally not present in `.env.example` until corresponding adapters
@@ -118,7 +118,7 @@ Raw provider payload and normalized facts remain distinct and linked by hash. Am
 
 ```text
 var/
-  app/unicorn.sqlite
+  app/trader.sqlite
   catalog/instruments.sqlite
   market/
   fundamentals/

@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { cp, chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -8,16 +8,13 @@ const desktopRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(desktopRoot, "../..");
 const targetTriple = "aarch64-apple-darwin";
 const binariesDirectory = path.join(desktopRoot, "tauri", "binaries");
-const runtimeBinary = path.join(binariesDirectory, `unicorn-runtime-${targetTriple}`);
-const marketBinary = path.join(binariesDirectory, `unicorn-market-sidecar-${targetTriple}`);
+const runtimeBinary = path.join(binariesDirectory, `trader-runtime-${targetTriple}`);
+const marketBinary = path.join(binariesDirectory, `trader-market-sidecar-${targetTriple}`);
 const marketBuildDirectory = path.join(desktopRoot, "runtime", "tradingview-sidecar");
-const iconSource = path.join(repositoryRoot, "public", "unicorn-logo-v3.png");
+const iconSource = path.join(repositoryRoot, "public", "trader-logo-v3.png");
 const iconsDirectory = path.join(desktopRoot, "tauri", "icons");
 
-// The source artwork's alpha bounds are x=150..638 and y=32..683 on a 768 px
-// canvas. This crop keeps the original artwork unchanged, centers those bounds,
-// and leaves a 4% vertical safe zone so it reads larger in Finder and the Dock.
-const iconCrop = Object.freeze({ size: 708, offsetY: 4, offsetX: 41 });
+// Preserve the complete supplied square artwork, including its margins.
 const iconsetSizes = Object.freeze([
   ["icon_16x16.png", 16],
   ["icon_16x16@2x.png", 32],
@@ -49,24 +46,14 @@ function run(executable, args, options = {}) {
 }
 
 async function generateDesktopIcons() {
-  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "unicorn-icons-"));
-  const croppedSource = path.join(temporaryDirectory, "unicorn-cropped.png");
-  const iconsetDirectory = path.join(temporaryDirectory, "Unicorn.iconset");
+  const temporaryDirectory = await mkdtemp(path.join(tmpdir(), "trader-icons-"));
+  const croppedSource = path.join(temporaryDirectory, "trader-cropped.png");
+  const iconsetDirectory = path.join(temporaryDirectory, "Trader.iconset");
 
   try {
     await mkdir(iconsDirectory, { recursive: true });
     await mkdir(iconsetDirectory, { recursive: true });
-    await run("/usr/bin/sips", [
-      "--cropToHeightWidth",
-      String(iconCrop.size),
-      String(iconCrop.size),
-      "--cropOffset",
-      String(iconCrop.offsetY),
-      String(iconCrop.offsetX),
-      iconSource,
-      "--out",
-      croppedSource,
-    ]);
+    await cp(iconSource, croppedSource);
 
     await Promise.all(iconsetSizes.map(([filename, size]) => run("/usr/bin/sips", [
       "--resampleHeightWidth",
@@ -119,7 +106,7 @@ await run("bun", [
   runtimeBinary,
 ]);
 
-const marketArguments = process.env.UNICORN_DESKTOP_LIVE_SMOKE === "1"
+const marketArguments = process.env.TRADER_DESKTOP_LIVE_SMOKE === "1"
   ? ["--live-smoke", "--tauri-output"]
   : ["--tauri-output"];
 await run(path.join(marketBuildDirectory, "build.sh"), marketArguments);

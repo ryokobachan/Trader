@@ -238,10 +238,10 @@ test("watchlist quote data mode rejects mock identity or market providers", () =
 });
 
 test("watchlist quotes API returns one ordered batch with positive prices", async () => {
-  const previousInstrument = process.env.UNICORN_INSTRUMENT_PROVIDER;
-  const previousMarket = process.env.UNICORN_MARKET_PROVIDER;
-  process.env.UNICORN_INSTRUMENT_PROVIDER = "mock";
-  process.env.UNICORN_MARKET_PROVIDER = "mock";
+  const previousInstrument = process.env.TRADER_INSTRUMENT_PROVIDER;
+  const previousMarket = process.env.TRADER_MARKET_PROVIDER;
+  process.env.TRADER_INSTRUMENT_PROVIDER = "mock";
+  process.env.TRADER_MARKET_PROVIDER = "mock";
   try {
     const response = await POST(new Request("http://localhost/api/v1/watchlists/quotes", {
       method: "POST",
@@ -250,17 +250,17 @@ test("watchlist quotes API returns one ordered batch with positive prices", asyn
     }));
     assert.equal(response.status, 200);
     const payload = await response.json() as WatchlistQuotesResponse;
-    assert.equal(payload.schemaVersion, "unicorn.watchlist-quotes.v1");
+    assert.equal(payload.schemaVersion, "trader.watchlist-quotes.v1");
     assert.deepEqual(payload.items.map((item) => item.symbol), ["AAPL", "NVDA"]);
     assert.ok(payload.items.every((item) => item.quote !== null && item.quote.price > 0));
     assert.deepEqual(payload.selectedProviders, { instrument: "mock", market: "mock" });
     assert.equal(payload.dataMode, "fixture");
     assert.equal(payload.streamSupported, false);
   } finally {
-    if (previousInstrument === undefined) delete process.env.UNICORN_INSTRUMENT_PROVIDER;
-    else process.env.UNICORN_INSTRUMENT_PROVIDER = previousInstrument;
-    if (previousMarket === undefined) delete process.env.UNICORN_MARKET_PROVIDER;
-    else process.env.UNICORN_MARKET_PROVIDER = previousMarket;
+    if (previousInstrument === undefined) delete process.env.TRADER_INSTRUMENT_PROVIDER;
+    else process.env.TRADER_INSTRUMENT_PROVIDER = previousInstrument;
+    if (previousMarket === undefined) delete process.env.TRADER_MARKET_PROVIDER;
+    else process.env.TRADER_MARKET_PROVIDER = previousMarket;
   }
 });
 

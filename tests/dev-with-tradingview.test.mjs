@@ -13,22 +13,22 @@ import {
 test("forces current prices and chart bars through the authenticated local TradingView sidecar", () => {
   const environment = tradingViewDevelopmentProfile({
     PATH: "/usr/bin",
-    UNICORN_BARS_PROVIDER: "yahoo",
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "https://ignored.example.test",
+    TRADER_BARS_PROVIDER: "yahoo",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "https://ignored.example.test",
   }, "test-sidecar-token", 8876);
 
   assert.equal(environment.PATH, "/usr/bin");
-  assert.equal(environment.UNICORN_MARKET_PROVIDER, "tradingview-websocket");
-  assert.equal(environment.UNICORN_BARS_PROVIDER, "tradingview-websocket");
-  assert.equal(environment.UNICORN_TRADINGVIEW_SIDECAR_URL, "http://127.0.0.1:8876");
-  assert.equal(environment.UNICORN_TRADINGVIEW_SIDECAR_TOKEN, "test-sidecar-token");
-  assert.equal(environment.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS, "25000");
-  assert.equal(environment.UNICORN_TRADINGVIEW_MAX_CANDLES, "10000");
+  assert.equal(environment.TRADER_MARKET_PROVIDER, "tradingview-websocket");
+  assert.equal(environment.TRADER_BARS_PROVIDER, "tradingview-websocket");
+  assert.equal(environment.TRADER_TRADINGVIEW_SIDECAR_URL, "http://127.0.0.1:8876");
+  assert.equal(environment.TRADER_TRADINGVIEW_SIDECAR_TOKEN, "test-sidecar-token");
+  assert.equal(environment.TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS, "25000");
+  assert.equal(environment.TRADER_TRADINGVIEW_MAX_CANDLES, "10000");
 });
 
 test("keeps the default sidecar port separate from the Midas bridge", () => {
   const environment = tradingViewDevelopmentProfile({}, "test-sidecar-token");
-  assert.equal(environment.UNICORN_TRADINGVIEW_SIDECAR_URL, "http://127.0.0.1:8791");
+  assert.equal(environment.TRADER_TRADINGVIEW_SIDECAR_URL, "http://127.0.0.1:8791");
 });
 
 test("allocates an available loopback port and rejects unrelated health pages", async () => {
@@ -36,7 +36,7 @@ test("allocates an available loopback port and rejects unrelated health pages", 
   assert.ok(Number.isInteger(port) && port > 0 && port <= 65_535);
   assert.equal(isTradingViewSidecarHealth({ status: "ok" }), false);
   assert.equal(isTradingViewSidecarHealth({
-    schemaVersion: "unicorn.tradingview-sidecar.v1",
+    schemaVersion: "trader.tradingview-sidecar.v1",
     status: "ok",
     backend: "tradingview-websocket",
   }), true);
@@ -44,12 +44,12 @@ test("allocates an available loopback port and rejects unrelated health pages", 
 
 test("forwards the chart provider and sidecar credentials into local Worker bindings", () => {
   for (const binding of [
-    "UNICORN_MARKET_PROVIDER",
-    "UNICORN_BARS_PROVIDER",
-    "UNICORN_TRADINGVIEW_SIDECAR_URL",
-    "UNICORN_TRADINGVIEW_SIDECAR_TOKEN",
-    "UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS",
-    "UNICORN_TRADINGVIEW_MAX_CANDLES",
+    "TRADER_MARKET_PROVIDER",
+    "TRADER_BARS_PROVIDER",
+    "TRADER_TRADINGVIEW_SIDECAR_URL",
+    "TRADER_TRADINGVIEW_SIDECAR_TOKEN",
+    "TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS",
+    "TRADER_TRADINGVIEW_MAX_CANDLES",
   ]) {
     assert.ok(PROVIDER_ENVIRONMENT_KEYS.includes(binding));
   }
@@ -73,7 +73,7 @@ test("sidecar exposes cached authenticated yfinance fallbacks with a pinned runt
     readFile(new URL("../api/tradingview-websocket/requirements.txt", import.meta.url), "utf8"),
   ]);
   assert.match(requirements, /^yfinance==1\.2\.0$/m);
-  assert.match(source, /YAHOO_SCHEMA_VERSION = "unicorn\.yahoo-sidecar\.v1"/);
+  assert.match(source, /YAHOO_SCHEMA_VERSION = "trader\.yahoo-sidecar\.v1"/);
   assert.match(source, /parsed\.path in \{"\/v1\/yahoo\/profile", "\/v1\/yahoo\/earnings"\}/);
   assert.match(source, /class YahooInFlight:/);
   assert.match(source, /server\.yahoo_cache/);

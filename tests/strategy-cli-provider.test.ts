@@ -83,7 +83,7 @@ test("strategy CLI lists through the owner-scoped API with a locale", async () =
 test("strategy CLI filters, ranks, and limits registered strategies locally", async () => {
   const capture = harness({
     response: Response.json({
-      schemaVersion: "unicorn.strategies.v1",
+      schemaVersion: "trader.strategies.v1",
       ownerId: "test-owner",
       strategies: [
         strategyFixture({}),
@@ -164,7 +164,7 @@ test("strategy CLI filters, ranks, and limits registered strategies locally", as
 test("strategy CLI emits a structured comparison without implying a backtest", async () => {
   const capture = harness({
     response: Response.json({
-      schemaVersion: "unicorn.strategies.v1",
+      schemaVersion: "trader.strategies.v1",
       ownerId: "test-owner",
       strategies: [
         strategyFixture({}),
@@ -192,7 +192,7 @@ test("strategy CLI emits a structured comparison without implying a backtest", a
   assert.equal(exitCode, 0);
   assert.equal(capture.requests.length, 1);
   const output = JSON.parse(capture.stdout());
-  assert.equal(output.schemaVersion, "unicorn.strategy-comparison.v1");
+  assert.equal(output.schemaVersion, "trader.strategy-comparison.v1");
   assert.deepEqual(output.strategies.map((strategy: { id: string }) => strategy.id), [
     "sample.alpha",
     "custom.beta",

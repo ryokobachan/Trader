@@ -1,5 +1,5 @@
 export const STRATEGY_PORTFOLIO_TRANSACTIONS_SCHEMA_VERSION =
-  "unicorn.strategy-portfolio-transactions.v1" as const;
+  "trader.strategy-portfolio-transactions.v1" as const;
 
 const STRATEGY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const TRANSACTION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;

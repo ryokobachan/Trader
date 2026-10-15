@@ -82,7 +82,7 @@ const STRATEGY_PROVENANCE = [
   "unavailable",
 ] as const;
 
-const HELP = `Unicorn strategy CLI
+const HELP = `Trader strategy CLI
 
 Usage:
   npm run strategy -- list [discovery options]
@@ -100,7 +100,7 @@ Usage:
   npm run strategy -- transactions delete <strategy-id> <transaction-id> --yes
 
 Global option:
-  --base-url <url>  API origin (default: UNICORN_BASE_URL or http://localhost:3001)
+  --base-url <url>  API origin (default: TRADER_BASE_URL or http://localhost:3001)
 
 Discovery options for list:
   --query <text>          Search ID, name, headline, category, and source labels
@@ -238,13 +238,13 @@ function strategyListPayload(payload: unknown): JsonObject & { strategies: JsonO
   if (!isJsonObject(payload) || !Array.isArray(payload.strategies)) {
     throw new CliOutputError(
       "invalid_response",
-      "The Unicorn API response does not contain a strategies array.",
+      "The Trader API response does not contain a strategies array.",
     );
   }
   if (!payload.strategies.every(isJsonObject)) {
     throw new CliOutputError(
       "invalid_response",
-      "The Unicorn API returned an invalid strategy record.",
+      "The Trader API returned an invalid strategy record.",
     );
   }
   return payload as JsonObject & { strategies: JsonObject[] };
@@ -423,7 +423,7 @@ function compareStrategies(
     (provenanceGroups[key] ??= []).push(String(strategy.id));
   }
   return {
-    schemaVersion: "unicorn.strategy-comparison.v1",
+    schemaVersion: "trader.strategy-comparison.v1",
     sourceSchemaVersion: response.schemaVersion ?? null,
     strategies,
     comparison: {
@@ -745,7 +745,7 @@ async function executeRequest(
       ok: false,
       status: 0,
       code: "network_error",
-      message: error instanceof Error ? error.message : "The Unicorn API could not be reached.",
+      message: error instanceof Error ? error.message : "The Trader API could not be reached.",
     });
     return 1;
   }
@@ -759,7 +759,7 @@ async function executeRequest(
       ok: false,
       status: response.status,
       code: "invalid_response",
-      message: "The Unicorn API returned a non-JSON response.",
+      message: "The Trader API returned a non-JSON response.",
       ...(requestId ? { requestId } : {}),
     });
     return 1;
@@ -794,7 +794,7 @@ async function executeRequest(
       ok: false,
       status: outputError?.status ?? response.status,
       code: outputError?.code ?? "invalid_response",
-      message: outputError?.message ?? "The Unicorn API returned an invalid response.",
+      message: outputError?.message ?? "The Trader API returned an invalid response.",
       ...(requestId ? { requestId } : {}),
     });
     return 1;
@@ -825,7 +825,7 @@ export async function runStrategyCli(
       return 0;
     }
     const baseUrl = normalizeBaseUrl(
-      optionString(parsed.options, "base-url") ?? dependencies.env.UNICORN_BASE_URL ?? DEFAULT_BASE_URL,
+      optionString(parsed.options, "base-url") ?? dependencies.env.TRADER_BASE_URL ?? DEFAULT_BASE_URL,
     );
     return await executeRequest(plan, baseUrl, dependencies);
   } catch (error) {

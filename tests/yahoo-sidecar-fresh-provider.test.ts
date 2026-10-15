@@ -10,7 +10,7 @@ import threading
 import time
 from types import SimpleNamespace
 
-spec = importlib.util.spec_from_file_location("unicorn_sidecar_fresh", sys.argv[1])
+spec = importlib.util.spec_from_file_location("trader_sidecar_fresh", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

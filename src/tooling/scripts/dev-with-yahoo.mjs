@@ -3,15 +3,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const YAHOO_DEVELOPMENT_PROFILE = Object.freeze({
-  UNICORN_USAGE_MODE: "personal",
-  UNICORN_ENABLE_YAHOO_COMPAT: "true",
-  UNICORN_INSTRUMENT_PROVIDER: "yahoo",
-  UNICORN_MARKET_PROVIDER: "tradingview-websocket",
-  UNICORN_PROFILE_PROVIDER: "yahoo",
-  UNICORN_FUNDAMENTALS_PROVIDER: "yahoo",
-  UNICORN_EARNINGS_PROVIDER: "yahoo",
-  UNICORN_ANALYST_PROVIDER: "benzinga",
-  UNICORN_NEWS_PROVIDER: "yahoo",
+  TRADER_USAGE_MODE: "personal",
+  TRADER_ENABLE_YAHOO_COMPAT: "true",
+  TRADER_INSTRUMENT_PROVIDER: "yahoo",
+  TRADER_MARKET_PROVIDER: "tradingview-websocket",
+  TRADER_PROFILE_PROVIDER: "yahoo",
+  TRADER_FUNDAMENTALS_PROVIDER: "yahoo",
+  TRADER_EARNINGS_PROVIDER: "yahoo",
+  TRADER_ANALYST_PROVIDER: "benzinga",
+  TRADER_NEWS_PROVIDER: "yahoo",
 });
 
 function isMidasOrFmpVariable(key) {
@@ -80,7 +80,7 @@ function runDevelopmentServer() {
 
   child.once("error", () => {
     removeSignalHandlers();
-    process.stderr.write("Unicorn Yahoo development server could not be started.\n");
+    process.stderr.write("Trader Yahoo development server could not be started.\n");
     process.exitCode = 1;
   });
 

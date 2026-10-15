@@ -2,13 +2,13 @@
 
 This directory is the developer-owned boundary for external market-data
 sources. It is intentionally separate from [`src/app/api`](../src/app/api),
-which contains Unicorn's internal HTTP route handlers.
+which contains Trader's internal HTTP route handlers.
 
 ## Start here
 
 1. Edit [`config.json`](./config.json).
 2. Run `npm run config:check`.
-3. Restart or rebuild Unicorn.
+3. Restart or rebuild Trader.
 
 An existing provider switch is one JSON edit. For example:
 
@@ -52,7 +52,7 @@ resolve to these reviewed files:
 In the keyless local profile, Yahoo profile and earnings requests first use the
 native normalized adapter. If Yahoo's anonymous cookie/crumb handshake is
 throttled, the same authenticated loopback sidecar uses pinned `yfinance` and
-returns only Unicorn's normalized profile and earnings fields. Raw Yahoo
+returns only Trader's normalized profile and earnings fields. Raw Yahoo
 payloads, cookies, and crumbs are never exposed to the browser.
 
 The Yahoo implementation is divided by the part a developer usually changes:
@@ -98,7 +98,7 @@ cannot be inferred incorrectly.
 | `analyst` | consensus and rating history |
 | `news` | company news |
 
-The UI calls only Unicorn routes such as `/api/v1/instruments/search`,
+The UI calls only Trader routes such as `/api/v1/instruments/search`,
 `/api/v1/symbols/:symbol/workspace`, `/api/v1/symbols/:symbol/bars`, and the
 same-origin `/api/v1/watchlists/quotes/stream` SSE endpoint. Provider files
 normalize vendor responses into the canonical DTOs in
@@ -131,7 +131,7 @@ scanner and the HTTPS long-poll route opens the same guest TradingView quote
 websocket used by the local sidecar. It must never substitute an FMP or other direct USD
 aftermarket price.
 
-Keep `UNICORN_TRADINGVIEW_SIDECAR_TOKEN` server-side. Local development may use
+Keep `TRADER_TRADINGVIEW_SIDECAR_TOKEN` server-side. Local development may use
 loopback HTTP. An external sidecar must use HTTPS plus a bearer token. Hosted
 Sites can use the server-side scanner snapshot fallback and Worker-native
 TradingView websocket long polling without a sidecar. The browser must never connect to

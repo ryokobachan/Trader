@@ -39,8 +39,8 @@ const CRUMB_CACHE_TTL_MS = 30 * 60_000;
 const QUOTE_SUMMARY_CACHE_TTL_MS = 30_000;
 const YAHOO_SPARK_URL = "https://query1.finance.yahoo.com/v7/finance/spark";
 const YAHOO_SPARK_MAX_SYMBOLS = 50;
-const YAHOO_SPARK_USER_AGENT = "Mozilla/5.0 UnicornWorkspace/1.0 (live price refresh)";
-const YAHOO_SIDECAR_SCHEMA_VERSION = "unicorn.yahoo-sidecar.v1";
+const YAHOO_SPARK_USER_AGENT = "Mozilla/5.0 TraderWorkspace/1.0 (live price refresh)";
+const YAHOO_SIDECAR_SCHEMA_VERSION = "trader.yahoo-sidecar.v1";
 const YAHOO_SIDECAR_DEFAULT_TIMEOUT_MS = 25_000;
 const YAHOO_SIDECAR_EARNINGS_LIMIT = 24;
 const manifest = {
@@ -60,7 +60,7 @@ const manifest = {
   ],
   markets: ["US"],
   assetTypes: ["common_stock", "adr"],
-  requiredEnv: ["UNICORN_USAGE_MODE", "UNICORN_ENABLE_YAHOO_COMPAT"],
+  requiredEnv: ["TRADER_USAGE_MODE", "TRADER_ENABLE_YAHOO_COMPAT"],
 } as const;
 
 export type YahooProviderErrorCode =
@@ -234,19 +234,19 @@ function rankSearchResults(
 }
 
 function timeoutMilliseconds(env: ProviderEnvironment): number {
-  const configured = Number(env.UNICORN_YAHOO_TIMEOUT_MS);
+  const configured = Number(env.TRADER_YAHOO_TIMEOUT_MS);
   if (!Number.isFinite(configured)) return DEFAULT_TIMEOUT_MS;
   return Math.min(15_000, Math.max(10, Math.trunc(configured)));
 }
 
 function yahooSidecarTimeoutMilliseconds(env: ProviderEnvironment): number {
-  const configured = Number(env.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS);
+  const configured = Number(env.TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS);
   if (!Number.isFinite(configured)) return YAHOO_SIDECAR_DEFAULT_TIMEOUT_MS;
   return Math.min(65_000, Math.max(2_000, Math.trunc(configured)));
 }
 
 function yahooSidecarBaseUrl(env: ProviderEnvironment): URL | null {
-  const configured = env.UNICORN_TRADINGVIEW_SIDECAR_URL?.trim();
+  const configured = env.TRADER_TRADINGVIEW_SIDECAR_URL?.trim();
   if (!configured) return null;
   try {
     const url = new URL(configured);
@@ -281,7 +281,7 @@ async function fetchResponse(
     return await fetchImplementation(url, {
       headers: {
         accept: "application/json",
-        "user-agent": "Unicorn/0.1 (Yahoo compatibility provider; personal use only)",
+        "user-agent": "Trader/0.1 (Yahoo compatibility provider; personal use only)",
         ...headers,
       },
       signal: controller.signal,
@@ -1353,8 +1353,8 @@ function marketBarsFromChart(
 }
 
 function assertPersonalUse(env: ProviderEnvironment): void {
-  const usageMode = env.UNICORN_USAGE_MODE?.trim().toLowerCase();
-  const enabled = env.UNICORN_ENABLE_YAHOO_COMPAT?.trim().toLowerCase();
+  const usageMode = env.TRADER_USAGE_MODE?.trim().toLowerCase();
+  const enabled = env.TRADER_ENABLE_YAHOO_COMPAT?.trim().toLowerCase();
   if (usageMode !== "personal" || enabled !== "true") {
     throw new YahooProviderError(
       "usage_not_permitted",
@@ -1373,12 +1373,12 @@ export const yahooProviderRegistration: ProviderRegistration = {
 
     // This double opt-in is a safety boundary, not a data-display license. Never
     // set these flags in a public, hosted or multi-user deployment. Such a build
-    // must select a separately licensed provider instead, so publishing Unicorn
+    // must select a separately licensed provider instead, so publishing Trader
     // cannot accidentally turn this compatibility adapter on by default.
     const fetchImplementation = globalThis.fetch.bind(globalThis);
     const timeoutMs = timeoutMilliseconds(env);
     const sidecarBaseUrl = yahooSidecarBaseUrl(env);
-    const sidecarToken = env.UNICORN_TRADINGVIEW_SIDECAR_TOKEN?.trim();
+    const sidecarToken = env.TRADER_TRADINGVIEW_SIDECAR_TOKEN?.trim();
     const sidecarTimeoutMs = yahooSidecarTimeoutMilliseconds(env);
     let popularSearchCache: Readonly<{
       expiresAt: number;

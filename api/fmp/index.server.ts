@@ -319,9 +319,9 @@ function normalizedTimeout(env: ProviderEnvironment, override?: number): number 
 }
 
 function usageIsExplicitlyAllowed(env: ProviderEnvironment): boolean {
-  const usageMode = env.UNICORN_USAGE_MODE?.trim().toLowerCase();
+  const usageMode = env.TRADER_USAGE_MODE?.trim().toLowerCase();
   return usageMode === "personal"
-    || booleanValue(env.UNICORN_ALLOW_RESTRICTED_PUBLIC_DISPLAY) === true;
+    || booleanValue(env.TRADER_ALLOW_RESTRICTED_PUBLIC_DISPLAY) === true;
 }
 
 function usCountry(value: unknown): boolean {

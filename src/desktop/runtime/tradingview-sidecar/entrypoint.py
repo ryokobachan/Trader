@@ -15,7 +15,7 @@ import sys
 import threading
 import time
 
-import unicorn_tradingview_sidecar
+import trader_tradingview_sidecar
 
 
 def exit_when_parent_stdin_closes() -> None:
@@ -39,13 +39,13 @@ def start_parent_watch() -> None:
     except OSError:
         stdin_is_pipe = False
     if (
-        os.environ.get("UNICORN_MARKET_SIDECAR_EXIT_ON_STDIN_EOF", "1") == "0"
+        os.environ.get("TRADER_MARKET_SIDECAR_EXIT_ON_STDIN_EOF", "1") == "0"
         or not stdin_is_pipe
     ):
         return
     threading.Thread(
         target=exit_when_parent_stdin_closes,
-        name="unicorn-parent-watch",
+        name="trader-parent-watch",
         daemon=True,
     ).start()
 
@@ -53,7 +53,7 @@ def start_parent_watch() -> None:
 def main() -> None:
     multiprocessing.freeze_support()
     start_parent_watch()
-    unicorn_tradingview_sidecar.main()
+    trader_tradingview_sidecar.main()
 
 
 if __name__ == "__main__":

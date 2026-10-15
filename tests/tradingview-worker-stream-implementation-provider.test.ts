@@ -91,7 +91,7 @@ test("Worker opens one guest quote session for the exact configured USDT.P sourc
   const socket = new FakeTradingViewSocket();
   const abort = new AbortController();
   const stream = await createTradingViewWorkerLatestCloseStream(
-    { UNICORN_TRADINGVIEW_SYNTHETIC_EXCHANGES: "BINANCE,BITGET" },
+    { TRADER_TRADINGVIEW_SYNTHETIC_EXCHANGES: "BINANCE,BITGET" },
     ["aapl", "nvda"],
     { requestId: "worker-protocol", signal: abort.signal },
     {
@@ -146,7 +146,7 @@ test("Worker merges partial qsd values and preserves ordered exchange selection"
   const socket = new FakeTradingViewSocket();
   const observedAt = Date.parse("2026-08-13T08:00:00.000Z");
   const stream = await createTradingViewWorkerLatestCloseStream(
-    { UNICORN_TRADINGVIEW_SYNTHETIC_EXCHANGES: "BINANCE,BITGET" },
+    { TRADER_TRADINGVIEW_SYNTHETIC_EXCHANGES: "BINANCE,BITGET" },
     ["AAPL"],
     { requestId: "worker-qsd" },
     {
@@ -207,7 +207,7 @@ test("Worker enforces the inclusive five-minute boundary and emits one canonical
   const socket = new FakeTradingViewSocket();
   let observedAt = Date.parse("2026-08-13T08:00:00.000Z");
   const stream = await createTradingViewWorkerLatestCloseStream(
-    { UNICORN_TRADINGVIEW_SYNTHETIC_EXCHANGES: "BINANCE" },
+    { TRADER_TRADINGVIEW_SYNTHETIC_EXCHANGES: "BINANCE" },
     ["AAPL"],
     { requestId: "worker-freshness" },
     {
@@ -287,10 +287,10 @@ test("sidecar-free route upgrades the Worker websocket and relays canonical init
 }, async () => {
   const socket = new FakeTradingViewSocket();
   const previousFetch = globalThis.fetch;
-  const previousSidecar = process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
+  const previousSidecar = process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
   const pairDescriptor = Object.getOwnPropertyDescriptor(globalThis, "WebSocketPair");
   let requestSignal: AbortSignal | null | undefined;
-  delete process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
+  delete process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
   Object.defineProperty(globalThis, "WebSocketPair", {
     configurable: true,
     value: class WebSocketPair {},
@@ -352,7 +352,7 @@ test("sidecar-free route upgrades the Worker websocket and relays canonical init
     globalThis.fetch = previousFetch;
     if (pairDescriptor) Object.defineProperty(globalThis, "WebSocketPair", pairDescriptor);
     else delete (globalThis as typeof globalThis & { WebSocketPair?: unknown }).WebSocketPair;
-    if (previousSidecar === undefined) delete process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
-    else process.env.UNICORN_TRADINGVIEW_SIDECAR_URL = previousSidecar;
+    if (previousSidecar === undefined) delete process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
+    else process.env.TRADER_TRADINGVIEW_SIDECAR_URL = previousSidecar;
   }
 });

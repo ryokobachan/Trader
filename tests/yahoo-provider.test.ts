@@ -8,8 +8,8 @@ import {
 } from "../api/yahoo/index.server";
 
 const ENABLED_ENV = {
-  UNICORN_USAGE_MODE: "personal",
-  UNICORN_ENABLE_YAHOO_COMPAT: "true",
+  TRADER_USAGE_MODE: "personal",
+  TRADER_ENABLE_YAHOO_COMPAT: "true",
 } as const;
 
 type FetchInput = Parameters<typeof globalThis.fetch>[0];
@@ -278,9 +278,9 @@ function quoteSummaryPayload() {
 test("requires both explicit personal-use Yahoo compatibility opt-ins", () => {
   for (const env of [
     {},
-    { UNICORN_USAGE_MODE: "personal" },
-    { UNICORN_ENABLE_YAHOO_COMPAT: "true" },
-    { UNICORN_USAGE_MODE: "hosted", UNICORN_ENABLE_YAHOO_COMPAT: "true" },
+    { TRADER_USAGE_MODE: "personal" },
+    { TRADER_ENABLE_YAHOO_COMPAT: "true" },
+    { TRADER_USAGE_MODE: "hosted", TRADER_ENABLE_YAHOO_COMPAT: "true" },
   ]) {
     assert.throws(
       () => yahooProviderRegistration.create(env),
@@ -493,7 +493,7 @@ test("batches Spark quotes in one request, preserves input order, and drops inva
     const headers = new Headers(init?.headers);
     assert.equal(
       headers.get("user-agent"),
-      "Mozilla/5.0 UnicornWorkspace/1.0 (live price refresh)",
+      "Mozilla/5.0 TraderWorkspace/1.0 (live price refresh)",
     );
     return jsonResponse({
       spark: {
@@ -728,7 +728,7 @@ test("surfaces sanitized upstream status and timeout errors", async (t) => {
   }));
   adapter = yahooProviderRegistration.create({
     ...ENABLED_ENV,
-    UNICORN_YAHOO_TIMEOUT_MS: "10",
+    TRADER_YAHOO_TIMEOUT_MS: "10",
   });
   assert.ok(adapter.instrument);
   await assert.rejects(
@@ -845,7 +845,7 @@ test("uses the existing sanitized timeout and upstream error policy for news", a
   }));
   adapter = yahooProviderRegistration.create({
     ...ENABLED_ENV,
-    UNICORN_YAHOO_TIMEOUT_MS: "10",
+    TRADER_YAHOO_TIMEOUT_MS: "10",
   });
   assert.ok(adapter.news);
   await assert.rejects(
@@ -1055,7 +1055,7 @@ test("applies sanitized timeout errors to the anonymous profile handshake", asyn
   }));
   const adapter = yahooProviderRegistration.create({
     ...ENABLED_ENV,
-    UNICORN_YAHOO_TIMEOUT_MS: "10",
+    TRADER_YAHOO_TIMEOUT_MS: "10",
   });
   assert.ok(adapter.fundamentals);
   await assert.rejects(
@@ -1091,7 +1091,7 @@ test("falls back to the authenticated yfinance sidecar for profile and earnings"
     if (url.pathname === "/v1/yahoo/profile") {
       assert.equal(url.searchParams.has("limit"), false);
       return jsonResponse({
-        schemaVersion: "unicorn.yahoo-sidecar.v1",
+        schemaVersion: "trader.yahoo-sidecar.v1",
         symbol: "AAPL",
         profile: {
           description: "Apple designs and sells consumer technology products.",
@@ -1111,7 +1111,7 @@ test("falls back to the authenticated yfinance sidecar for profile and earnings"
     assert.equal(url.pathname, "/v1/yahoo/earnings");
     assert.equal(url.searchParams.get("limit"), "24");
     return jsonResponse({
-      schemaVersion: "unicorn.yahoo-sidecar.v1",
+      schemaVersion: "trader.yahoo-sidecar.v1",
       symbol: "AAPL",
       earnings: [
         { reportDate: "2026-10-29", epsEstimate: 1.98, revenueEstimate: 113_256_580_210 },
@@ -1128,8 +1128,8 @@ test("falls back to the authenticated yfinance sidecar for profile and earnings"
   });
   const adapter = yahooProviderRegistration.create({
     ...ENABLED_ENV,
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
-    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: sidecarToken,
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    TRADER_TRADINGVIEW_SIDECAR_TOKEN: sidecarToken,
   });
   assert.ok(adapter.fundamentals);
 
@@ -1183,7 +1183,7 @@ test("forwards an explicit fresh earnings read through the sidecar boundary", as
     assert.equal(url.pathname, "/v1/yahoo/earnings");
     sidecarFreshValues.push(url.searchParams.get("fresh"));
     return jsonResponse({
-      schemaVersion: "unicorn.yahoo-sidecar.v1",
+      schemaVersion: "trader.yahoo-sidecar.v1",
       symbol: "AAPL",
       earnings: [{ reportDate: "2026-08-12", epsActual: 2.05, epsEstimate: 1.98 }],
       asOf: "2026-08-12",
@@ -1192,8 +1192,8 @@ test("forwards an explicit fresh earnings read through the sidecar boundary", as
   });
   const adapter = yahooProviderRegistration.create({
     ...ENABLED_ENV,
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
-    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: "fresh-sidecar-secret",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    TRADER_TRADINGVIEW_SIDECAR_TOKEN: "fresh-sidecar-secret",
   });
   assert.ok(adapter.fundamentals);
 
@@ -1224,7 +1224,7 @@ test("rejects unexpected yfinance sidecar fields without exposing its token", as
       return new Response("Too Many Requests", { status: 429 });
     }
     return jsonResponse({
-      schemaVersion: "unicorn.yahoo-sidecar.v1",
+      schemaVersion: "trader.yahoo-sidecar.v1",
       symbol: "AAPL",
       profile: {
         description: "Apple profile",
@@ -1236,8 +1236,8 @@ test("rejects unexpected yfinance sidecar fields without exposing its token", as
   });
   const adapter = yahooProviderRegistration.create({
     ...ENABLED_ENV,
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
-    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: sidecarToken,
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    TRADER_TRADINGVIEW_SIDECAR_TOKEN: sidecarToken,
   });
 
   await assert.rejects(

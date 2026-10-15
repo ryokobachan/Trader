@@ -1,6 +1,6 @@
 # Strategy portfolio transaction API contract
 
-- Schema: `unicorn.strategy-portfolio-transactions.v1`
+- Schema: `trader.strategy-portfolio-transactions.v1`
 - Storage: App OLTP D1 binding `DB`
 - Owner adapter: stable Sites `oai-authenticated-user-id`; anonymous
   `local-workspace` fallback is accepted only on a loopback request URL

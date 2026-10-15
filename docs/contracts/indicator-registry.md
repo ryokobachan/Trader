@@ -7,7 +7,7 @@
 
 ## 1. Boundary
 
-Providers return canonical OHLCV bars. Unicorn calculates its built-in indicators locally with pure TypeScript; provider-specific indicator endpoints are not used. This keeps the visible series, pane readout, legend value, and snapshot on one formula and one input series.
+Providers return canonical OHLCV bars. Trader calculates its built-in indicators locally with pure TypeScript; provider-specific indicator endpoints are not used. This keeps the visible series, pane readout, legend value, and snapshot on one formula and one input series.
 
 The calculation registry is explicit and build-time only:
 
@@ -107,7 +107,7 @@ The current contract suite verifies:
 - identical latest values between renderer and legend;
 - absence of MAMA and fabricated fallback readings.
 
-Compatibility means matching the documented Unicorn policy. It does not claim undocumented bit-for-bit equivalence with TradingView, TA-Lib, or any provider implementation.
+Compatibility means matching the documented Trader policy. It does not claim undocumented bit-for-bit equivalence with TradingView, TA-Lib, or any provider implementation.
 
 ## 8. References
 

@@ -7,7 +7,7 @@ import {
   formatChartDate,
 } from "../src/app/features/chart-localization";
 
-test("maps Unicorn locale to an explicit Lightweight Charts locale", () => {
+test("maps Trader locale to an explicit Lightweight Charts locale", () => {
   assert.equal(chartLocaleTag("en"), "en-US");
   assert.equal(chartLocaleTag("ja"), "ja-JP");
 });

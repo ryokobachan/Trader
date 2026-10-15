@@ -1,4 +1,4 @@
-import { unicornConfig } from "../../app/unicorn.config";
+import { traderConfig } from "../../app/trader.config";
 import type { ProviderCapability } from "../../app/platform/provider-contracts";
 import type { ProviderRole } from "../../../api/provider-roles";
 import {
@@ -55,5 +55,5 @@ const providerSummary = (Object.entries(effective) as [ProviderRole, (typeof eff
   .join("\n");
 
 process.stdout.write(
-  `Unicorn configuration is valid.\nProviders:\n${providerSummary}\nUI: ${DEFAULT_SYMBOL_SUMMARY_MODULES.length} summary modules, ${unicornConfig.ui.symbolDetail.tabs.length} detail tabs, ${unicornConfig.ui.strategyDetail.summaryMetrics.length} strategy metrics.\n`,
+  `Trader configuration is valid.\nProviders:\n${providerSummary}\nUI: ${DEFAULT_SYMBOL_SUMMARY_MODULES.length} summary modules, ${traderConfig.ui.symbolDetail.tabs.length} detail tabs, ${traderConfig.ui.strategyDetail.summaryMetrics.length} strategy metrics.\n`,
 );

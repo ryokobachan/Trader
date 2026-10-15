@@ -45,7 +45,7 @@ const CORE_MODULE_MESSAGE_KEYS: Readonly<Record<string, Readonly<{
 };
 
 /**
- * Localizes Unicorn's built-in modules while keeping third-party module copy
+ * Localizes Trader's built-in modules while keeping third-party module copy
  * owned by the developer who registered that module.
  */
 export function localizedSummaryManifest(manifest: UiModuleManifestV1, t: Translate) {

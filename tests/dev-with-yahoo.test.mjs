@@ -13,32 +13,32 @@ test("builds a forced keyless Yahoo and Benzinga profile without Midas or FMP se
     FMP_API_KEY: "not-forwarded",
     FMP_BASE_URL: "https://not-forwarded.example",
     MIDAS_ENV_FILE: "/not/forwarded/.env",
-    MIDAS_UNICORN_API_TOKEN: "not-forwarded",
-    UNICORN_USAGE_MODE: "hosted",
-    UNICORN_ENABLE_YAHOO_COMPAT: "false",
-    UNICORN_INSTRUMENT_PROVIDER: "fmp",
-    UNICORN_MARKET_PROVIDER: "mock",
-    UNICORN_PROFILE_PROVIDER: "fmp",
-    UNICORN_NEWS_PROVIDER: "fmp",
-    UNICORN_FUNDAMENTALS_PROVIDER: "fmp",
-    UNICORN_EARNINGS_PROVIDER: "fmp",
-    UNICORN_ANALYST_PROVIDER: "fmp",
+    MIDAS_TRADER_API_TOKEN: "not-forwarded",
+    TRADER_USAGE_MODE: "hosted",
+    TRADER_ENABLE_YAHOO_COMPAT: "false",
+    TRADER_INSTRUMENT_PROVIDER: "fmp",
+    TRADER_MARKET_PROVIDER: "mock",
+    TRADER_PROFILE_PROVIDER: "fmp",
+    TRADER_NEWS_PROVIDER: "fmp",
+    TRADER_FUNDAMENTALS_PROVIDER: "fmp",
+    TRADER_EARNINGS_PROVIDER: "fmp",
+    TRADER_ANALYST_PROVIDER: "fmp",
   });
 
   assert.equal(environment.PATH, "/usr/bin");
-  assert.equal(environment.UNICORN_USAGE_MODE, "personal");
-  assert.equal(environment.UNICORN_ENABLE_YAHOO_COMPAT, "true");
-  assert.equal(environment.UNICORN_INSTRUMENT_PROVIDER, "yahoo");
-  assert.equal(environment.UNICORN_MARKET_PROVIDER, "tradingview-websocket");
-  assert.equal(environment.UNICORN_PROFILE_PROVIDER, "yahoo");
-  assert.equal(environment.UNICORN_FUNDAMENTALS_PROVIDER, "yahoo");
-  assert.equal(environment.UNICORN_EARNINGS_PROVIDER, "yahoo");
-  assert.equal(environment.UNICORN_ANALYST_PROVIDER, "benzinga");
-  assert.equal(environment.UNICORN_NEWS_PROVIDER, "yahoo");
+  assert.equal(environment.TRADER_USAGE_MODE, "personal");
+  assert.equal(environment.TRADER_ENABLE_YAHOO_COMPAT, "true");
+  assert.equal(environment.TRADER_INSTRUMENT_PROVIDER, "yahoo");
+  assert.equal(environment.TRADER_MARKET_PROVIDER, "tradingview-websocket");
+  assert.equal(environment.TRADER_PROFILE_PROVIDER, "yahoo");
+  assert.equal(environment.TRADER_FUNDAMENTALS_PROVIDER, "yahoo");
+  assert.equal(environment.TRADER_EARNINGS_PROVIDER, "yahoo");
+  assert.equal(environment.TRADER_ANALYST_PROVIDER, "benzinga");
+  assert.equal(environment.TRADER_NEWS_PROVIDER, "yahoo");
   assert.equal(environment.FMP_API_KEY, undefined);
   assert.equal(environment.FMP_BASE_URL, undefined);
   assert.equal(environment.MIDAS_ENV_FILE, undefined);
-  assert.equal(environment.MIDAS_UNICORN_API_TOKEN, undefined);
+  assert.equal(environment.MIDAS_TRADER_API_TOKEN, undefined);
 });
 
 test("constructs the npm command without a shell on Unix and Windows", () => {
@@ -62,7 +62,7 @@ test("importing and building the profile emits no secret values", () => {
     import { buildYahooDevelopmentEnvironment } from ${JSON.stringify(launcherUrl)};
     buildYahooDevelopmentEnvironment({
       FMP_API_KEY: "not-for-output",
-      MIDAS_UNICORN_API_TOKEN: "also-not-for-output"
+      MIDAS_TRADER_API_TOKEN: "also-not-for-output"
     });
   `;
   const result = spawnSync(process.execPath, ["--input-type=module", "--eval", evaluation], {

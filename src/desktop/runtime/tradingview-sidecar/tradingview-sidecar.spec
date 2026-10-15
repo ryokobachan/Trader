@@ -17,7 +17,7 @@ SIDECAR_SOURCE = REPOSITORY_ROOT / "api" / "tradingview-websocket" / "sidecar.py
 # analyzer see every import in the original implementation.
 GENERATED_DIR = Path(workpath).resolve() / "generated"
 GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-GENERATED_SIDECAR = GENERATED_DIR / "unicorn_tradingview_sidecar.py"
+GENERATED_SIDECAR = GENERATED_DIR / "trader_tradingview_sidecar.py"
 copyfile(SIDECAR_SOURCE, GENERATED_SIDECAR)
 
 datas = []
@@ -63,7 +63,7 @@ executable = EXE(
     analysis.binaries,
     analysis.datas,
     [],
-    name="unicorn-market-sidecar-aarch64-apple-darwin",
+    name="trader-market-sidecar-aarch64-apple-darwin",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -20,8 +20,8 @@ use tauri::{
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
 
-const RUNTIME_BINARY: &str = "unicorn-runtime";
-const MARKET_BINARY: &str = "unicorn-market-sidecar";
+const RUNTIME_BINARY: &str = "trader-runtime";
+const MARKET_BINARY: &str = "trader-market-sidecar";
 
 #[derive(Default)]
 struct DesktopProcesses {
@@ -154,8 +154,8 @@ fn sidecar_is_healthy(port: u16, token: &str) -> bool {
             Ok(count) => {
                 response.extend_from_slice(&buffer[..count]);
                 if response
-                    .windows(b"unicorn.tradingview-sidecar.v1".len())
-                    .any(|window| window == b"unicorn.tradingview-sidecar.v1")
+                    .windows(b"trader.tradingview-sidecar.v1".len())
+                    .any(|window| window == b"trader.tradingview-sidecar.v1")
                 {
                     break;
                 }
@@ -173,7 +173,7 @@ fn sidecar_is_healthy(port: u16, token: &str) -> bool {
     }
     let response = String::from_utf8_lossy(&response);
     (response.starts_with("HTTP/1.1 200") || response.starts_with("HTTP/1.0 200"))
-        && response.contains("unicorn.tradingview-sidecar.v1")
+        && response.contains("trader.tradingview-sidecar.v1")
 }
 
 fn wait_for_sidecar(port: u16, token: &str, child: &mut Child) -> bool {
@@ -207,7 +207,7 @@ fn start_market_sidecar(log_path: &Path) -> Result<(Child, u16, String), String>
             "--timeout",
             "20",
         ])
-        .env("UNICORN_TRADINGVIEW_SIDECAR_TOKEN", &token)
+        .env("TRADER_TRADINGVIEW_SIDECAR_TOKEN", &token)
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::from(log))
@@ -224,7 +224,7 @@ fn start_market_sidecar(log_path: &Path) -> Result<(Child, u16, String), String>
 }
 
 fn validated_bootstrap_url(value: &Value) -> Result<Url, String> {
-    if value.get("type").and_then(Value::as_str) != Some("unicorn-desktop-ready") {
+    if value.get("type").and_then(Value::as_str) != Some("trader-desktop-ready") {
         return Err("desktop runtime returned an unknown readiness event".to_string());
     }
     let origin = value
@@ -252,7 +252,7 @@ fn validated_bootstrap_url(value: &Value) -> Result<Url, String> {
         && bootstrap.password().is_none()
         && bootstrap
             .path()
-            .strip_prefix("/__unicorn_desktop_bootstrap/")
+            .strip_prefix("/__trader_desktop_bootstrap/")
             .is_some_and(|token| {
                 token.len() == 32 && token.chars().all(|value| value.is_ascii_hexdigit())
             })
@@ -272,7 +272,7 @@ fn read_runtime_ready(stdout: impl Read + Send + 'static) -> Result<Url, String>
             let Ok(value) = serde_json::from_str::<Value>(&line) else {
                 continue;
             };
-            if !sent && value.get("type").and_then(Value::as_str) == Some("unicorn-desktop-ready") {
+            if !sent && value.get("type").and_then(Value::as_str) == Some("trader-desktop-ready") {
                 let _ = sender.send(validated_bootstrap_url(&value));
                 sent = true;
             }
@@ -299,37 +299,37 @@ fn start_runtime(
         .args(["--root", &resource_dir.to_string_lossy()])
         .args(["--port", "0"])
         .args(["--database", &database_path.to_string_lossy()])
-        .env("UNICORN_USAGE_MODE", "personal")
-        .env("UNICORN_ENABLE_YAHOO_COMPAT", "true")
-        .env("UNICORN_INSTRUMENT_PROVIDER", "yahoo")
-        .env("UNICORN_PROFILE_PROVIDER", "yahoo")
-        .env("UNICORN_FUNDAMENTALS_PROVIDER", "yahoo")
-        .env("UNICORN_EARNINGS_PROVIDER", "yahoo")
-        .env("UNICORN_ANALYST_PROVIDER", "benzinga")
-        .env("UNICORN_NEWS_PROVIDER", "yahoo")
+        .env("TRADER_USAGE_MODE", "personal")
+        .env("TRADER_ENABLE_YAHOO_COMPAT", "true")
+        .env("TRADER_INSTRUMENT_PROVIDER", "yahoo")
+        .env("TRADER_PROFILE_PROVIDER", "yahoo")
+        .env("TRADER_FUNDAMENTALS_PROVIDER", "yahoo")
+        .env("TRADER_EARNINGS_PROVIDER", "yahoo")
+        .env("TRADER_ANALYST_PROVIDER", "benzinga")
+        .env("TRADER_NEWS_PROVIDER", "yahoo")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::from(log))
         .process_group(0);
     if cfg!(debug_assertions) {
-        command.env("UNICORN_DESKTOP_DEBUG", "1");
+        command.env("TRADER_DESKTOP_DEBUG", "1");
     }
 
     if let Some((port, token)) = market {
         command
-            .env("UNICORN_MARKET_PROVIDER", "tradingview-websocket")
-            .env("UNICORN_BARS_PROVIDER", "tradingview-websocket")
+            .env("TRADER_MARKET_PROVIDER", "tradingview-websocket")
+            .env("TRADER_BARS_PROVIDER", "tradingview-websocket")
             .env(
-                "UNICORN_TRADINGVIEW_SIDECAR_URL",
+                "TRADER_TRADINGVIEW_SIDECAR_URL",
                 format!("http://127.0.0.1:{port}"),
             )
-            .env("UNICORN_TRADINGVIEW_SIDECAR_TOKEN", token)
-            .env("UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS", "25000")
-            .env("UNICORN_TRADINGVIEW_MAX_CANDLES", "10000");
+            .env("TRADER_TRADINGVIEW_SIDECAR_TOKEN", token)
+            .env("TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS", "25000")
+            .env("TRADER_TRADINGVIEW_MAX_CANDLES", "10000");
     } else {
         command
-            .env("UNICORN_MARKET_PROVIDER", "yahoo")
-            .env("UNICORN_BARS_PROVIDER", "yahoo");
+            .env("TRADER_MARKET_PROVIDER", "yahoo")
+            .env("TRADER_BARS_PROVIDER", "yahoo");
     }
 
     let mut child = command
@@ -351,7 +351,7 @@ fn start_runtime(
 fn show_startup_failure(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.eval(
-            "document.querySelector('#status').textContent = navigator.language.toLowerCase().startsWith('ja') ? '起動できませんでした。Unicornを終了して、もう一度開いてください。' : 'Unicorn could not start. Quit the app and open it again.'; document.querySelector('.spinner').hidden = true;",
+            "document.querySelector('#status').textContent = navigator.language.toLowerCase().startsWith('ja') ? '起動できませんでした。Traderを終了して、もう一度開いてください。' : 'Trader could not start. Quit the app and open it again.'; document.querySelector('.spinner').hidden = true;",
         );
     }
 }
@@ -373,8 +373,8 @@ fn launch_desktop(app: AppHandle) -> Result<(), String> {
         .path()
         .resource_dir()
         .map_err(|error| format!("could not resolve resource directory: {error}"))?;
-    let database_path = data_dir.join("unicorn.sqlite3");
-    let log_path = data_dir.join("unicorn-desktop.log");
+    let database_path = data_dir.join("trader.sqlite3");
+    let log_path = data_dir.join("trader-desktop.log");
     let processes = app.state::<DesktopProcesses>();
     if processes.is_shutting_down() {
         return Err("desktop app is shutting down".to_string());
@@ -392,7 +392,7 @@ fn launch_desktop(app: AppHandle) -> Result<(), String> {
             Some((port, token))
         }
         Err(error) => {
-            eprintln!("Unicorn market helper unavailable; using Yahoo polling: {error}");
+            eprintln!("Trader market helper unavailable; using Yahoo polling: {error}");
             None
         }
     };
@@ -442,7 +442,7 @@ pub fn run() {
         .setup(|app| {
             let navigation_guard = app.state::<NavigationPolicy>().inner().clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
-                .title("Unicorn")
+                .title("Trader")
                 .inner_size(1440.0, 900.0)
                 .min_inner_size(1024.0, 700.0)
                 .center()
@@ -463,14 +463,14 @@ pub fn run() {
             let handle = app.handle().clone();
             thread::spawn(move || {
                 if let Err(error) = launch_desktop(handle.clone()) {
-                    eprintln!("Unicorn desktop startup failed: {error}");
+                    eprintln!("Trader desktop startup failed: {error}");
                     show_startup_failure(&handle);
                 }
             });
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("failed to build Unicorn");
+        .expect("failed to build Trader");
 
     app.run(|app_handle, event| match event {
         RunEvent::ExitRequested { api, code, .. } => {

@@ -2,7 +2,7 @@
 """Authenticated local bridge for TradingView bars and yfinance company data.
 
 This process is deliberately separate from the Vinext/Cloudflare runtime:
-Cloudflare Workers cannot import CPython packages.  Unicorn talks to this
+Cloudflare Workers cannot import CPython packages.  Trader talks to this
 sidecar through a small, versioned HTTP contract and can replace it with a
 licensed market-data service without changing the browser UI.
 
@@ -33,13 +33,13 @@ from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
 
-SCHEMA_VERSION = "unicorn.tradingview-sidecar.v1"
-YAHOO_SCHEMA_VERSION = "unicorn.yahoo-sidecar.v1"
+SCHEMA_VERSION = "trader.tradingview-sidecar.v1"
+YAHOO_SCHEMA_VERSION = "trader.yahoo-sidecar.v1"
 MIN_CANDLE_COUNT = 2
 MAX_CANDLE_COUNT = 10_000
 MAX_LATEST_CLOSE_SYMBOLS = 50
 MAX_LATEST_CLOSE_BODY_BYTES = 8_192
-REALTIME_SCHEMA_VERSION = "unicorn.tradingview-realtime-quotes.v1"
+REALTIME_SCHEMA_VERSION = "trader.tradingview-realtime-quotes.v1"
 MAX_REALTIME_SYMBOLS = 50
 MAX_REALTIME_BODY_BYTES = 16_384
 MAX_REALTIME_SUBSCRIBERS = 32
@@ -122,7 +122,7 @@ def configured_latest_close_exchanges(value: str | None) -> tuple[str, ...]:
         or any(not SYNTHETIC_EXCHANGE_PATTERN.fullmatch(exchange) for exchange in exchanges)
         or len(set(exchanges)) != len(exchanges)
     ):
-        raise ValueError("UNICORN_TRADINGVIEW_SYNTHETIC_EXCHANGES is invalid")
+        raise ValueError("TRADER_TRADINGVIEW_SYNTHETIC_EXCHANGES is invalid")
     return exchanges
 
 
@@ -2090,20 +2090,20 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Unicorn TradingView websocket sidecar")
-    parser.add_argument("--host", default=os.environ.get("UNICORN_TRADINGVIEW_SIDECAR_HOST", "127.0.0.1"))
-    parser.add_argument("--port", type=int, default=int(os.environ.get("UNICORN_TRADINGVIEW_SIDECAR_PORT", "8791")))
+    parser = argparse.ArgumentParser(description="Trader TradingView websocket sidecar")
+    parser.add_argument("--host", default=os.environ.get("TRADER_TRADINGVIEW_SIDECAR_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("TRADER_TRADINGVIEW_SIDECAR_PORT", "8791")))
     parser.add_argument(
         "--timeout",
         type=float,
-        default=float(os.environ.get("UNICORN_TRADINGVIEW_FETCH_TIMEOUT_SECONDS", "20")),
+        default=float(os.environ.get("TRADER_TRADINGVIEW_FETCH_TIMEOUT_SECONDS", "20")),
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    token = os.environ.get("UNICORN_TRADINGVIEW_SIDECAR_TOKEN", "").strip()
+    token = os.environ.get("TRADER_TRADINGVIEW_SIDECAR_TOKEN", "").strip()
     if args.host not in {"127.0.0.1", "::1", "localhost"} and not token:
         raise SystemExit("A sidecar token is required when binding outside loopback")
     if not (1 <= args.port <= 65_535):
@@ -2111,7 +2111,7 @@ def main() -> None:
     timeout_seconds = min(60.0, max(2.0, args.timeout))
     try:
         latest_close_exchanges = configured_latest_close_exchanges(
-            os.environ.get("UNICORN_TRADINGVIEW_SYNTHETIC_EXCHANGES")
+            os.environ.get("TRADER_TRADINGVIEW_SYNTHETIC_EXCHANGES")
         )
     except ValueError as error:
         raise SystemExit(str(error)) from error

@@ -5,7 +5,7 @@ import { CORE_SYMBOL_SUMMARY_MODULES } from "../src/app/features/symbol-summary/
 import {
   DEFAULT_SYMBOL_SUMMARY_MODULES,
   EXAMPLE_MARKET_CONTEXT_MODULE,
-  UNICORN_UI_MODULE_REGISTRY,
+  TRADER_UI_MODULE_REGISTRY,
 } from "../extensions";
 import type { SymbolSummaryModuleProps } from "../src/app/platform/symbol-summary";
 import {
@@ -74,7 +74,7 @@ test("registers and resolves valid UI modules", () => {
   const summary = makeRegistration();
   const registry = defineUiModuleRegistry([identity, summary]);
 
-  assert.equal(UI_MODULE_SCHEMA_VERSION, "unicorn.ui-module.v1");
+  assert.equal(UI_MODULE_SCHEMA_VERSION, "trader.ui-module.v1");
   assert.equal(registry.get("test.summary", "1.0.0")?.Component, TestComponent);
   assert.deepEqual(
     registry.list("chart.symbol-summary").map((registration) => registration.manifest.id),
@@ -108,7 +108,7 @@ test("rejects a duplicate module id and version", () => {
 test("rejects an unknown manifest schema", () => {
   expectRegistryError(
     () => defineUiModuleRegistry([
-      makeRegistration({ schemaVersion: "unicorn.ui-module.v999" }),
+      makeRegistration({ schemaVersion: "trader.ui-module.v999" }),
     ]),
     "UNKNOWN_SCHEMA",
   );
@@ -268,7 +268,7 @@ test("Composition Root registers the disabled example through the same generic C
     ...CORE_SYMBOL_SUMMARY_MODULES,
     EXAMPLE_MARKET_CONTEXT_MODULE,
   ];
-  const catalog = UNICORN_UI_MODULE_REGISTRY.list("chart.symbol-summary");
+  const catalog = TRADER_UI_MODULE_REGISTRY.list("chart.symbol-summary");
   const example = catalog.find((registration) => registration.manifest.id === "example.market_context");
   const firstCore = catalog.find((registration) => registration.manifest.id === "core.identity_quote");
 

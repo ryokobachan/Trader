@@ -65,10 +65,10 @@ function upgradeRequest(
   signal?: AbortSignal,
 ) {
   return new Request(
-    `https://unicorn.example/api/v1/watchlists/after-hours/stream?symbols=${symbols}`,
+    `https://trader.example/api/v1/watchlists/after-hours/stream?symbols=${symbols}`,
     {
       headers: {
-        origin: "https://unicorn.example",
+        origin: "https://trader.example",
         "sec-fetch-site": "same-origin",
         upgrade: "websocket",
         "oai-authenticated-user-id": "site-user-1",
@@ -254,8 +254,8 @@ test("websocket upgrade rejects cross-origin, unauthenticated, duplicate, and ov
   assert.equal(crossOrigin.status, 403);
 
   const unauthenticated = await handleWatchlistAfterHoursWebSocketUpgrade(new Request(
-    "https://unicorn.example/api/v1/watchlists/after-hours/stream?symbols=AAPL",
-    { headers: { origin: "https://unicorn.example", upgrade: "websocket" } },
+    "https://trader.example/api/v1/watchlists/after-hours/stream?symbols=AAPL",
+    { headers: { origin: "https://trader.example", upgrade: "websocket" } },
   ), dependencies);
   assert.equal(unauthenticated.status, 401);
 

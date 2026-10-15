@@ -31,7 +31,7 @@ run result into the same stable metric IDs rather than writing provider-specific
 fields directly into the UI.
 
 When the strategy screen opens or is refreshed, its sample lots are marked from
-the direct U.S. listing. During the regular session Unicorn uses the direct USD
+the direct U.S. listing. During the regular session Trader uses the direct USD
 quote. In pre-market, after-hours, or while the market is closed, it uses the
 latest completed daily-bar close and never the separate USDT reference market.
 This updates current value and unrealized P&L only; it does not manufacture new

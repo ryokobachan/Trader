@@ -16,16 +16,16 @@ export const MIDAS_ENV_ALLOWLIST = Object.freeze([
 
 const MIDAS_ENV_ALLOWLIST_SET = new Set(MIDAS_ENV_ALLOWLIST);
 
-const UNICORN_DEVELOPMENT_DEFAULTS = Object.freeze({
-  UNICORN_USAGE_MODE: "personal",
-  UNICORN_ENABLE_YAHOO_COMPAT: "true",
-  UNICORN_INSTRUMENT_PROVIDER: "yahoo",
-  UNICORN_MARKET_PROVIDER: "yahoo",
-  UNICORN_PROFILE_PROVIDER: "fmp",
-  UNICORN_FUNDAMENTALS_PROVIDER: "fmp",
-  UNICORN_EARNINGS_PROVIDER: "fmp",
-  UNICORN_ANALYST_PROVIDER: "benzinga",
-  UNICORN_NEWS_PROVIDER: "yahoo",
+const TRADER_DEVELOPMENT_DEFAULTS = Object.freeze({
+  TRADER_USAGE_MODE: "personal",
+  TRADER_ENABLE_YAHOO_COMPAT: "true",
+  TRADER_INSTRUMENT_PROVIDER: "yahoo",
+  TRADER_MARKET_PROVIDER: "yahoo",
+  TRADER_PROFILE_PROVIDER: "fmp",
+  TRADER_FUNDAMENTALS_PROVIDER: "fmp",
+  TRADER_EARNINGS_PROVIDER: "fmp",
+  TRADER_ANALYST_PROVIDER: "benzinga",
+  TRADER_NEWS_PROVIDER: "yahoo",
 });
 
 function decodeDoubleQuotedValue(value) {
@@ -82,7 +82,7 @@ function parseUnquotedValue(rawValue) {
  * Parse only the small, explicitly allowed subset of a dotenv file.
  *
  * Unsupported or malformed lines are ignored and values are never expanded.
- * This keeps unrelated Midas credentials out of the Unicorn process.
+ * This keeps unrelated Midas credentials out of the Trader process.
  */
 export function parseMidasEnv(contents) {
   const parsed = {};
@@ -131,7 +131,7 @@ export function mergeMidasEnv(baseEnvironment, parsedMidasEnvironment) {
     }
   }
 
-  for (const [key, value] of Object.entries(UNICORN_DEVELOPMENT_DEFAULTS)) {
+  for (const [key, value] of Object.entries(TRADER_DEVELOPMENT_DEFAULTS)) {
     if (merged[key] === undefined) merged[key] = value;
   }
 
@@ -175,7 +175,7 @@ async function runDevelopmentServer() {
 
   child.once("error", () => {
     removeSignalHandlers();
-    process.stderr.write("Unicorn development server could not be started.\n");
+    process.stderr.write("Trader development server could not be started.\n");
     process.exitCode = 1;
   });
 
@@ -198,7 +198,7 @@ if (isDirectExecution) {
   runDevelopmentServer().catch((error) => {
     const message = error instanceof Error
       ? error.message
-      : "Unicorn development server could not be started.";
+      : "Trader development server could not be started.";
     process.stderr.write(`${message}\n`);
     process.exitCode = 1;
   });

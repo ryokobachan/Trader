@@ -1,20 +1,20 @@
 <p align="center">
-  <img src="public/unicorn-logo-v3.png" alt="Unicorn logo" width="144">
+  <img src="public/trader-logo-v3.png" alt="Trader logo" width="144">
 </p>
 
-# Unicorn
+# Trader
 
-Unicorn is an open-source, TradingView-inspired workspace for U.S. stock charts, company research, watchlists, technical indicators, and sample strategy portfolios.
+Trader is an open-source, TradingView-inspired workspace for U.S. stock charts, company research, watchlists, technical indicators, and sample strategy portfolios.
 
-> Unicorn is a research prototype. It does not execute orders or provide investment advice. Strategy metrics are illustrative unless a backtest provider is connected.
+> Trader is a research prototype. It does not execute orders or provide investment advice. Strategy metrics are illustrative unless a backtest provider is connected.
 
-The chart and symbol-detail screenshots below were captured with Unicorn's optional real-data profile and show time-sensitive, provider-derived values. The strategy screenshot uses Unicorn's deterministic sample catalog. No raw provider response payloads or downloaded datasets are bundled with the repository.
+The chart and symbol-detail screenshots below were captured with Trader's optional real-data profile and show time-sensitive, provider-derived values. The strategy screenshot uses Trader's deterministic sample catalog. No raw provider response payloads or downloaded datasets are bundled with the repository.
 
 ## Screens
 
 ### Chart workspace
 
-![Unicorn chart workspace](public/screenshots/unicorn-chart.png)
+![Trader chart workspace](public/screenshots/trader-chart.png)
 
 _Captured with direct USD-listing quotes and bars from the TradingView websocket sidecar. Prices and timestamps reflect the observations displayed in the UI._
 
@@ -27,7 +27,7 @@ _Captured with direct USD-listing quotes and bars from the TradingView websocket
 
 ### Symbol details
 
-![Unicorn symbol details](public/screenshots/unicorn-details.png)
+![Trader symbol details](public/screenshots/trader-details.png)
 
 _Captured from provider-derived AAPL company data. Values and observation times are shown in the interface._
 
@@ -38,7 +38,7 @@ _Captured from provider-derived AAPL company data. Values and observation times 
 
 ### Strategies
 
-![Unicorn strategy list](public/screenshots/unicorn-strategies.png)
+![Trader strategy list](public/screenshots/trader-strategies.png)
 
 _The built-in strategy catalog is deterministic sample data, not a verified backtest result._
 
@@ -62,7 +62,7 @@ _The built-in strategy catalog is deterministic sample data, not a verified back
 ## Desktop app (Apple Silicon macOS)
 
 The desktop build targets Apple Silicon Macs running macOS 14 or newer. The
-installed `Unicorn.app` is self-contained: it bundles the application runtime
+installed `Trader.app` is self-contained: it bundles the application runtime
 and market-data helper and uses the macOS system WebView. Opening the app starts
 and stops its private loopback services automatically, so users do not need a
 terminal, Bun, Python, or a separately started `localhost` server. An internet
@@ -76,14 +76,14 @@ npm install
 npm run desktop:build
 ```
 
-The finished application is written to `build/Unicorn.app`. Temporary native,
+The finished application is written to `build/Trader.app`. Temporary native,
 frontend, and sidecar build directories are removed automatically after the app
 has been copied and verified.
 
 Open the local application build with:
 
 ```bash
-open build/Unicorn.app
+open build/Trader.app
 ```
 
 `npm run desktop:dev` prepares the same bundled helpers and launches a debug
@@ -94,11 +94,11 @@ Developer ID signing and notarization pipeline is required before public
 distribution.
 
 Desktop state is stored under
-`~/Library/Application Support/com.ryokobachan.unicorn/`. The
-`unicorn.sqlite3` database contains watchlists, strategy changes, and
-transactions; `unicorn-desktop.log` contains startup/runtime diagnostics. Quit
-Unicorn before copying this directory as a backup. To reset the SQLite-backed
-state, quit the app and move `unicorn.sqlite3` plus any matching `-wal` and
+`~/Library/Application Support/com.ryokobachan.trader/`. The
+`trader.sqlite3` database contains watchlists, strategy changes, and
+transactions; `trader-desktop.log` contains startup/runtime diagnostics. Quit
+Trader before copying this directory as a backup. To reset the SQLite-backed
+state, quit the app and move `trader.sqlite3` plus any matching `-wal` and
 `-shm` files out of the directory; the next launch creates a fresh database.
 Chart templates and other interface preferences use WebView storage and are
 not reset by replacing only the SQLite file.
@@ -128,7 +128,7 @@ Open <http://localhost:3001>.
 
 `dev:yahoo` uses the local TradingView websocket sidecar for direct USD-listing current quotes and chart bars. Yahoo-compatible endpoints provide U.S. stock search, company data, fundamentals, earnings, and news; the same authenticated sidecar can use pinned `yfinance` as a profile/earnings fallback when Yahoo's anonymous cookie/crumb path is unavailable. The Midas-compatible Benzinga adapter supplies analyst ratings. These are unofficial or provider-controlled data paths. Review the applicable access, display, and redistribution terms before enabling them outside personal development.
 
-The browser connects only to Unicorn's same-origin routes; it never receives the sidecar bearer token or chooses raw TradingView symbols. A hosted Sites deployment cannot reach a developer machine's loopback sidecar. Without an external sidecar it therefore keeps ordinary HTTPS requests open while the Worker waits on the same TradingView guest websocket used locally, returning each direct-USD quote or ordered `{EXCHANGE}:{symbol}USDT.P` change as completed JSON. The scanner snapshot remains a 15-second safety fallback. An optional external sidecar must use **HTTPS** and a server-side token. Transport-level streaming or polling does not itself guarantee exchange real-time entitlements.
+The browser connects only to Trader's same-origin routes; it never receives the sidecar bearer token or chooses raw TradingView symbols. A hosted Sites deployment cannot reach a developer machine's loopback sidecar. Without an external sidecar it therefore keeps ordinary HTTPS requests open while the Worker waits on the same TradingView guest websocket used locally, returning each direct-USD quote or ordered `{EXCHANGE}:{symbol}USDT.P` change as completed JSON. The scanner snapshot remains a 15-second safety fallback. An optional external sidecar must use **HTTPS** and a server-side token. Transport-level streaming or polling does not itself guarantee exchange real-time entitlements.
 
 To reuse only the allow-listed FMP/Benzinga values from a local Midas environment file:
 
@@ -138,7 +138,7 @@ MIDAS_ENV_FILE=/absolute/path/to/Midas/.env npm run dev:midas
 
 Secrets stay server-side. The repository contains no provider credentials or downloaded third-party datasets.
 
-`dev:midas` is a credential/profile bridge, not a connection to the Midas database or `/data-sources` API. It reuses only allow-listed FMP/Benzinga settings and still calls the configured upstream providers directly. In this profile, FMP supplies company profiles, fundamentals, and earnings; this includes float/share structure and FMP-calculated Altman Z and Piotroski scores. Unicorn currently normalizes prices, company/fundamental/earnings data, analyst ratings, and news. Options, SEC ownership and insider filings, FINRA short data, corporate actions, government awards, and source scores still require dedicated provider contracts and UI extensions. TipRanks and Investing.com event feeds are intentionally out of scope.
+`dev:midas` is a credential/profile bridge, not a connection to the Midas database or `/data-sources` API. It reuses only allow-listed FMP/Benzinga settings and still calls the configured upstream providers directly. In this profile, FMP supplies company profiles, fundamentals, and earnings; this includes float/share structure and FMP-calculated Altman Z and Piotroski scores. Trader currently normalizes prices, company/fundamental/earnings data, analyst ratings, and news. Options, SEC ownership and insider filings, FINRA short data, corporate actions, government awards, and source scores still require dedicated provider contracts and UI extensions. TipRanks and Investing.com event feeds are intentionally out of scope.
 
 ## Strategy CLI and AI agents
 
@@ -161,11 +161,11 @@ npm run strategy -- transactions delete <strategy-id> <transaction-id> --yes
 
 Commands emit JSON and return nonzero on API or validation errors. Custom strategy edits use optimistic versions, and transaction edits require the latest `updatedAt` token, so an agent cannot silently overwrite a newer browser change. Performance is tagged as `illustrative_catalog`, `user_supplied`, `transaction_snapshot`, or `unavailable`; `transaction_snapshot` currently derives only exact trade and distinct-symbol counts from persisted transactions, not returns or risk metrics.
 
-Discovery filters and sorting run locally after one owner-scoped API read; `compare` returns the selected records, provenance groups, and an explicit `execution: "not_run"` disclosure. These commands explore strategies already registered in Unicorn. They do not generate candidates, execute rules, search parameters, download market data, or run a backtest.
+Discovery filters and sorting run locally after one owner-scoped API read; `compare` returns the selected records, provenance groups, and an explicit `execution: "not_run"` disclosure. These commands explore strategies already registered in Trader. They do not generate candidates, execute rules, search parameters, download market data, or run a backtest.
 
 For an `illustrative_catalog` record, the `trades` and `symbols` fields are sample metadata, not saved D1 row counts. The aggregate response's `transactions` array is the durable trade history, and `cash` is a percentage allocation.
 
-The repository includes [`$manage-unicorn-strategies`](skills/manage-unicorn-strategies/SKILL.md), a Codex-compatible skill that requires inspect-before-mutate, explicit confirmation for deletion, and post-mutation verification.
+The repository includes [`$manage-trader-strategies`](skills/manage-trader-strategies/SKILL.md), a Codex-compatible skill that requires inspect-before-mutate, explicit confirmation for deletion, and post-mutation verification.
 
 ## Data and persistence
 
@@ -220,7 +220,7 @@ The master file controls symbol-summary modules, symbol-detail tabs and scalar m
 | Strategy detail performance cards | `ui.strategyDetail.summaryMetrics` |
 | Search / current quote / chart / company-data API defaults | `providers.instrument`, `market`, `bars`, `profile`, `fundamentals`, `earnings`, `analyst`, `news` |
 
-Unicorn keeps product Core separate from deployment-owned extensions. JSON selects from reviewed registries; adding genuinely new behavior still uses a small code entry point.
+Trader keeps product Core separate from deployment-owned extensions. JSON selects from reviewed registries; adding genuinely new behavior still uses a small code entry point.
 
 | Customize | Main entry point |
 |---|---|

@@ -1,18 +1,18 @@
-export const PROVIDER_SCHEMA_VERSION = "unicorn.provider.v1" as const;
-export const SYMBOL_SUMMARY_SCHEMA_VERSION = "unicorn.symbol-summary.v1" as const;
-export const INSTRUMENT_SEARCH_SCHEMA_VERSION = "unicorn.instrument-search.v1" as const;
-export const MARKET_BARS_SCHEMA_VERSION = "unicorn.market-bars.v1" as const;
+export const PROVIDER_SCHEMA_VERSION = "trader.provider.v1" as const;
+export const SYMBOL_SUMMARY_SCHEMA_VERSION = "trader.symbol-summary.v1" as const;
+export const INSTRUMENT_SEARCH_SCHEMA_VERSION = "trader.instrument-search.v1" as const;
+export const MARKET_BARS_SCHEMA_VERSION = "trader.market-bars.v1" as const;
 export const MIN_MARKET_BAR_COUNT = 2 as const;
 export const MAX_MARKET_BAR_COUNT = 10_000 as const;
-export const SYMBOL_WORKSPACE_SCHEMA_VERSION = "unicorn.symbol-workspace.v1" as const;
-export const ANALYST_RATING_HISTORY_SCHEMA_VERSION = "unicorn.analyst-rating-history.v1" as const;
-export const WATCHLIST_AFTER_HOURS_SCHEMA_VERSION = "unicorn.watchlist-after-hours.v1" as const;
-export const WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION = "unicorn.watchlist-after-hours-stream.v1" as const;
-export const WATCHLIST_AFTER_HOURS_POLL_SCHEMA_VERSION = "unicorn.watchlist-after-hours-poll.v1" as const;
+export const SYMBOL_WORKSPACE_SCHEMA_VERSION = "trader.symbol-workspace.v1" as const;
+export const ANALYST_RATING_HISTORY_SCHEMA_VERSION = "trader.analyst-rating-history.v1" as const;
+export const WATCHLIST_AFTER_HOURS_SCHEMA_VERSION = "trader.watchlist-after-hours.v1" as const;
+export const WATCHLIST_AFTER_HOURS_STREAM_SCHEMA_VERSION = "trader.watchlist-after-hours-stream.v1" as const;
+export const WATCHLIST_AFTER_HOURS_POLL_SCHEMA_VERSION = "trader.watchlist-after-hours-poll.v1" as const;
 export const WATCHLIST_AFTER_HOURS_MAX_SYMBOLS = 50 as const;
-export const WATCHLIST_QUOTES_SCHEMA_VERSION = "unicorn.watchlist-quotes.v1" as const;
+export const WATCHLIST_QUOTES_SCHEMA_VERSION = "trader.watchlist-quotes.v1" as const;
 export const WATCHLIST_QUOTES_MAX_SYMBOLS = 50 as const;
-export const WATCHLIST_QUOTE_STREAM_SCHEMA_VERSION = "unicorn.watchlist-quote-stream.v1" as const;
+export const WATCHLIST_QUOTE_STREAM_SCHEMA_VERSION = "trader.watchlist-quote-stream.v1" as const;
 
 export const PROVIDER_CAPABILITIES = [
   "instrument.search",
@@ -100,7 +100,7 @@ export type MarketBarRange = "1d" | "5d" | "1mo" | "3mo" | "6mo" | "1y" | "5y";
 
 /**
  * Canonical chart-history request. `count` stays optional for external clients,
- * while Unicorn's chart shell explicitly requests the user's validated
+ * while Trader's chart shell explicitly requests the user's validated
  * candle-count preference (default 1,000, maximum `MAX_MARKET_BAR_COUNT`).
  * Other callers may request any supported window.
  */

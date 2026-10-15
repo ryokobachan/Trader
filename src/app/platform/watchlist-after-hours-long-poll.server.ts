@@ -273,7 +273,7 @@ export async function handleWatchlistAfterHoursLongPoll(
   }
 
   const sidecarConfigured = Boolean(
-    environment.UNICORN_TRADINGVIEW_SIDECAR_URL?.trim(),
+    environment.TRADER_TRADINGVIEW_SIDECAR_URL?.trim(),
   );
   if (
     !dependencies.createStream

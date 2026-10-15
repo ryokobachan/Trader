@@ -48,7 +48,7 @@ function payload(interval: MarketBarInterval, range: MarketBarRange, requestedCo
     { time: "2026-08-07T13:30:00Z", open: 312, high: 316, low: 311, close: 315, volume: 120 },
   ];
   return {
-    schemaVersion: "unicorn.tradingview-sidecar.v1",
+    schemaVersion: "trader.tradingview-sidecar.v1",
     symbol: "AAPL",
     exchange: "NASDAQ",
     sourceSymbol: "NASDAQ:AAPL",
@@ -64,7 +64,7 @@ function payload(interval: MarketBarInterval, range: MarketBarRange, requestedCo
 
 function realtimePayload() {
   return {
-    schemaVersion: "unicorn.tradingview-realtime-quotes.v1",
+    schemaVersion: "trader.tradingview-realtime-quotes.v1",
     state: "connected",
     items: [{
       symbol: "AAPL",
@@ -94,7 +94,7 @@ test("publishes a market-data-only TradingView websocket provider manifest", () 
     "market.synthetic_latest_close",
   ]);
   assert.deepEqual(tradingViewWebsocketProviderRegistration.manifest.requiredEnv, [
-    "UNICORN_TRADINGVIEW_SIDECAR_URL",
+    "TRADER_TRADINGVIEW_SIDECAR_URL",
   ]);
 });
 
@@ -146,8 +146,8 @@ test("normalizes bars and direct USD quote while keeping the sidecar token out o
     return json(payload(interval, range, requestedCount));
   };
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
-    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: secret,
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    TRADER_TRADINGVIEW_SIDECAR_TOKEN: secret,
   }, {
     fetch,
     now: () => new Date("2026-08-08T14:00:00Z"),
@@ -199,7 +199,7 @@ test("preserves explicit zero volume and rejects malformed OHLCV candles", async
   };
   let currentItem: Record<string, unknown> = validZeroVolume;
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
   }, {
     fetch: async (input) => {
       const url = new URL(String(input));
@@ -246,7 +246,7 @@ test("preserves explicit zero volume and rejects malformed OHLCV candles", async
 
 test("does not trust a cached market session while the realtime source reconnects", async () => {
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
   }, {
     fetch: async () => json({
       ...realtimePayload(),
@@ -269,10 +269,10 @@ test("does not trust a cached market session while the realtime source reconnect
 
 test("keeps quote and chart-bar provider selection independent", () => {
   const runtime = createProviderRuntime({
-    UNICORN_INSTRUMENT_PROVIDER: "mock",
-    UNICORN_MARKET_PROVIDER: "mock",
-    UNICORN_BARS_PROVIDER: "tradingview-websocket",
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    TRADER_INSTRUMENT_PROVIDER: "mock",
+    TRADER_MARKET_PROVIDER: "mock",
+    TRADER_BARS_PROVIDER: "tradingview-websocket",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
   });
   assert.equal(runtime.selectedProviderIds.market, "mock");
   assert.equal(runtime.selectedProviderIds.bars, "tradingview-websocket");
@@ -283,19 +283,19 @@ test("keeps quote and chart-bar provider selection independent", () => {
 test("rejects unsafe sidecar locations and malformed response data without leaking configuration", async () => {
   assert.throws(
     () => createTradingViewSidecarProvider({
-      UNICORN_TRADINGVIEW_SIDECAR_URL: "http://public.example.test:8765",
+      TRADER_TRADINGVIEW_SIDECAR_URL: "http://public.example.test:8765",
     }),
     (error: unknown) => error instanceof TradingViewSidecarError && error.code === "configuration",
   );
   assert.throws(
     () => createTradingViewSidecarProvider({
-      UNICORN_TRADINGVIEW_SIDECAR_URL: "https://sidecar.example.test",
+      TRADER_TRADINGVIEW_SIDECAR_URL: "https://sidecar.example.test",
     }),
     (error: unknown) => error instanceof TradingViewSidecarError && error.code === "configuration",
   );
 
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://localhost:8765",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://localhost:8765",
   }, {
     fetch: async (input) => {
       const url = new URL(String(input));
@@ -316,8 +316,8 @@ test("rejects unsafe sidecar locations and malformed response data without leaki
 test("honors a lower deployment ceiling without exposing configuration in the request URL", async () => {
   let captured: URL | undefined;
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
-    UNICORN_TRADINGVIEW_MAX_CANDLES: "6000",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8765",
+    TRADER_TRADINGVIEW_MAX_CANDLES: "6000",
   }, {
     fetch: async (input) => {
       captured = new URL(String(input));
@@ -333,5 +333,5 @@ test("honors a lower deployment ceiling without exposing configuration in the re
   });
   assert.equal(captured?.searchParams.get("count"), "6000");
   assert.equal(bars?.requestedCount, 6_000);
-  assert.ok(!captured?.toString().includes("UNICORN_TRADINGVIEW_MAX_CANDLES"));
+  assert.ok(!captured?.toString().includes("TRADER_TRADINGVIEW_MAX_CANDLES"));
 });

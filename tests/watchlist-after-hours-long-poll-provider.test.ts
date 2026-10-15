@@ -82,7 +82,7 @@ test("long poll skips initial null and matching cursor, then returns one changed
   assert.equal(response.headers.get("cache-control"), "private, no-store");
   const payload = await response.json() as WatchlistAfterHoursPollResponse;
   assert.deepEqual(capturedSymbols, ["AAPL"]);
-  assert.equal(payload.schemaVersion, "unicorn.watchlist-after-hours-poll.v1");
+  assert.equal(payload.schemaVersion, "trader.watchlist-after-hours-poll.v1");
   assert.equal(payload.timedOut, false);
   assert.deepEqual(payload.items, [close(300.01, "2026-08-13T08:00:01.000Z")]);
   assert.equal(fixture.cancelled(), 1);
@@ -183,12 +183,12 @@ test("long poll rejects cross-origin, malformed cursors, and unconfigured source
 
 test("public long poll fails closed without a Sites owner identity", async () => {
   const response = await handleWatchlistAfterHoursLongPoll(new Request(
-    "https://unicorn.example/api/v1/watchlists/after-hours/poll",
+    "https://trader.example/api/v1/watchlists/after-hours/poll",
     {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        origin: "https://unicorn.example",
+        origin: "https://trader.example",
         "sec-fetch-site": "same-origin",
       },
       body: JSON.stringify({ symbols: ["AAPL"], cursors: [] }),

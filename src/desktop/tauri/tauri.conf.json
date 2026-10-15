@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Unicorn",
+  "productName": "Trader",
   "version": "0.1.0",
-  "identifier": "com.ryokobachan.unicorn",
+  "identifier": "com.ryokobachan.trader",
   "build": {
     "frontendDist": "../frontend-dist",
     "removeUnusedCommands": true
@@ -19,8 +19,8 @@
     "active": true,
     "targets": ["app"],
     "externalBin": [
-      "binaries/unicorn-runtime",
-      "binaries/unicorn-market-sidecar"
+      "binaries/trader-runtime",
+      "binaries/trader-market-sidecar"
     ],
     "resources": {
       "../../../dist/client": "dist/client",
@@ -28,7 +28,7 @@
     },
     "category": "Finance",
     "shortDescription": "A lightweight workspace for U.S. stock analysis.",
-    "homepage": "https://github.com/ryokobachan/Unicorn",
+    "homepage": "https://github.com/ryokobachan/Trader",
     "icon": ["icons/icon.png", "icons/icon.icns"],
     "macOS": {
       "hardenedRuntime": true,

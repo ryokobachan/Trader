@@ -12,7 +12,7 @@ import {
   defineProviderRegistry,
   ProviderRegistryError,
 } from "@/app/platform/provider-registry";
-import { unicornConfig } from "@/app/unicorn.config";
+import { traderConfig } from "@/app/trader.config";
 import type { ProviderRole } from "./provider-roles";
 import { mockProviderRegistration } from "./mock/index.server";
 import { benzingaProviderRegistration } from "./benzinga/analyst.server";
@@ -68,14 +68,14 @@ export type InstrumentProviderRuntime = Readonly<{
 }>;
 
 const ROLE_ENV: Readonly<Record<ProviderRole, string>> = {
-  instrument: "UNICORN_INSTRUMENT_PROVIDER",
-  market: "UNICORN_MARKET_PROVIDER",
-  bars: "UNICORN_BARS_PROVIDER",
-  profile: "UNICORN_PROFILE_PROVIDER",
-  fundamentals: "UNICORN_FUNDAMENTALS_PROVIDER",
-  earnings: "UNICORN_EARNINGS_PROVIDER",
-  analyst: "UNICORN_ANALYST_PROVIDER",
-  news: "UNICORN_NEWS_PROVIDER",
+  instrument: "TRADER_INSTRUMENT_PROVIDER",
+  market: "TRADER_MARKET_PROVIDER",
+  bars: "TRADER_BARS_PROVIDER",
+  profile: "TRADER_PROFILE_PROVIDER",
+  fundamentals: "TRADER_FUNDAMENTALS_PROVIDER",
+  earnings: "TRADER_EARNINGS_PROVIDER",
+  analyst: "TRADER_ANALYST_PROVIDER",
+  news: "TRADER_NEWS_PROVIDER",
 };
 
 export type ProviderRoleSelection = Readonly<{
@@ -86,7 +86,7 @@ export type ProviderRoleSelection = Readonly<{
 function directProviderSelection(env: ProviderEnvironment, role: ProviderRole): ProviderRoleSelection {
   const direct = env[ROLE_ENV[role]]?.trim();
   if (direct) return { id: direct, origin: `environment ${ROLE_ENV[role]}` };
-  const configuredDefault = unicornConfig.providers[role];
+  const configuredDefault = traderConfig.providers[role];
   return { id: configuredDefault, origin: "api/config.json" };
 }
 

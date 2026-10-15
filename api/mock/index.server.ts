@@ -221,7 +221,7 @@ const manifest = {
   schemaVersion: PROVIDER_SCHEMA_VERSION,
   id: "mock",
   version: "1.0.0",
-  displayName: "Unicorn deterministic fixtures",
+  displayName: "Trader deterministic fixtures",
   capabilities: ["instrument.search", "instrument.identity", "market.quote", "market.bars"],
   markets: ["US"],
   assetTypes: ["common_stock", "adr"],

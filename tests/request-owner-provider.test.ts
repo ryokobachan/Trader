@@ -20,7 +20,7 @@ import { installD1Binding } from "../src/db";
 const AUTHENTICATED_USER_ID_HEADER = "oai-authenticated-user-id";
 
 function publicRequest(path: string, userId?: string): Request {
-  return new Request(`https://unicorn.example${path}`, {
+  return new Request(`https://trader.example${path}`, {
     ...(userId === undefined
       ? {}
       : { headers: { [AUTHENTICATED_USER_ID_HEADER]: userId } }),

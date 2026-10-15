@@ -1,15 +1,15 @@
 ---
-name: manage-unicorn-strategies
-description: Explore, compare, and manage Unicorn strategies and their portfolio transactions through the repository's supported CLI and HTTP API. Use when an agent needs to filter or rank registered strategies, compare candidates, inspect performance provenance, create, duplicate, edit, or delete a strategy, or read and change its trade history. Do not use this skill to edit the D1 database, migration files, or built-in strategy catalog directly.
+name: manage-trader-strategies
+description: Explore, compare, and manage Trader strategies and their portfolio transactions through the repository's supported CLI and HTTP API. Use when an agent needs to filter or rank registered strategies, compare candidates, inspect performance provenance, create, duplicate, edit, or delete a strategy, or read and change its trade history. Do not use this skill to edit the D1 database, migration files, or built-in strategy catalog directly.
 ---
 
-# Manage Unicorn Strategies
+# Manage Trader Strategies
 
-Use Unicorn's `strategy` CLI as the only mutation boundary. The CLI calls the same owner-scoped API as the UI, so command-line and browser state stay consistent.
+Use Trader's `strategy` CLI as the only mutation boundary. The CLI calls the same owner-scoped API as the UI, so command-line and browser state stay consistent.
 
 ## Locate the repository
 
-Resolve the directory containing this `SKILL.md`, then use its repository root (two levels above the skill directory) when that directory contains `package.json`. Otherwise locate the nearest ancestor containing both `package.json` and `skills/manage-unicorn-strategies/SKILL.md`. Do not use a personal absolute path or guess a database path.
+Resolve the directory containing this `SKILL.md`, then use its repository root (two levels above the skill directory) when that directory contains `package.json`. Otherwise locate the nearest ancestor containing both `package.json` and `skills/manage-trader-strategies/SKILL.md`. Do not use a personal absolute path or guess a database path.
 
 ## Check availability
 
@@ -19,7 +19,7 @@ Run a read-only command first:
 npm run strategy -- list
 ```
 
-The CLI uses `http://localhost:3001` by default. Set `UNICORN_BASE_URL` or pass `--base-url https://...` for another deployment. If the API is unavailable, report that clearly; start a development server only when doing so is within the user's request.
+The CLI uses `http://localhost:3001` by default. Set `TRADER_BASE_URL` or pass `--base-url https://...` for another deployment. If the API is unavailable, report that clearly; start a development server only when doing so is within the user's request.
 
 ## Follow the safe workflow
 
@@ -59,7 +59,7 @@ Apply this workflow:
 4. Fetch finalists with `get <id> --include transactions,performance` before drawing a conclusion.
 5. State whether a metric is illustrative, user-supplied, transaction-derived, or unavailable.
 
-This explores strategies already registered in Unicorn. It does not generate candidates, execute strategy rules, search a parameter space, fetch market data, or run a backtest. Use a dedicated research/backtest workflow for those tasks, then save reviewed results through this CLI.
+This explores strategies already registered in Trader. It does not generate candidates, execute strategy rules, search a parameter space, fetch market data, or run a backtest. Use a dedicated research/backtest workflow for those tasks, then save reviewed results through this CLI.
 
 Treat performance according to its `provenance`:
 
@@ -79,8 +79,8 @@ percentage, not a currency amount.
 Prefer a reviewed JSON payload:
 
 ```bash
-npm run strategy -- create --file /tmp/unicorn-strategy.json
-npm run strategy -- edit <strategy-id> --file /tmp/unicorn-strategy-edit.json
+npm run strategy -- create --file /tmp/trader-strategy.json
+npm run strategy -- edit <strategy-id> --file /tmp/trader-strategy-edit.json
 ```
 
 Built-in strategies remain deployment-owned. Their supported editable fields are saved as owner-specific overrides. New strategies are owner-scoped custom records.

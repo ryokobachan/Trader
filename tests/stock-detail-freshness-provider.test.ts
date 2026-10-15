@@ -20,7 +20,7 @@ function workspace(
     ingestedAt: "2026-08-12T20:00:01.000Z",
   } as const;
   return {
-    schemaVersion: "unicorn.symbol-workspace.v1",
+    schemaVersion: "trader.symbol-workspace.v1",
     instrument: {
       instrumentId: `us:${symbol}`,
       symbol,

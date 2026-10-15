@@ -89,7 +89,7 @@ export async function POST(request: Request) {
     const environment = providerEnvironment();
     const exchanges = tradingViewSyntheticExchanges(environment);
     const sidecarConfigured = Boolean(
-      environment.UNICORN_TRADINGVIEW_SIDECAR_URL?.trim(),
+      environment.TRADER_TRADINGVIEW_SIDECAR_URL?.trim(),
     );
     const items = sidecarConfigured
       ? await createTradingViewSidecarProvider(environment)

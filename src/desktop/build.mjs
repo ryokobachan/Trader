@@ -14,10 +14,10 @@ const bundledApp = path.join(
   "release",
   "bundle",
   "macos",
-  "Unicorn.app",
+  "Trader.app",
 );
 const outputDirectory = path.join(repositoryRoot, "build");
-const outputApp = path.join(outputDirectory, "Unicorn.app");
+const outputApp = path.join(outputDirectory, "Trader.app");
 const desktopBuildIntermediates = Object.freeze([
   path.join(desktopRoot, "frontend-dist"),
   path.join(tauriRoot, "binaries"),
@@ -33,14 +33,14 @@ const DESKTOP_BUILD_SENSITIVE_ENVIRONMENT_KEYS = Object.freeze([
   "BENZINGA_API_TOKEN",
   "BENZINGA_API_KEY",
   "BENZINGA_ANALYST_RATINGS_ENDPOINT",
-  "UNICORN_TRADINGVIEW_SIDECAR_TOKEN",
-  "UNICORN_TRADINGVIEW_SIDECAR_URL",
+  "TRADER_TRADINGVIEW_SIDECAR_TOKEN",
+  "TRADER_TRADINGVIEW_SIDECAR_URL",
 ]);
 const DESKTOP_BUILD_SECRET_VALUE_KEYS = Object.freeze([
   "FMP_API_KEY",
   "BENZINGA_API_TOKEN",
   "BENZINGA_API_KEY",
-  "UNICORN_TRADINGVIEW_SIDECAR_TOKEN",
+  "TRADER_TRADINGVIEW_SIDECAR_TOKEN",
 ]);
 
 function run(executable, args, cwd = repositoryRoot, env = process.env) {
@@ -66,7 +66,7 @@ function privateDesktopBuildEnvironment() {
 }
 
 function privateRustBuildEnvironment(baseEnvironment) {
-  const remapFlag = `--remap-path-prefix=${homedir()}=/unicorn-build`;
+  const remapFlag = `--remap-path-prefix=${homedir()}=/trader-build`;
   const encodedFlags = baseEnvironment.CARGO_ENCODED_RUSTFLAGS;
 
   if (encodedFlags) {

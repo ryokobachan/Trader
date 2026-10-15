@@ -16,8 +16,8 @@ test("desktop bundle is self-contained and restricted to the local runtime", asy
   const localConfig = JSON.parse(localConfigText);
 
   assert.deepEqual(baseConfig.bundle.externalBin, [
-    "binaries/unicorn-runtime",
-    "binaries/unicorn-market-sidecar",
+    "binaries/trader-runtime",
+    "binaries/trader-market-sidecar",
   ]);
   assert.deepEqual(baseConfig.bundle.targets, ["app"]);
   assert.equal(baseConfig.bundle.macOS.minimumSystemVersion, "14.0");
@@ -51,7 +51,7 @@ test("desktop market health check accepts a complete response without waiting fo
   const source = await text("../src/desktop/tauri/src/lib.rs");
 
   assert.match(source, /stream\.read\(&mut buffer\)/);
-  assert.match(source, /unicorn\.tradingview-sidecar\.v1/);
+  assert.match(source, /trader\.tradingview-sidecar\.v1/);
   assert.doesNotMatch(source, /read_to_string\(&mut response\)/);
 });
 
@@ -66,7 +66,7 @@ test("desktop build publishes only the finished app at the repository build boun
 
   assert.equal(packageJson.scripts["desktop:build"], "node src/desktop/build.mjs");
   assert.match(buildSource, /path\.join\(repositoryRoot, "build"\)/);
-  assert.match(buildSource, /const outputApp = path\.join\(outputDirectory, "Unicorn\.app"\)/);
+  assert.match(buildSource, /const outputApp = path\.join\(outputDirectory, "Trader\.app"\)/);
   assert.match(buildSource, /codesign/);
   assert.match(buildSource, /--remap-path-prefix=/);
   assert.match(buildSource, /DESKTOP_BUILD_SENSITIVE_ENVIRONMENT_KEYS/);

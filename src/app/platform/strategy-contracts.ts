@@ -1,4 +1,4 @@
-export const STRATEGIES_SCHEMA_VERSION = "unicorn.strategies.v1" as const;
+export const STRATEGIES_SCHEMA_VERSION = "trader.strategies.v1" as const;
 
 const STRATEGY_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const CONTROL_CHARACTERS = /[\u0000-\u001F\u007F]/;

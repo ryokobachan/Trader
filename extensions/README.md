@@ -12,7 +12,7 @@ not belong in provider adapters.
 2. Register it statically in [`index.ts`](./index.ts).
 3. Enable its exact `id@version` in `api/config.json`.
 
-Static registration is intentional. Unicorn never imports a component path
+Static registration is intentional. Trader never imports a component path
 from JSON or downloads executable UI code at runtime.
 
 ## New end-to-end data features

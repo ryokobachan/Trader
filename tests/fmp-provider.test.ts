@@ -78,7 +78,7 @@ test("publishes the complete FMP capability manifest without licensing flags as 
 
 test("requires an API key and an explicit restricted-data usage mode", () => {
   assert.throws(
-    () => createFmpProvider({ UNICORN_USAGE_MODE: "personal" }),
+    () => createFmpProvider({ TRADER_USAGE_MODE: "personal" }),
     expectSafeProviderError(["FMP_API_KEY"], "configuration"),
   );
   assert.throws(
@@ -88,11 +88,11 @@ test("requires an API key and an explicit restricted-data usage mode", () => {
 
   assert.doesNotThrow(() => createFmpProvider({
     FMP_API_KEY: SECRET,
-    UNICORN_USAGE_MODE: "personal",
+    TRADER_USAGE_MODE: "personal",
   }));
   assert.doesNotThrow(() => createFmpProvider({
     FMP_API_KEY: SECRET,
-    UNICORN_ALLOW_RESTRICTED_PUBLIC_DISPLAY: "true",
+    TRADER_ALLOW_RESTRICTED_PUBLIC_DISPLAY: "true",
   }));
 });
 
@@ -185,7 +185,7 @@ test("deduplicates search candidates and returns only supported active US listin
     return json({ error: "unexpected route" }, 404);
   };
   const provider = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch, now: () => new Date(NOW) },
   );
   assert.ok(provider.instrument);
@@ -292,7 +292,7 @@ test("prioritizes exact ticker aliases and accepts foreign issuers on US exchang
     return json([], 404);
   };
   const provider = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch, now: () => new Date(NOW) },
   );
 
@@ -339,7 +339,7 @@ test("continues symbol search when one FMP search endpoint is unavailable", asyn
     return json([], 404);
   };
   const provider = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch, now: () => new Date(NOW) },
   );
 
@@ -512,7 +512,7 @@ test("normalizes quote, bars, profile, fundamentals, earnings, analyst, and news
     }
   };
   const provider = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch, now: () => new Date(NOW) },
   );
   assert.ok(provider.market?.getBars);
@@ -628,7 +628,7 @@ test("does not fabricate missing quote fields or OHLCV volume", async () => {
     return json([]);
   };
   const provider = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch, now: () => new Date(NOW) },
   );
 
@@ -671,7 +671,7 @@ test("all-zero analyst payloads remain unavailable instead of neutral", async ()
     return json([]);
   };
   const provider = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch, now: () => new Date(NOW) },
   );
   assert.equal(await provider.analyst?.getConsensus(INSTRUMENT, CONTEXT), null);
@@ -686,7 +686,7 @@ test("returns a partial fundamental snapshot when optional upstream datasets are
     return json({ detail: `restricted ${SECRET}` }, 403);
   };
   const provider = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch, now: () => new Date(NOW) },
   );
 
@@ -711,7 +711,7 @@ test("strictly rejects malformed supplemental fundamentals without fabricating z
     return json({ error: "not entitled" }, 403);
   };
   const provider = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch, now: () => new Date(NOW) },
   );
 
@@ -725,7 +725,7 @@ test("sanitizes upstream, response, network, and timeout failures", async () => 
     { status: 403 },
   );
   const upstream = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch: upstreamFetch, now: () => new Date(NOW) },
   );
   assert.ok(upstream.market);
@@ -735,7 +735,7 @@ test("sanitizes upstream, response, network, and timeout failures", async () => 
   );
 
   const invalidJson = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch: async () => new Response(`not-json ${SECRET}`), now: () => new Date(NOW) },
   );
   assert.ok(invalidJson.market);
@@ -745,7 +745,7 @@ test("sanitizes upstream, response, network, and timeout failures", async () => 
   );
 
   const network = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch: async () => { throw new Error(`network leaked ${SECRET}`); }, now: () => new Date(NOW) },
   );
   assert.ok(network.market);
@@ -758,7 +758,7 @@ test("sanitizes upstream, response, network, and timeout failures", async () => 
     // An injected client may ignore AbortSignal; the adapter still owns the deadline.
   });
   const timeout = createFmpProvider(
-    { FMP_API_KEY: SECRET, UNICORN_USAGE_MODE: "personal" },
+    { FMP_API_KEY: SECRET, TRADER_USAGE_MODE: "personal" },
     { fetch: timeoutFetch, now: () => new Date(NOW), timeoutMs: 2 },
   );
   assert.ok(timeout.market);

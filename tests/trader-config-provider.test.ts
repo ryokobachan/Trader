@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { unicornConfig } from "../src/app/unicorn.config";
+import { traderConfig } from "../src/app/trader.config";
 import {
-  defineUnicornConfig,
+  defineTraderConfig,
   PROVIDER_IDS_BY_ROLE,
-  UnicornConfigError,
-} from "../src/app/platform/unicorn-config";
+  TraderConfigError,
+} from "../src/app/platform/trader-config";
 import type { ProviderCapability } from "../src/app/platform/provider-contracts";
 import { PROVIDER_ENVIRONMENT_KEYS } from "../api/environment";
 import {
@@ -19,16 +19,16 @@ import { createStrategyTranslator } from "../strategies/i18n";
 import { buildStrategySummaryMetricRegistry } from "../strategies/metrics";
 
 function editableConfig() {
-  return structuredClone(unicornConfig);
+  return structuredClone(traderConfig);
 }
 
 function expectConfigError(mutator: (value: ReturnType<typeof editableConfig>) => void, path: string) {
   const value = editableConfig();
   mutator(value);
   assert.throws(
-    () => defineUnicornConfig(value),
+    () => defineTraderConfig(value),
     (error: unknown) => {
-      assert.ok(error instanceof UnicornConfigError);
+      assert.ok(error instanceof TraderConfigError);
       assert.equal(error.path, path);
       return true;
     },
@@ -36,17 +36,17 @@ function expectConfigError(mutator: (value: ReturnType<typeof editableConfig>) =
 }
 
 test("loads one validated non-secret master configuration", () => {
-  assert.equal(unicornConfig.schemaVersion, "unicorn.config.v1");
-  assert.equal(unicornConfig.providers.instrument, "mock");
-  assert.equal(unicornConfig.providers.market, "mock");
-  assert.equal(unicornConfig.ui.symbolSummary.modules[0], "core.identity_quote@1.0.0");
-  assert.deepEqual(unicornConfig.ui.symbolDetail.tabs, ["financials", "analyst", "technicals"]);
-  assert.ok(unicornConfig.ui.symbolDetail.fundamentalGroups.some((group) => (
+  assert.equal(traderConfig.schemaVersion, "trader.config.v1");
+  assert.equal(traderConfig.providers.instrument, "mock");
+  assert.equal(traderConfig.providers.market, "mock");
+  assert.equal(traderConfig.ui.symbolSummary.modules[0], "core.identity_quote@1.0.0");
+  assert.deepEqual(traderConfig.ui.symbolDetail.tabs, ["financials", "analyst", "technicals"]);
+  assert.ok(traderConfig.ui.symbolDetail.fundamentalGroups.some((group) => (
     group.id === "financial_health"
     && group.metrics.includes("fundamentals.piotroskiScore")
     && group.metrics.includes("fundamentals.freeFloatRatio")
   )));
-  assert.deepEqual(unicornConfig.ui.symbolDetail.profileMetrics, [
+  assert.deepEqual(traderConfig.ui.symbolDetail.profileMetrics, [
     "profile.exchange",
     "profile.assetType",
     "profile.sector",
@@ -57,7 +57,7 @@ test("loads one validated non-secret master configuration", () => {
     "profile.ipoDate",
     "profile.beta",
   ]);
-  assert.deepEqual(unicornConfig.ui.strategyDetail.summaryMetrics, [
+  assert.deepEqual(traderConfig.ui.strategyDetail.summaryMetrics, [
     "portfolio.value",
     "portfolio.unrealizedGain",
     "portfolio.totalGain",
@@ -67,9 +67,9 @@ test("loads one validated non-secret master configuration", () => {
     "risk.sortino",
     "risk.maxDrawdown",
   ]);
-  assert.equal(Object.isFrozen(unicornConfig), true);
-  assert.equal(Object.isFrozen(unicornConfig.ui.symbolDetail.tabs), true);
-  assert.equal(Object.isFrozen(unicornConfig.ui.symbolDetail.profileMetrics), true);
+  assert.equal(Object.isFrozen(traderConfig), true);
+  assert.equal(Object.isFrozen(traderConfig.ui.symbolDetail.tabs), true);
+  assert.equal(Object.isFrozen(traderConfig.ui.symbolDetail.profileMetrics), true);
 });
 
 test("rejects unknown fields, unknown IDs, duplicates, and a missing fixed identity", () => {
@@ -109,11 +109,11 @@ test("rejects secret-like values, endpoints, unknown policies, and role-incompat
 test("the UI consumes master arrays instead of duplicating display order", async () => {
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const providerSource = await readFile(new URL("../api/index.server.ts", import.meta.url), "utf8");
-  assert.match(pageSource, /unicornConfig\.ui\.symbolDetail\.tabs/);
-  assert.match(pageSource, /unicornConfig\.ui\.symbolDetail\.profileMetrics/);
-  assert.match(pageSource, /unicornConfig\.ui\.symbolDetail\.fundamentalGroups/);
-  assert.match(pageSource, /unicornConfig\.ui\.strategyDetail\.summaryMetrics/);
-  assert.match(providerSource, /unicornConfig\.providers\[role\]/);
+  assert.match(pageSource, /traderConfig\.ui\.symbolDetail\.tabs/);
+  assert.match(pageSource, /traderConfig\.ui\.symbolDetail\.profileMetrics/);
+  assert.match(pageSource, /traderConfig\.ui\.symbolDetail\.fundamentalGroups/);
+  assert.match(pageSource, /traderConfig\.ui\.strategyDetail\.summaryMetrics/);
+  assert.match(providerSource, /traderConfig\.providers\[role\]/);
 });
 
 test("the public provider allow-list matches installed manifests and role capabilities", () => {
@@ -147,13 +147,13 @@ test("the public provider allow-list matches installed manifests and role capabi
 
 test("runtime and config tooling share environment precedence and role fallbacks", () => {
   const selection = resolveProviderSelections({
-    UNICORN_INSTRUMENT_PROVIDER: "yahoo",
-    UNICORN_MARKET_PROVIDER: "yahoo",
-    UNICORN_FUNDAMENTALS_PROVIDER: "fmp",
+    TRADER_INSTRUMENT_PROVIDER: "yahoo",
+    TRADER_MARKET_PROVIDER: "yahoo",
+    TRADER_FUNDAMENTALS_PROVIDER: "fmp",
   });
   assert.deepEqual(selection.instrument, {
     id: "yahoo",
-    origin: "environment UNICORN_INSTRUMENT_PROVIDER",
+    origin: "environment TRADER_INSTRUMENT_PROVIDER",
   });
   assert.deepEqual(selection.bars, { id: "yahoo", origin: "fallback from market" });
   assert.deepEqual(selection.profile, { id: "fmp", origin: "fallback from fundamentals" });

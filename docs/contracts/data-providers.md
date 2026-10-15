@@ -1,6 +1,6 @@
 # Data Provider Contract
 
-- Schema: `unicorn.provider.v1`
+- Schema: `trader.provider.v1`
 - Status: implemented contract
 - Scope: active U.S.-listed common stocks and ADRs
 - Developer guide: [`api/README.md`](../../api/README.md)
@@ -141,7 +141,7 @@ explicit partial/missing state.
 
 ## HTTP boundary
 
-UI code calls Unicorn's internal routes, not vendors:
+UI code calls Trader's internal routes, not vendors:
 
 ```text
 GET  /api/v1/instruments/search
@@ -155,7 +155,7 @@ POST /api/v1/watchlists/after-hours
 ```
 
 The root [`api/`](../../api) directory contains outbound vendor adapters.
-`src/app/api/` contains these inbound Unicorn HTTP routes; the two directories
+`src/app/api/` contains these inbound Trader HTTP routes; the two directories
 serve different purposes.
 
 ## Adding a provider

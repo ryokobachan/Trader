@@ -1,13 +1,13 @@
 # Trusted UI Module Registry
 
-- Version: `unicorn.ui-module.v1`
+- Version: `trader.ui-module.v1`
 - Status: `chart.symbol-summary` implemented; other declared surfaces reserved
 - Scope: developer-installed frontend modules
 - Project overview: [README](../../README.md)
 
 ## 1. Purpose
 
-Unicornの画面に表示する項目を、巨大なCore componentへ追加し続けないための契約である。開発者は銘柄概要等のmoduleを追加でき、OperatorとWorkspace Userは導入済みmoduleの範囲内で表示を構成できる。
+Traderの画面に表示する項目を、巨大なCore componentへ追加し続けないための契約である。開発者は銘柄概要等のmoduleを追加でき、OperatorとWorkspace Userは導入済みmoduleの範囲内で表示を構成できる。
 
 UI Moduleは **trusted build-time extension** である。Provider pluginがUIを注入する仕組み、remote URLからのJavaScript取得、End userによるcode uploadを意味しない。
 
@@ -35,7 +35,7 @@ type UiSurface =
   | "strategy.table-column";
 
 type UiModuleManifestV1 = {
-  schemaVersion: "unicorn.ui-module.v1";
+  schemaVersion: "trader.ui-module.v1";
   id: `${string}.${string}`;
   version: string;
   surface: UiSurface;
@@ -73,7 +73,7 @@ import { CORE_SYMBOL_SUMMARY_MODULES } from "@/app/features/symbol-summary/core-
 import { defineUiModuleRegistry } from "@/app/platform/ui-module-registry";
 import { marketContextModule } from "./market-context";
 
-export const UNICORN_UI_MODULE_REGISTRY = defineUiModuleRegistry([
+export const TRADER_UI_MODULE_REGISTRY = defineUiModuleRegistry([
   ...CORE_SYMBOL_SUMMARY_MODULES,
   marketContextModule,
 ]);

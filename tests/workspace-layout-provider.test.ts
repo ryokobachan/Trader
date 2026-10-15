@@ -24,7 +24,7 @@ test("workspace panel sizing defaults safely and clamps persisted values", () =>
     watchlistSplitPercent: DEFAULT_WATCHLIST_SPLIT_PERCENT,
   });
   assert.deepEqual(parseWorkspaceLayoutPreferences(JSON.stringify({
-    schemaVersion: "unicorn.workspace-layout.v1",
+    schemaVersion: "trader.workspace-layout.v1",
     rightPanelWidth: 10_000,
     watchlistSplitPercent: -20,
   })), {
@@ -46,7 +46,7 @@ test("workspace panel sizing serializes only its bounded versioned contract", ()
     watchlistSplitPercent: MAX_WATCHLIST_SPLIT_PERCENT + 100,
   });
   assert.deepEqual(JSON.parse(serialized), {
-    schemaVersion: "unicorn.workspace-layout.v1",
+    schemaVersion: "trader.workspace-layout.v1",
     rightPanelWidth: MIN_RIGHT_PANEL_WIDTH,
     watchlistSplitPercent: MAX_WATCHLIST_SPLIT_PERCENT,
   });

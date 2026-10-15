@@ -56,13 +56,13 @@ import {
   Wallet,
   X,
 } from "@phosphor-icons/react";
-import { UNICORN_BRAND } from "./platform/brand";
-import { unicornConfig } from "./unicorn.config";
+import { TRADER_BRAND } from "./platform/brand";
+import { traderConfig } from "./trader.config";
 import type {
   FundamentalGroupId,
   StockDetailMetricId,
   SymbolDetailTabId,
-} from "./platform/unicorn-config";
+} from "./platform/trader-config";
 import { CompanyLogo } from "./components/CompanyLogo";
 import { companyLogoPathForUSStock } from "./platform/company-logo";
 import {
@@ -731,7 +731,7 @@ function watchlistItemPlaceholder(item: WatchlistItem): Stock {
     active: true,
     logoPath: item.logoUrl,
     provenance: {
-      providerId: "unicorn-watchlists",
+      providerId: "trader-watchlists",
       sourceId: item.id,
       asOf: item.updatedAt,
       ingestedAt: item.updatedAt,
@@ -1912,7 +1912,7 @@ const FUNDAMENTAL_GROUP_PRESENTATION: Readonly<Record<FundamentalGroupId, Readon
   },
 };
 
-const FUNDAMENTAL_METRIC_GROUPS = unicornConfig.ui.symbolDetail.fundamentalGroups.map((group) => ({
+const FUNDAMENTAL_METRIC_GROUPS = traderConfig.ui.symbolDetail.fundamentalGroups.map((group) => ({
   ...FUNDAMENTAL_GROUP_PRESENTATION[group.id],
   id: group.id,
   metrics: group.metrics,
@@ -1940,7 +1940,7 @@ function CompanyProfileSection({
   const [expanded, setExpanded] = useState(false);
   const metrics = configuredStockDetailMetrics(
     profile.metrics,
-    unicornConfig.ui.symbolDetail.profileMetrics,
+    traderConfig.ui.symbolDetail.profileMetrics,
   );
   const description = profile.description?.trim() ?? "";
   const descriptionIsExpandable = description.length > 240;
@@ -2108,11 +2108,11 @@ const STOCK_DETAIL_TAB_LABEL_KEYS: Readonly<Record<SymbolDetailTabId, string>> =
   analyst: "detail.tab.analyst",
   technicals: "detail.tab.technicals",
 };
-const STOCK_DETAIL_TABS = unicornConfig.ui.symbolDetail.tabs.map((id) => ({
+const STOCK_DETAIL_TABS = traderConfig.ui.symbolDetail.tabs.map((id) => ({
   id,
   labelKey: STOCK_DETAIL_TAB_LABEL_KEYS[id],
 }));
-const DEFAULT_STOCK_DETAIL_TAB = unicornConfig.ui.symbolDetail.tabs[0];
+const DEFAULT_STOCK_DETAIL_TAB = traderConfig.ui.symbolDetail.tabs[0];
 type StockDetailTabId = SymbolDetailTabId;
 
 function StockDetailPage({
@@ -2194,7 +2194,7 @@ function StockDetailPage({
           {activeSection === "analyst" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-analyst" role="tabpanel" aria-labelledby="stock-detail-tab-analyst">
             <header className="stock-detail-section-heading"><div><span className="eyebrow">ANALYST CONSENSUS</span><h2>{t("detail.section.analyst")}</h2></div></header>
             <AnalystTargetHistoryChart history={analystHistory} marketBars={targetPriceMarketBars} />
-            <MetricSection eyebrow="TARGETS & RATINGS" title={t("detail.section.targetRatings")} source={detail.analyst.source} metrics={configuredStockDetailMetrics(detail.analyst.metrics, unicornConfig.ui.symbolDetail.analystMetrics)} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.analyst", t)} />
+            <MetricSection eyebrow="TARGETS & RATINGS" title={t("detail.section.targetRatings")} source={detail.analyst.source} metrics={configuredStockDetailMetrics(detail.analyst.metrics, traderConfig.ui.symbolDetail.analystMetrics)} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.analyst", t)} />
             <section className="stock-detail-analyst-history" aria-label={t("detail.section.targetHistory")}>
               <header><div><span className="eyebrow">BENZINGA RATINGS</span><h2>{t("detail.section.targetHistory")}</h2></div><small>{analystHistory?.dateFrom ?? ""}{analystHistory?.dateTo ? ` — ${analystHistory.dateTo}` : ""}</small></header>
               <AnalystRatingHistoryTable history={analystHistory} status={analystHistoryStatus} />
@@ -2205,8 +2205,8 @@ function StockDetailPage({
             <header className="stock-detail-section-heading"><div><span className="eyebrow">MARKET & TECHNICALS</span><h2>{t("detail.section.technicals")}</h2></div></header>
             <TechnicalRatingsPanel summary={detail.technicalRatings} />
             <div className="stock-detail-card-grid two-columns">
-              <MetricSection eyebrow="QUOTE" title={t("detail.section.marketSnapshot")} source={detail.market.source} context={detail.market.context} metrics={configuredStockDetailMetrics(detail.market.metrics, unicornConfig.ui.symbolDetail.marketMetrics)} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.market", t)} />
-              <MetricSection eyebrow="CALCULATED FROM OHLCV" title={t("detail.section.technicalMetrics")} source={detail.technicals.source} context={detail.technicals.context} metrics={configuredStockDetailMetrics(detail.technicals.metrics, unicornConfig.ui.symbolDetail.technicalMetrics)} emptyMessage={detailEmptyMessage(barsStatus, "detail.subject.technicals", t)} />
+              <MetricSection eyebrow="QUOTE" title={t("detail.section.marketSnapshot")} source={detail.market.source} context={detail.market.context} metrics={configuredStockDetailMetrics(detail.market.metrics, traderConfig.ui.symbolDetail.marketMetrics)} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.market", t)} />
+              <MetricSection eyebrow="CALCULATED FROM OHLCV" title={t("detail.section.technicalMetrics")} source={detail.technicals.source} context={detail.technicals.context} metrics={configuredStockDetailMetrics(detail.technicals.metrics, traderConfig.ui.symbolDetail.technicalMetrics)} emptyMessage={detailEmptyMessage(barsStatus, "detail.subject.technicals", t)} />
             </div>
           </section>}
         </div>
@@ -3251,7 +3251,7 @@ function StrategyHome({
         {strategyNotice}
         <div className="portfolio-tip"><Lightning size={18} /><div><strong>{st("tip.title")}</strong><span>{st(illustrativeStrategyChartsAvailable ? "tip.description" : "tip.userDataDescription")}</span></div><button type="button" onClick={() => setTab("概要")}>{st("tip.viewOverview")} <CaretRight size={14} /></button></div>
         <section className="portfolio-summary-cards" aria-label={st("portfolio.summaryAria")}>
-          {unicornConfig.ui.strategyDetail.summaryMetrics.map((id) => {
+          {traderConfig.ui.strategyDetail.summaryMetrics.map((id) => {
             const metric = strategySummaryCards[id];
             const available = isStrategySummaryMetricAvailable(id);
             return <div key={id} data-metric-id={id}><span>{metric.label}</span><strong className={available ? metric.tone : undefined}>{available ? metric.value : "—"}</strong><small className={available ? metric.tone : undefined}>{available ? metric.note : st("sample.unavailable")}</small></div>;
@@ -3646,7 +3646,7 @@ export default function Home() {
   const activeStockDetailSection = resolveStockDetailTab(
     stockDetailTabSelection,
     selectedTicker,
-    unicornConfig.ui.symbolDetail.tabs,
+    traderConfig.ui.symbolDetail.tabs,
     DEFAULT_STOCK_DETAIL_TAB,
   );
   const [workspaceSectionRefreshNonce, setWorkspaceSectionRefreshNonce] = useState(0);
@@ -4254,7 +4254,7 @@ export default function Home() {
       sector: currentStock.sector,
       logoPath: currentStock.logoPath,
       provenance: {
-        providerId: "unicorn-ui",
+        providerId: "trader-ui",
         sourceId: ticker,
         asOf: new Date().toISOString(),
         ingestedAt: new Date().toISOString(),
@@ -4402,7 +4402,7 @@ export default function Home() {
 
   const selectWatchlist = useCallback((watchlistId: string) => {
     setActiveWatchlistId(watchlistId);
-    window.localStorage.setItem("unicorn.active-watchlist.v1", watchlistId);
+    window.localStorage.setItem("trader.active-watchlist.v1", watchlistId);
   }, []);
 
   const createWatchlist = useCallback(async () => {
@@ -4602,7 +4602,7 @@ export default function Home() {
       })
       .then((payload) => {
         setWatchlists(payload.watchlists);
-        const remembered = window.localStorage.getItem("unicorn.active-watchlist.v1");
+        const remembered = window.localStorage.getItem("trader.active-watchlist.v1");
         const selected = payload.watchlists.find((watchlist) => watchlist.id === remembered)
           ?? payload.watchlists.find((watchlist) => watchlist.isDefault)
           ?? payload.watchlists[0];
@@ -5478,7 +5478,7 @@ export default function Home() {
     queueMicrotask(() => {
       if (cancelled) return;
       try {
-        const raw = window.localStorage.getItem("unicorn.chart-preferences.v1");
+        const raw = window.localStorage.getItem("trader.chart-preferences.v1");
         if (raw) {
           const saved = JSON.parse(raw) as Record<string, unknown>;
           const savedInterval = CHART_INTERVAL_OPTIONS.find((option) => option.interval === saved.interval)?.interval;
@@ -5507,7 +5507,7 @@ export default function Home() {
           }
         }
       } catch {
-        window.localStorage.removeItem("unicorn.chart-preferences.v1");
+        window.localStorage.removeItem("trader.chart-preferences.v1");
       } finally {
         if (!cancelled) setChartPreferencesReady(true);
       }
@@ -5517,8 +5517,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!chartPreferencesReady) return;
-    window.localStorage.setItem("unicorn.chart-preferences.v1", JSON.stringify({
-      schemaVersion: "unicorn.chart-preferences.v1",
+    window.localStorage.setItem("trader.chart-preferences.v1", JSON.stringify({
+      schemaVersion: "trader.chart-preferences.v1",
       interval,
       candleCount: chartCandleCount,
       chartType,
@@ -5596,7 +5596,7 @@ export default function Home() {
         setStockDetailTabSelection((current) => canonicalStockDetailTabSelection(
           current,
           selectedTicker,
-          unicornConfig.ui.symbolDetail.tabs,
+          traderConfig.ui.symbolDetail.tabs,
           DEFAULT_STOCK_DETAIL_TAB,
         ));
       }
@@ -6055,9 +6055,9 @@ export default function Home() {
   return (
     <main className="market-app">
       <nav className="workspace-view-tabs" role="tablist" aria-label={t("shell.workspace")}>
-        <div className="brand-lockup workspace-brand-lockup" aria-label={UNICORN_BRAND.name}>
-          <Image className="brand-logo" src={UNICORN_BRAND.logoPath} alt="" width={28} height={28} unoptimized aria-hidden="true" />
-          <strong>{UNICORN_BRAND.wordmark}</strong>
+        <div className="brand-lockup workspace-brand-lockup" aria-label={TRADER_BRAND.name}>
+          <Image className="brand-logo" src={TRADER_BRAND.logoPath} alt="" width={28} height={28} unoptimized aria-hidden="true" />
+          <strong>{TRADER_BRAND.wordmark}</strong>
         </div>
         <button type="button" role="tab" aria-selected={primaryView !== "strategy"} className={primaryView !== "strategy" ? "active" : ""} onClick={() => setPrimaryView("chart")}><ChartBar size={15} /> {t("nav.chart")}</button>
         <button type="button" role="tab" aria-label={t("nav.strategies")} aria-selected={primaryView === "strategy"} className={primaryView === "strategy" ? "active" : ""} onClick={() => setPrimaryView("strategy")}><Lightning size={15} /> {t("nav.strategies")}</button>
@@ -6369,7 +6369,7 @@ export default function Home() {
 
       {appDialog === "settings" && <DialogShell title={t("settings.workspace.title")} eyebrow={t("settings.workspace.eyebrow")} onClose={() => setAppDialog(null)}><div className="dialog-body settings-list"><label><span><strong>{t("settings.candles.title")}</strong><small>{t("settings.candles.help", { min: MIN_CHART_CANDLE_COUNT.toLocaleString(numberLocale), max: MAX_CHART_CANDLE_COUNT.toLocaleString(numberLocale) })}</small></span><input type="number" inputMode="numeric" min={MIN_CHART_CANDLE_COUNT} max={MAX_CHART_CANDLE_COUNT} step={1} value={chartCandleCountDraft} aria-label={t("settings.candles.title")} aria-invalid={parseChartCandleCount(chartCandleCountDraft) === null} onChange={(event) => setChartCandleCountDraft(event.target.value)} /></label><label><span><strong>{t("settings.priceGrid.title")}</strong><small>{t("settings.priceGrid.help")}</small></span><input type="checkbox" defaultChecked /></label><label><span><strong>{t("settings.watermark.title")}</strong><small>{t("settings.watermark.help")}</small></span><input type="checkbox" defaultChecked /></label><label><span><strong>{t("settings.extendedHours.title")}</strong><small>{t("settings.extendedHours.help")}</small></span><input type="checkbox" /></label><label><span><strong>{t("settings.language.title")}</strong><small>{t("settings.language.description")} {t("settings.language.storageNote")}</small></span><select value={localeDraft} aria-label={t("settings.language.title")} onChange={(event) => setLocaleDraft(event.target.value as Locale)}>{supportedLocales.map((option) => <option key={option.code} value={option.code}>{option.nativeLabel}{option.code === "en" ? ` · ${t("settings.language.default")}` : ""}</option>)}</select></label></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="button" className="primary-action" onClick={applyWorkspaceSettings}>{t("common.apply")}</button></footer></DialogShell>}
 
-      {appDialog === "snapshot" && <DialogShell title={t("snapshot.title")} eyebrow={`${stock.ticker} · ${localizedIntervalLabel(interval, locale)}`} onClose={() => setAppDialog(null)} wide><div className="dialog-body snapshot-dialog"><div className="snapshot-preview"><PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} interval={interval} candleCount={chartCandleCount} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} /></div><div className="snapshot-meta"><span>1280 × 720</span><span>Unicorn watermark</span><span>{barsStatus === "provider" ? `${detailBarsProvenance?.providerId ?? "Provider"} data` : "Fixture data"}</span></div></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.close")}</button><button type="button" className="primary-action" onClick={() => { setAppDialog(null); showToast(t("snapshot.prepared")); }}><DownloadSimple size={15} /> {t("snapshot.save")}</button></footer></DialogShell>}
+      {appDialog === "snapshot" && <DialogShell title={t("snapshot.title")} eyebrow={`${stock.ticker} · ${localizedIntervalLabel(interval, locale)}`} onClose={() => setAppDialog(null)} wide><div className="dialog-body snapshot-dialog"><div className="snapshot-preview"><PriceChart stock={stock} marketBars={detailMarketBars} range={CHART_RANGE} interval={interval} candleCount={chartCandleCount} chartType={chartType} activeIndicators={visibleIndicatorIds} indicatorSettings={indicatorSettings} /></div><div className="snapshot-meta"><span>1280 × 720</span><span>Trader watermark</span><span>{barsStatus === "provider" ? `${detailBarsProvenance?.providerId ?? "Provider"} data` : "Fixture data"}</span></div></div><footer className="dialog-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.close")}</button><button type="button" className="primary-action" onClick={() => { setAppDialog(null); showToast(t("snapshot.prepared")); }}><DownloadSimple size={15} /> {t("snapshot.save")}</button></footer></DialogShell>}
 
       {appDialog === "watchlist-create" && <DialogShell title={t("watchlist.createDialogTitle")} eyebrow={t("watchlist.createDialogEyebrow")} onClose={() => setAppDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={(event) => { event.preventDefault(); void createWatchlist(); }}><label><span>{t("watchlist.name")}</span><input value={newWatchlistName} maxLength={60} onChange={(event) => setNewWatchlistName(event.target.value)} placeholder={t("watchlist.namePlaceholder")} autoFocus /></label><p className="dialog-helper-copy">{t("watchlist.createHelp")}</p><footer className="dialog-actions form-actions"><button type="button" onClick={() => setAppDialog(null)}>{t("common.cancel")}</button><button type="submit" className="primary-action" disabled={!newWatchlistName.trim() || watchlistStatus === "saving"}>{t(watchlistStatus === "saving" ? "watchlist.creating" : "common.create")}</button></footer></form></DialogShell>}
 

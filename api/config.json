@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "unicorn.config.v1",
+  "schemaVersion": "trader.config.v1",
   "universe": {
     "policyId": "us_equity_v1"
   },

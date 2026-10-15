@@ -1,6 +1,6 @@
-# Unicorn strategy CLI payloads
+# Trader strategy CLI payloads
 
-All commands return JSON. The default API is `http://localhost:3001`; override it with `UNICORN_BASE_URL` or the global `--base-url` option.
+All commands return JSON. The default API is `http://localhost:3001`; override it with `TRADER_BASE_URL` or the global `--base-url` option.
 
 ## Discovery and comparison
 

@@ -58,7 +58,7 @@ test("registers and resolves a valid provider", () => {
     {},
   );
 
-  assert.equal(adapter.manifest.schemaVersion, "unicorn.provider.v1");
+  assert.equal(adapter.manifest.schemaVersion, "trader.provider.v1");
   assert.equal(adapter.manifest.id, "mock");
   assert.ok(adapter.instrument);
   assert.ok(adapter.market);
@@ -67,13 +67,13 @@ test("registers and resolves a valid provider", () => {
 
 test("selects profile and earnings providers independently from normalized fundamentals", () => {
   const runtime = createProviderRuntime({
-    UNICORN_INSTRUMENT_PROVIDER: "mock",
-    UNICORN_MARKET_PROVIDER: "mock",
-    UNICORN_FUNDAMENTALS_PROVIDER: "yahoo",
-    UNICORN_PROFILE_PROVIDER: "fmp",
-    UNICORN_EARNINGS_PROVIDER: "fmp",
-    UNICORN_USAGE_MODE: "personal",
-    UNICORN_ENABLE_YAHOO_COMPAT: "true",
+    TRADER_INSTRUMENT_PROVIDER: "mock",
+    TRADER_MARKET_PROVIDER: "mock",
+    TRADER_FUNDAMENTALS_PROVIDER: "yahoo",
+    TRADER_PROFILE_PROVIDER: "fmp",
+    TRADER_EARNINGS_PROVIDER: "fmp",
+    TRADER_USAGE_MODE: "personal",
+    TRADER_ENABLE_YAHOO_COMPAT: "true",
     FMP_API_KEY: "test-only-key",
   });
 
@@ -85,14 +85,14 @@ test("selects profile and earnings providers independently from normalized funda
 
 test("keeps a single configured company-data role available without requiring the other two", () => {
   const common = {
-    UNICORN_INSTRUMENT_PROVIDER: "mock",
-    UNICORN_MARKET_PROVIDER: "mock",
-    UNICORN_USAGE_MODE: "personal",
-    UNICORN_ENABLE_YAHOO_COMPAT: "true",
+    TRADER_INSTRUMENT_PROVIDER: "mock",
+    TRADER_MARKET_PROVIDER: "mock",
+    TRADER_USAGE_MODE: "personal",
+    TRADER_ENABLE_YAHOO_COMPAT: "true",
   } as const;
   const profileOnly = createProviderRuntime({
     ...common,
-    UNICORN_PROFILE_PROVIDER: "yahoo",
+    TRADER_PROFILE_PROVIDER: "yahoo",
   });
   assert.equal(profileOnly.selectedProviderIds.profile, "yahoo");
   assert.equal(profileOnly.selectedProviderIds.fundamentals, undefined);
@@ -101,7 +101,7 @@ test("keeps a single configured company-data role available without requiring th
 
   const earningsOnly = createProviderRuntime({
     ...common,
-    UNICORN_EARNINGS_PROVIDER: "yahoo",
+    TRADER_EARNINGS_PROVIDER: "yahoo",
   });
   assert.equal(earningsOnly.selectedProviderIds.profile, undefined);
   assert.equal(earningsOnly.selectedProviderIds.fundamentals, undefined);

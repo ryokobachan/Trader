@@ -5,8 +5,8 @@ import { pathToFileURL } from "node:url";
 import { BunD1Database } from "./d1-bun.mjs";
 
 const DEFAULT_HOST = "127.0.0.1";
-const SESSION_COOKIE = "unicorn_desktop_session";
-const BOOTSTRAP_PATH = "/__unicorn_desktop_bootstrap";
+const SESSION_COOKIE = "trader_desktop_session";
+const BOOTSTRAP_PATH = "/__trader_desktop_bootstrap";
 
 const MIME_TYPES = Object.freeze({
   ".avif": "image/avif",
@@ -54,12 +54,12 @@ function parseArguments(argv) {
 
 function defaultDataDirectory() {
   if (process.platform === "darwin") {
-    return join(homedir(), "Library", "Application Support", "Unicorn");
+    return join(homedir(), "Library", "Application Support", "Trader");
   }
   if (process.platform === "win32") {
-    return join(process.env.APPDATA || homedir(), "Unicorn");
+    return join(process.env.APPDATA || homedir(), "Trader");
   }
-  return join(process.env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "unicorn");
+  return join(process.env.XDG_DATA_HOME || join(homedir(), ".local", "share"), "trader");
 }
 
 function safeAssetPath(clientRoot, requestUrl) {
@@ -83,7 +83,7 @@ function createAssetFetcher(clientRoot) {
     async fetch(request) {
       const path = safeAssetPath(clientRoot, request.url);
       if (!path || !existsSync(path) || !statSync(path).isFile()) {
-        if (process.env.UNICORN_DESKTOP_DEBUG === "1") {
+        if (process.env.TRADER_DESKTOP_DEBUG === "1") {
           console.error("Desktop asset not found", { requestUrl: request.url, path });
         }
         return new Response("Not found", { status: 404 });
@@ -187,11 +187,11 @@ const options = parseArguments(Bun.argv.slice(2));
 const workerEntry = join(options.root, "dist", "server", "index.js");
 const clientRoot = join(options.root, "dist", "client");
 if (!existsSync(workerEntry) || !existsSync(clientRoot)) {
-  throw new Error("Desktop runtime requires a completed Unicorn build in dist/.");
+  throw new Error("Desktop runtime requires a completed Trader build in dist/.");
 }
 
 const databasePath = options.database
-  ?? join(process.env.UNICORN_DESKTOP_DATA_DIR || defaultDataDirectory(), "unicorn.sqlite3");
+  ?? join(process.env.TRADER_DESKTOP_DATA_DIR || defaultDataDirectory(), "trader.sqlite3");
 const database = new BunD1Database(databasePath);
 const { default: worker } = await import(pathToFileURL(workerEntry).href);
 const sessionToken = crypto.randomUUID().replaceAll("-", "")
@@ -223,12 +223,12 @@ const server = Bun.serve({
   idleTimeout: 255,
   async fetch(request) {
     const url = new URL(request.url);
-    if (process.env.UNICORN_DESKTOP_DEBUG === "1") {
+    if (process.env.TRADER_DESKTOP_DEBUG === "1") {
       console.error("Desktop request", request.method, url.pathname);
     }
     if (url.hostname !== DEFAULT_HOST) return forbidden();
 
-    if (url.pathname === "/__unicorn_desktop_health") {
+    if (url.pathname === "/__trader_desktop_health") {
       return Response.json({ status: "ok" }, { headers: { "Cache-Control": "no-store" } });
     }
 
@@ -259,9 +259,9 @@ const server = Bun.serve({
     }
 
     if (
-      process.env.UNICORN_DESKTOP_DEBUG === "1"
+      process.env.TRADER_DESKTOP_DEBUG === "1"
       && request.method === "POST"
-      && url.pathname === "/__unicorn_desktop_client_error"
+      && url.pathname === "/__trader_desktop_client_error"
     ) {
       const message = (await request.text()).slice(0, 2_000);
       console.error("Desktop client error", message);
@@ -275,7 +275,7 @@ const server = Bun.serve({
         await worker.fetch(await normalizeRequest(request, serverOrigin), environment, executionContext),
       );
     } catch (error) {
-      console.error("Unicorn desktop request failed", error);
+      console.error("Trader desktop request failed", error);
       return Response.json(
         { error: { code: "desktop_runtime_error", message: "The desktop runtime could not complete the request." } },
         { status: 500, headers: { "Cache-Control": "no-store" } },
@@ -287,7 +287,7 @@ const server = Bun.serve({
 serverOrigin = `http://${options.host}:${server.port}`;
 const bootstrapUrl = `${serverOrigin}${BOOTSTRAP_PATH}/${bootstrapToken}`;
 console.log(JSON.stringify({
-  type: "unicorn-desktop-ready",
+  type: "trader-desktop-ready",
   origin: serverOrigin,
   bootstrapUrl,
   database: basename(databasePath),

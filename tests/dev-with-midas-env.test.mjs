@@ -54,14 +54,14 @@ test("handles comments and ignores malformed allowlisted assignments", () => {
   });
 });
 
-test("merges only allowlisted values, preserves existing values, and applies Unicorn defaults", () => {
+test("merges only allowlisted values, preserves existing values, and applies Trader defaults", () => {
   const merged = mergeMidasEnv(
     {
       PATH: "/usr/bin",
       MIDAS_ENV_FILE: "/private/source.env",
       FMP_API_KEY: "existing-fmp-key",
-      UNICORN_USAGE_MODE: "team",
-      UNICORN_MARKET_PROVIDER: "massive",
+      TRADER_USAGE_MODE: "team",
+      TRADER_MARKET_PROVIDER: "massive",
     },
     {
       FMP_API_KEY: "midas-fmp-key",
@@ -79,15 +79,15 @@ test("merges only allowlisted values, preserves existing values, and applies Uni
   assert.equal(merged.FMP_TIMEOUT_SECONDS, "20");
   assert.equal(merged.BENZINGA_API_TOKEN, "midas-benzinga-token");
   assert.equal(merged.API_SERVER_KEY, undefined);
-  assert.equal(merged.UNICORN_USAGE_MODE, "team");
-  assert.equal(merged.UNICORN_ENABLE_YAHOO_COMPAT, "true");
-  assert.equal(merged.UNICORN_INSTRUMENT_PROVIDER, "yahoo");
-  assert.equal(merged.UNICORN_MARKET_PROVIDER, "massive");
-  assert.equal(merged.UNICORN_PROFILE_PROVIDER, "fmp");
-  assert.equal(merged.UNICORN_FUNDAMENTALS_PROVIDER, "fmp");
-  assert.equal(merged.UNICORN_EARNINGS_PROVIDER, "fmp");
-  assert.equal(merged.UNICORN_ANALYST_PROVIDER, "benzinga");
-  assert.equal(merged.UNICORN_NEWS_PROVIDER, "yahoo");
+  assert.equal(merged.TRADER_USAGE_MODE, "team");
+  assert.equal(merged.TRADER_ENABLE_YAHOO_COMPAT, "true");
+  assert.equal(merged.TRADER_INSTRUMENT_PROVIDER, "yahoo");
+  assert.equal(merged.TRADER_MARKET_PROVIDER, "massive");
+  assert.equal(merged.TRADER_PROFILE_PROVIDER, "fmp");
+  assert.equal(merged.TRADER_FUNDAMENTALS_PROVIDER, "fmp");
+  assert.equal(merged.TRADER_EARNINGS_PROVIDER, "fmp");
+  assert.equal(merged.TRADER_ANALYST_PROVIDER, "benzinga");
+  assert.equal(merged.TRADER_NEWS_PROVIDER, "yahoo");
 });
 
 test("importing and using helpers emits no secret values", () => {
@@ -125,11 +125,11 @@ test("launcher reports an unreadable source without exposing its path", () => {
 test("documents the FMP/Benzinga local real-data profile", async () => {
   const example = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 
-  assert.match(example, /^# UNICORN_INSTRUMENT_PROVIDER=yahoo$/m);
-  assert.match(example, /^# UNICORN_PROFILE_PROVIDER=fmp$/m);
-  assert.match(example, /^# UNICORN_FUNDAMENTALS_PROVIDER=fmp$/m);
-  assert.match(example, /^# UNICORN_EARNINGS_PROVIDER=fmp$/m);
-  assert.match(example, /^# UNICORN_ANALYST_PROVIDER=benzinga$/m);
-  assert.match(example, /^# UNICORN_NEWS_PROVIDER=yahoo$/m);
-  assert.doesNotMatch(example, /^# UNICORN_INSTRUMENT_PROVIDER=fmp$/m);
+  assert.match(example, /^# TRADER_INSTRUMENT_PROVIDER=yahoo$/m);
+  assert.match(example, /^# TRADER_PROFILE_PROVIDER=fmp$/m);
+  assert.match(example, /^# TRADER_FUNDAMENTALS_PROVIDER=fmp$/m);
+  assert.match(example, /^# TRADER_EARNINGS_PROVIDER=fmp$/m);
+  assert.match(example, /^# TRADER_ANALYST_PROVIDER=benzinga$/m);
+  assert.match(example, /^# TRADER_NEWS_PROVIDER=yahoo$/m);
+  assert.doesNotMatch(example, /^# TRADER_INSTRUMENT_PROVIDER=fmp$/m);
 });

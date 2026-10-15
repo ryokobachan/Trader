@@ -378,7 +378,7 @@ test("worker stream uses the first configured source for missing transitions and
   const { socket, reader } = await openHarness(
     ["AAPL"],
     () => new Date(BASE_MILLISECONDS),
-    { UNICORN_TRADINGVIEW_SYNTHETIC_EXCHANGES: "MEXC,BINANCE" },
+    { TRADER_TRADINGVIEW_SYNTHETIC_EXCHANGES: "MEXC,BINANCE" },
   );
   try {
     assert.deepEqual(await nextValue(reader), missing("AAPL", "MEXC"));

@@ -1,4 +1,4 @@
-export const WORKSPACE_LAYOUT_STORAGE_KEY = "unicorn.workspace-layout.v1";
+export const WORKSPACE_LAYOUT_STORAGE_KEY = "trader.workspace-layout.v1";
 
 export const DEFAULT_RIGHT_PANEL_WIDTH = 380;
 export const MIN_RIGHT_PANEL_WIDTH = 300;
@@ -45,7 +45,7 @@ export function parseWorkspaceLayoutPreferences(raw: string | null): WorkspaceLa
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("invalid");
     const record = parsed as Record<string, unknown>;
-    if (record.schemaVersion !== "unicorn.workspace-layout.v1") throw new Error("invalid");
+    if (record.schemaVersion !== "trader.workspace-layout.v1") throw new Error("invalid");
     const rightPanelWidth = Number(record.rightPanelWidth);
     const watchlistSplitPercent = Number(record.watchlistSplitPercent);
     if (!Number.isFinite(rightPanelWidth) || !Number.isFinite(watchlistSplitPercent)) throw new Error("invalid");
@@ -63,7 +63,7 @@ export function parseWorkspaceLayoutPreferences(raw: string | null): WorkspaceLa
 
 export function serializeWorkspaceLayoutPreferences(preferences: WorkspaceLayoutPreferences) {
   return JSON.stringify({
-    schemaVersion: "unicorn.workspace-layout.v1",
+    schemaVersion: "trader.workspace-layout.v1",
     rightPanelWidth: clampRightPanelWidth(preferences.rightPanelWidth),
     watchlistSplitPercent: clampWatchlistSplitPercent(preferences.watchlistSplitPercent),
   });

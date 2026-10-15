@@ -22,7 +22,7 @@ import {
 } from "../api/tradingview-websocket/index.server";
 
 const SIDECAR_PAYLOAD = {
-  schemaVersion: "unicorn.tradingview-sidecar.v1",
+  schemaVersion: "trader.tradingview-sidecar.v1",
   exchange: "BINANCE",
   exchanges: ["BINANCE", "BITGET", "KUCOIN", "MEXC"],
   resolutionStrategy: "ordered_fallback",
@@ -48,7 +48,7 @@ const SIDECAR_PAYLOAD = {
 } as const;
 
 const OKLO_PAYLOAD = {
-  schemaVersion: "unicorn.tradingview-sidecar.v1",
+  schemaVersion: "trader.tradingview-sidecar.v1",
   exchange: "BINANCE",
   exchanges: ["BINANCE", "BITGET", "KUCOIN", "MEXC"],
   resolutionStrategy: "ordered_fallback",
@@ -265,8 +265,8 @@ test("batches derived TradingView symbols without putting the token or tickers i
     return json(SIDECAR_PAYLOAD);
   };
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
-    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: token,
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+    TRADER_TRADINGVIEW_SIDECAR_TOKEN: token,
   }, { fetch });
 
   const items = await adapter.syntheticMarket.getLatestCloses(
@@ -286,7 +286,7 @@ test("batches derived TradingView symbols without putting the token or tickers i
 
 test("rejects malformed sidecar values instead of guessing a close", async () => {
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
   }, {
     fetch: async () => json({
       ...SIDECAR_PAYLOAD,
@@ -312,13 +312,13 @@ test("resolves each ticker from the ordered server-owned exchange candidates", a
   );
   assert.deepEqual(
     tradingViewSyntheticExchanges({
-      UNICORN_TRADINGVIEW_SYNTHETIC_EXCHANGES: "kucoin, bitget",
+      TRADER_TRADINGVIEW_SYNTHETIC_EXCHANGES: "kucoin, bitget",
     }),
     ["KUCOIN", "BITGET"],
   );
 
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
   }, { fetch: async () => json(OKLO_PAYLOAD) });
   const items = await adapter.syntheticMarket.getLatestCloses(
     ["AAPL", "OKLO"],
@@ -334,14 +334,14 @@ test("rejects malformed exchange configuration and unconfigured response sources
   for (const configured of ["BINANCE,BINANCE", "BINANCE, bad exchange", ",BINANCE"]) {
     assert.throws(
       () => tradingViewSyntheticExchanges({
-        UNICORN_TRADINGVIEW_SYNTHETIC_EXCHANGES: configured,
+        TRADER_TRADINGVIEW_SYNTHETIC_EXCHANGES: configured,
       }),
       (error: unknown) => error instanceof TradingViewSidecarError && error.code === "configuration",
     );
   }
 
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
   }, {
     fetch: async () => json({
       ...OKLO_PAYLOAD,
@@ -384,10 +384,10 @@ test("watchlist API makes one authenticated sidecar request for the whole symbol
   const address = server.address();
   assert.ok(address && typeof address !== "string");
 
-  const previousUrl = process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
-  const previousToken = process.env.UNICORN_TRADINGVIEW_SIDECAR_TOKEN;
-  process.env.UNICORN_TRADINGVIEW_SIDECAR_URL = `http://127.0.0.1:${address.port}`;
-  process.env.UNICORN_TRADINGVIEW_SIDECAR_TOKEN = token;
+  const previousUrl = process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
+  const previousToken = process.env.TRADER_TRADINGVIEW_SIDECAR_TOKEN;
+  process.env.TRADER_TRADINGVIEW_SIDECAR_URL = `http://127.0.0.1:${address.port}`;
+  process.env.TRADER_TRADINGVIEW_SIDECAR_TOKEN = token;
   try {
     const response = await POST(new Request("http://localhost/api/v1/watchlists/after-hours", {
       method: "POST",
@@ -396,7 +396,7 @@ test("watchlist API makes one authenticated sidecar request for the whole symbol
     }));
     assert.equal(response.status, 200);
     const payload = await response.json() as WatchlistAfterHoursResponse;
-    assert.equal(payload.schemaVersion, "unicorn.watchlist-after-hours.v1");
+    assert.equal(payload.schemaVersion, "trader.watchlist-after-hours.v1");
     assert.equal(payload.exchange, "BINANCE");
     assert.deepEqual(payload.exchanges, ["BINANCE", "BITGET", "KUCOIN", "MEXC"]);
     assert.equal(payload.items[0]?.sourceSymbol, "BINANCE:AAPLUSDT.P");
@@ -410,10 +410,10 @@ test("watchlist API makes one authenticated sidecar request for the whole symbol
     assert.deepEqual(JSON.parse(capturedBody), { symbols: ["AAPL", "ZZZZZZZZZZ"] });
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    if (previousUrl === undefined) delete process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
-    else process.env.UNICORN_TRADINGVIEW_SIDECAR_URL = previousUrl;
-    if (previousToken === undefined) delete process.env.UNICORN_TRADINGVIEW_SIDECAR_TOKEN;
-    else process.env.UNICORN_TRADINGVIEW_SIDECAR_TOKEN = previousToken;
+    if (previousUrl === undefined) delete process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
+    else process.env.TRADER_TRADINGVIEW_SIDECAR_URL = previousUrl;
+    if (previousToken === undefined) delete process.env.TRADER_TRADINGVIEW_SIDECAR_TOKEN;
+    else process.env.TRADER_TRADINGVIEW_SIDECAR_TOKEN = previousToken;
   }
 });
 
@@ -657,7 +657,7 @@ test("Worker scanner cancels oversized bodies and reports a timeout during body 
   };
   await assert.rejects(
     () => loadTradingViewScannerLatestCloses(
-      { UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS: "2000" },
+      { TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS: "2000" },
       ["AAPL"],
       { requestId: "scanner-body-timeout" },
       { fetch: stalledFetch },
@@ -671,7 +671,7 @@ test("Worker scanner cancels oversized bodies and reports a timeout during body 
 test("sidecar latest-close snapshots are bounded and honor caller aborts", async () => {
   let oversizedBodyCanceled = false;
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
   }, {
     fetch: async () => new Response(new ReadableStream<Uint8Array>({
       cancel() {
@@ -697,7 +697,7 @@ test("sidecar latest-close snapshots are bounded and honor caller aborts", async
   const caller = new AbortController();
   let linkedSignalAborted = false;
   const abortableAdapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
   }, {
     fetch: async (_input, init) => new Promise<Response>((_resolve, reject) => {
       const signal = init?.signal;
@@ -721,12 +721,12 @@ test("sidecar latest-close snapshots are bounded and honor caller aborts", async
 });
 
 test("watchlist API ignores the FMP market role and keeps the Worker USDT.P contract", async () => {
-  const previousUrl = process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
-  const previousMarket = process.env.UNICORN_MARKET_PROVIDER;
+  const previousUrl = process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
+  const previousMarket = process.env.TRADER_MARKET_PROVIDER;
   const previousFetch = globalThis.fetch;
   let body: Record<string, unknown> | undefined;
-  delete process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
-  process.env.UNICORN_MARKET_PROVIDER = "fmp";
+  delete process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
+  process.env.TRADER_MARKET_PROVIDER = "fmp";
   globalThis.fetch = (async (input, init) => {
     assert.equal(String(input), "https://scanner.tradingview.com/crypto/scan");
     body = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -766,10 +766,10 @@ test("watchlist API ignores the FMP market role and keeps the Worker USDT.P cont
     assert.ok(body);
   } finally {
     globalThis.fetch = previousFetch;
-    if (previousUrl === undefined) delete process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
-    else process.env.UNICORN_TRADINGVIEW_SIDECAR_URL = previousUrl;
-    if (previousMarket === undefined) delete process.env.UNICORN_MARKET_PROVIDER;
-    else process.env.UNICORN_MARKET_PROVIDER = previousMarket;
+    if (previousUrl === undefined) delete process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
+    else process.env.TRADER_TRADINGVIEW_SIDECAR_URL = previousUrl;
+    if (previousMarket === undefined) delete process.env.TRADER_MARKET_PROVIDER;
+    else process.env.TRADER_MARKET_PROVIDER = previousMarket;
   }
 });
 

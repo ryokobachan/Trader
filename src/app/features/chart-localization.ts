@@ -2,7 +2,7 @@ import type { Locale } from "../platform/i18n";
 
 /**
  * Lightweight Charts otherwise falls back to navigator.language, which can
- * make an English Unicorn workspace render Japanese year/month tick labels.
+ * make an English Trader workspace render Japanese year/month tick labels.
  */
 export function chartLocaleTag(locale: Locale): "en-US" | "ja-JP" {
   return locale === "ja" ? "ja-JP" : "en-US";

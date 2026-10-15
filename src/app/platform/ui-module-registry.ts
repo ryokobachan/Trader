@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 
-export const UI_MODULE_SCHEMA_VERSION = "unicorn.ui-module.v1" as const;
+export const UI_MODULE_SCHEMA_VERSION = "trader.ui-module.v1" as const;
 
 export const UI_MODULE_SURFACES = [
   "chart.symbol-summary",

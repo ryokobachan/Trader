@@ -1,6 +1,6 @@
 # Watchlist API contract
 
-- Schema: `unicorn.watchlists.v1`
+- Schema: `trader.watchlists.v1`
 - Storage: App OLTP D1 binding `DB`
 - Owner adapter: stable Sites `oai-authenticated-user-id`; anonymous
   `local-workspace` fallback is accepted only on a loopback request URL
@@ -70,11 +70,11 @@ database or provider details. Persisted and watchlist-provider routes return
 When a configured local sidecar is available, the primary browser path is
 `GET /api/v1/watchlists/quotes/stream` with one
 comma-separated `symbols` query value. It accepts 1–50 unique canonical
-U.S.-equity tickers and emits `unicorn.watchlist-quote-stream.v1` quote events.
+U.S.-equity tickers and emits `trader.watchlist-quote-stream.v1` quote events.
 The TradingView adapter maps each resolved instrument MIC to its direct USD
 listing (for example `NASDAQ:AAPL`). A process-wide sidecar broker shares one
 reconnecting upstream websocket session and replays subscriptions instead of
-opening one TradingView connection per browser or watchlist row. Unicorn's
+opening one TradingView connection per browser or watchlist row. Trader's
 same-origin server route forwards normalized quotes as SSE; the browser never
 receives the sidecar URL or bearer token.
 
@@ -109,7 +109,7 @@ an unsupported stream. This does not select or alter the separate
 
 The non-persistent snapshot body is `{ "symbols": ["AAPL", "NVDA"] }` and has
 the same 1–50-symbol limit. A batch-capable adapter performs one upstream
-snapshot request for the complete watchlist; otherwise Unicorn uses bounded
+snapshot request for the complete watchlist; otherwise Trader uses bounded
 per-symbol concurrency. Cached instrument identities, a short snapshot cache,
 and in-flight coalescing prevent adjacent tabs from duplicating vendor work.
 
@@ -124,7 +124,7 @@ server-side bearer token; it cannot connect to `127.0.0.1` on a developer Mac.
 
 `GET /api/v1/watchlists/after-hours/stream` accepts the same comma-separated,
 1–50-symbol boundary as the current-quote stream. It emits
-`unicorn.watchlist-after-hours-stream.v1` quote messages. The local sidecar
+`trader.watchlist-after-hours-stream.v1` quote messages. The local sidecar
 opens the TradingView guest quote websocket,
 derive every `{TICKER}USDT.P` candidate from the server-owned exchange order,
 and use the same auth/session/field/subscription/heartbeat protocol. Browser
@@ -166,7 +166,7 @@ the ordinary equity `market` provider, and neither may silently substitute a
 direct USD equity quote. The browser never chooses a raw TradingView source or
 performs one upstream request per watchlist row.
 Response schema
-`unicorn.watchlist-after-hours.v1` includes `source`, the exact `sourceSymbol`,
+`trader.watchlist-after-hours.v1` includes `source`, the exact `sourceSymbol`,
 and `updatedAt` on every item. A missing `{TICKER}USDT.P` contract is represented
 as `close: null`; clients render it as `-`. These reference values are market
 data and are not written into the transactional watchlist database. They are

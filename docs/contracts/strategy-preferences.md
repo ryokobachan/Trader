@@ -4,7 +4,7 @@
 > `/api/v1/strategies` contract. These routes remain available for existing
 > integrations that only manage built-in name/headline overrides.
 
-- Schema: `unicorn.strategy-preferences.v1`
+- Schema: `trader.strategy-preferences.v1`
 - Storage: App OLTP D1 binding `DB`
 - Owner adapter: stable Sites `oai-authenticated-user-id`; anonymous
   `local-workspace` fallback is accepted only on a loopback request URL

@@ -1,4 +1,4 @@
-export const WATCHLISTS_SCHEMA_VERSION = "unicorn.watchlists.v1" as const;
+export const WATCHLISTS_SCHEMA_VERSION = "trader.watchlists.v1" as const;
 export const DEFAULT_LOCAL_OWNER_ID = "local-workspace" as const;
 export const DEFAULT_WATCHLIST_NAME = "Main Watchlist" as const;
 

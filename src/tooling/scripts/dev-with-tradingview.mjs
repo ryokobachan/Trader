@@ -10,14 +10,14 @@ const SIDECAR_PATH = path.join(PROJECT_ROOT, "api", "tradingview-websocket", "si
 export function tradingViewDevelopmentProfile(baseEnvironment, token, port = 8791) {
   return {
     ...baseEnvironment,
-    UNICORN_MARKET_PROVIDER: "tradingview-websocket",
-    UNICORN_BARS_PROVIDER: "tradingview-websocket",
-    UNICORN_TRADINGVIEW_SIDECAR_URL: `http://127.0.0.1:${port}`,
-    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: token,
-    UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS:
-      baseEnvironment.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS ?? "25000",
-    UNICORN_TRADINGVIEW_MAX_CANDLES:
-      baseEnvironment.UNICORN_TRADINGVIEW_MAX_CANDLES ?? "10000",
+    TRADER_MARKET_PROVIDER: "tradingview-websocket",
+    TRADER_BARS_PROVIDER: "tradingview-websocket",
+    TRADER_TRADINGVIEW_SIDECAR_URL: `http://127.0.0.1:${port}`,
+    TRADER_TRADINGVIEW_SIDECAR_TOKEN: token,
+    TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS:
+      baseEnvironment.TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS ?? "25000",
+    TRADER_TRADINGVIEW_MAX_CANDLES:
+      baseEnvironment.TRADER_TRADINGVIEW_MAX_CANDLES ?? "10000",
   };
 }
 
@@ -37,7 +37,7 @@ function childCommand(profile) {
 export function isTradingViewSidecarHealth(payload) {
   return Boolean(
     payload
-    && payload.schemaVersion === "unicorn.tradingview-sidecar.v1"
+    && payload.schemaVersion === "trader.tradingview-sidecar.v1"
     && payload.status === "ok"
     && payload.backend === "tradingview-websocket"
   );
@@ -101,14 +101,14 @@ function forwardAndCleanUp(children) {
 
 async function run() {
   const profile = selectedDevelopmentProfile();
-  const configuredPort = process.env.UNICORN_TRADINGVIEW_SIDECAR_PORT?.trim();
+  const configuredPort = process.env.TRADER_TRADINGVIEW_SIDECAR_PORT?.trim();
   const portValue = Number(configuredPort);
   const port = configuredPort && Number.isInteger(portValue) && portValue >= 1 && portValue <= 65_535
     ? portValue
     : await findAvailableLoopbackPort();
   const token = randomBytes(32).toString("base64url");
   const environment = tradingViewDevelopmentProfile(process.env, token, port);
-  const python = process.env.UNICORN_TRADINGVIEW_PYTHON?.trim() || "python3";
+  const python = process.env.TRADER_TRADINGVIEW_PYTHON?.trim() || "python3";
   const sidecar = spawn(python, [SIDECAR_PATH, "--host", "127.0.0.1", "--port", String(port)], {
     cwd: PROJECT_ROOT,
     env: environment,
@@ -120,7 +120,7 @@ async function run() {
   });
 
   try {
-    await waitUntilHealthy(environment.UNICORN_TRADINGVIEW_SIDECAR_URL, token, sidecar);
+    await waitUntilHealthy(environment.TRADER_TRADINGVIEW_SIDECAR_URL, token, sidecar);
   } catch {
     if (!sidecar.killed && sidecar.exitCode === null) sidecar.kill("SIGTERM");
     throw new Error("TradingView sidecar did not become ready.");
@@ -143,7 +143,7 @@ async function run() {
       resolve(code ?? 1);
     };
     app.once("error", () => {
-      process.stderr.write("Unicorn development server could not be started.\n");
+      process.stderr.write("Trader development server could not be started.\n");
       finish(1);
     });
     app.once("exit", (code) => finish(code));

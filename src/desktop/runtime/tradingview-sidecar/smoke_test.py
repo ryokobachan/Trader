@@ -17,8 +17,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
-SCHEMA_VERSION = "unicorn.tradingview-sidecar.v1"
-YAHOO_SCHEMA_VERSION = "unicorn.yahoo-sidecar.v1"
+SCHEMA_VERSION = "trader.tradingview-sidecar.v1"
+YAHOO_SCHEMA_VERSION = "trader.yahoo-sidecar.v1"
 
 
 def available_port() -> int:
@@ -183,7 +183,7 @@ def main() -> None:
     # workers therefore prove the frozen process does not shell out to Python.
     child_environment = {
         "PATH": "/nonexistent",
-        "UNICORN_TRADINGVIEW_SIDECAR_TOKEN": token,
+        "TRADER_TRADINGVIEW_SIDECAR_TOKEN": token,
     }
     process = subprocess.Popen(
         [

@@ -1,5 +1,7 @@
 "use client";
 
+import { migrateProductStorage } from "./product-storage-migration";
+
 import {
   createContext,
   useCallback,
@@ -18,14 +20,14 @@ export const SUPPORTED_LOCALES = [
 export type Locale = (typeof SUPPORTED_LOCALES)[number]["code"];
 
 export const DEFAULT_LOCALE: Locale = "en";
-export const LOCALE_STORAGE_KEY = "unicorn.locale.v1";
+export const LOCALE_STORAGE_KEY = "trader.locale.v1";
 
 export type TranslationParameter = string | number;
 export type TranslationParameters = Readonly<Record<string, TranslationParameter>>;
 export type TranslationDictionary = Readonly<Record<string, string>>;
 
 const EN_MESSAGES = {
-  "app.name": "Unicorn",
+  "app.name": "Trader",
   "nav.chart": "Chart",
   "nav.strategies": "Strategies",
   "nav.settings": "Settings",
@@ -61,9 +63,9 @@ const EN_MESSAGES = {
   "search.empty": "No matching US stocks",
   "search.retryHint": "Check the search provider settings or connection",
   "settings.title": "Settings",
-  "settings.description": "Customize Unicorn for this device.",
+  "settings.description": "Customize Trader for this device.",
   "settings.language.title": "Language",
-  "settings.language.description": "Choose the language used in Unicorn.",
+  "settings.language.description": "Choose the language used in Trader.",
   "settings.language.default": "Default",
   "settings.language.current": "Current language: {language}",
   "settings.language.english": "English",
@@ -501,7 +503,7 @@ const EN_MESSAGES = {
 } as const satisfies TranslationDictionary;
 
 const JA_MESSAGES = {
-  "app.name": "Unicorn",
+  "app.name": "Trader",
   "nav.chart": "チャート",
   "nav.strategies": "戦略",
   "nav.settings": "設定",
@@ -537,9 +539,9 @@ const JA_MESSAGES = {
   "search.empty": "該当する米国株がありません",
   "search.retryHint": "検索Providerの設定または接続を確認してください",
   "settings.title": "設定",
-  "settings.description": "この端末でのUnicornの表示をカスタマイズします。",
+  "settings.description": "この端末でのTraderの表示をカスタマイズします。",
   "settings.language.title": "言語",
-  "settings.language.description": "Unicornで使用する言語を選択します。",
+  "settings.language.description": "Traderで使用する言語を選択します。",
   "settings.language.default": "既定",
   "settings.language.current": "現在の言語: {language}",
   "settings.language.english": "英語",
@@ -1054,6 +1056,7 @@ let inMemoryLocale: Locale | null = null;
 function readLocaleSnapshot(fallback: Locale) {
   if (typeof window === "undefined") return fallback;
   if (inMemoryLocale === null) {
+    migrateProductStorage(window.localStorage);
     inMemoryLocale = readStoredLocale(window.localStorage, fallback);
   }
   return inMemoryLocale;

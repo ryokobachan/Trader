@@ -17,8 +17,8 @@ import {
   type SyntheticLatestClose,
 } from "@/app/platform/provider-contracts";
 
-const SIDECAR_SCHEMA_VERSION = "unicorn.tradingview-sidecar.v1";
-const REALTIME_QUOTES_SCHEMA_VERSION = "unicorn.tradingview-realtime-quotes.v1";
+const SIDECAR_SCHEMA_VERSION = "trader.tradingview-sidecar.v1";
+const REALTIME_QUOTES_SCHEMA_VERSION = "trader.tradingview-realtime-quotes.v1";
 const DEFAULT_TIMEOUT_MS = 25_000;
 const MAX_TIMEOUT_MS = 65_000;
 const TRADINGVIEW_SOURCE_URL = "wss://data.tradingview.com/socket.io/websocket";
@@ -68,7 +68,7 @@ const manifest = {
   capabilities: ["market.quote", "market.bars", "market.synthetic_latest_close"],
   markets: ["US"],
   assetTypes: ["common_stock", "adr"],
-  requiredEnv: ["UNICORN_TRADINGVIEW_SIDECAR_URL"],
+  requiredEnv: ["TRADER_TRADINGVIEW_SIDECAR_URL"],
 } as const;
 
 export type TradingViewSidecarFetch = typeof globalThis.fetch;
@@ -205,7 +205,7 @@ function boundedCandleCount(value: number, configuredLimit: number): number {
 export function tradingViewSyntheticExchanges(
   env: ProviderEnvironment,
 ): readonly string[] {
-  const configured = env.UNICORN_TRADINGVIEW_SYNTHETIC_EXCHANGES?.trim();
+  const configured = env.TRADER_TRADINGVIEW_SYNTHETIC_EXCHANGES?.trim();
   if (!configured) return DEFAULT_TRADINGVIEW_SYNTHETIC_EXCHANGES;
   const exchanges = configured.split(",").map((value) => value.trim().toUpperCase());
   if (
@@ -230,7 +230,7 @@ function loopbackHostname(hostname: string): boolean {
 }
 
 function sidecarBaseUrl(env: ProviderEnvironment): URL {
-  const configured = env.UNICORN_TRADINGVIEW_SIDECAR_URL?.trim();
+  const configured = env.TRADER_TRADINGVIEW_SIDECAR_URL?.trim();
   if (!configured) {
     throw new TradingViewSidecarError("configuration", "TradingView sidecar URL is required.");
   }
@@ -552,7 +552,7 @@ export async function loadTradingViewScannerLatestCloses(
   ));
   const expectedSources = new Set(sourceSymbols);
   const timeoutMs = positiveInteger(
-    env.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS,
+    env.TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS,
     DEFAULT_TIMEOUT_MS,
   );
   const fetchImplementation = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
@@ -952,7 +952,7 @@ export async function createTradingViewWorkerLatestCloseStream(
     );
   }
   const timeoutMs = positiveInteger(
-    env.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS,
+    env.TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS,
     DEFAULT_TIMEOUT_MS,
   );
   const streamTtlMs = boundedWorkerDuration(
@@ -2063,15 +2063,15 @@ export function createTradingViewSidecarProvider(
   dependencies: ProviderDependencies = {},
 ) {
   const baseUrl = sidecarBaseUrl(env);
-  const token = env.UNICORN_TRADINGVIEW_SIDECAR_TOKEN?.trim();
+  const token = env.TRADER_TRADINGVIEW_SIDECAR_TOKEN?.trim();
   if (!loopbackHostname(baseUrl.hostname) && !token) {
     throw new TradingViewSidecarError(
       "configuration",
       "A TradingView sidecar token is required for remote HTTPS endpoints.",
     );
   }
-  const timeoutMs = positiveInteger(env.UNICORN_TRADINGVIEW_SIDECAR_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
-  const maxCandles = configuredCandleLimit(env.UNICORN_TRADINGVIEW_MAX_CANDLES);
+  const timeoutMs = positiveInteger(env.TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
+  const maxCandles = configuredCandleLimit(env.TRADER_TRADINGVIEW_MAX_CANDLES);
   const syntheticExchanges = tradingViewSyntheticExchanges(env);
   const fetchImplementation = dependencies.fetch ?? globalThis.fetch.bind(globalThis);
   const now = dependencies.now ?? (() => new Date());

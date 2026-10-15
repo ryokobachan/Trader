@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { unicornConfig } from "@/app/unicorn.config";
+import { traderConfig } from "@/app/trader.config";
 import { CORE_SYMBOL_SUMMARY_MODULES } from "@/app/features/symbol-summary/core-modules";
 import type { SymbolSummaryModuleProps } from "@/app/platform/symbol-summary";
 import {
@@ -53,7 +53,7 @@ export const EXAMPLE_MARKET_CONTEXT_MODULE = {
  * Deployment-owned static Composition Root. Developers add reviewed imports
  * here; configuration can only enable IDs that already exist in this bundle.
  */
-export const UNICORN_UI_MODULE_REGISTRY = defineUiModuleRegistry<SymbolSummaryModuleProps>([
+export const TRADER_UI_MODULE_REGISTRY = defineUiModuleRegistry<SymbolSummaryModuleProps>([
   ...CORE_SYMBOL_SUMMARY_MODULES,
   EXAMPLE_MARKET_CONTEXT_MODULE,
 ]);
@@ -69,12 +69,12 @@ export const MOCK_SYMBOL_SUMMARY_CAPABILITIES = Object.freeze([
   "analyst.consensus",
 ]);
 
-export const DEFAULT_SYMBOL_SUMMARY_MODULE_CONFIG = unicornConfig.ui.symbolSummary.modules;
-export const DEFAULT_SYMBOL_SUMMARY_DENSITY = unicornConfig.ui.symbolSummary.density;
+export const DEFAULT_SYMBOL_SUMMARY_MODULE_CONFIG = traderConfig.ui.symbolSummary.modules;
+export const DEFAULT_SYMBOL_SUMMARY_DENSITY = traderConfig.ui.symbolSummary.density;
 
-export const DEFAULT_SYMBOL_SUMMARY_MODULES = UNICORN_UI_MODULE_REGISTRY.resolveSurface({
+export const DEFAULT_SYMBOL_SUMMARY_MODULES = TRADER_UI_MODULE_REGISTRY.resolveSurface({
   surface: "chart.symbol-summary",
   availableCapabilities: MOCK_SYMBOL_SUMMARY_CAPABILITIES,
-  density: unicornConfig.ui.symbolSummary.density,
+  density: traderConfig.ui.symbolSummary.density,
   modules: DEFAULT_SYMBOL_SUMMARY_MODULE_CONFIG,
 });

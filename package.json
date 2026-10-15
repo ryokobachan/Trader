@@ -1,17 +1,17 @@
 {
-  "name": "unicorn-stock-analysis",
+  "name": "trader-stock-analysis",
   "version": "0.1.0",
   "description": "A customizable open-source workspace for U.S. stock charts, research, watchlists, indicators, and sample strategies.",
   "private": true,
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ryokobachan/Unicorn.git"
+    "url": "https://github.com/ryokobachan/Trader.git"
   },
   "bugs": {
-    "url": "https://github.com/ryokobachan/Unicorn/issues"
+    "url": "https://github.com/ryokobachan/Trader/issues"
   },
-  "homepage": "https://github.com/ryokobachan/Unicorn#readme",
+  "homepage": "https://github.com/ryokobachan/Trader#readme",
   "packageManager": "npm@11.17.0",
   "engines": {
     "node": ">=22.13.0"
@@ -27,7 +27,7 @@
     "desktop:prepare": "node src/desktop/prepare.mjs",
     "desktop:dev": "npm run desktop:prepare && cd src/desktop/tauri && ../../../node_modules/.bin/tauri dev --no-dev-server --no-watch",
     "desktop:build": "node src/desktop/build.mjs",
-    "config:check": "node --env-file-if-exists=.env.local --import tsx src/tooling/scripts/check-unicorn-config.ts",
+    "config:check": "node --env-file-if-exists=.env.local --import tsx src/tooling/scripts/check-trader-config.ts",
     "strategy": "tsx src/tooling/scripts/strategy-cli.ts",
     "build": "npm run config:check && vinext build",
     "start": "vinext start",

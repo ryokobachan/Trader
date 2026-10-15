@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { unicornConfig } from "../src/app/unicorn.config";
+import { traderConfig } from "../src/app/trader.config";
 
 const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
@@ -86,9 +86,9 @@ test("strategy analysis content lives in Overview without a separate Analysis ta
     '<section className="portfolio-summary-cards"',
     "</section>",
   );
-  assert.match(summaryCards, /unicornConfig\.ui\.strategyDetail\.summaryMetrics\.map/);
+  assert.match(summaryCards, /traderConfig\.ui\.strategyDetail\.summaryMetrics\.map/);
   assert.match(summaryCards, /data-metric-id=\{id\}/);
-  assert.deepEqual(unicornConfig.ui.strategyDetail.summaryMetrics, [
+  assert.deepEqual(traderConfig.ui.strategyDetail.summaryMetrics, [
     "portfolio.value",
     "portfolio.unrealizedGain",
     "portfolio.totalGain",

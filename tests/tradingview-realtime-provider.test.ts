@@ -8,7 +8,7 @@ const SIDECAR_URL = new URL("../api/tradingview-websocket/sidecar.py", import.me
 test("realtime sidecar keeps one authenticated bounded broker for snapshots and SSE", async () => {
   const source = await readFile(SIDECAR_URL, "utf8");
 
-  assert.match(source, /REALTIME_SCHEMA_VERSION = "unicorn\.tradingview-realtime-quotes\.v1"/);
+  assert.match(source, /REALTIME_SCHEMA_VERSION = "trader\.tradingview-realtime-quotes\.v1"/);
   assert.match(source, /MAX_REALTIME_SYMBOLS = 50/);
   assert.match(source, /MAX_REALTIME_SUBSCRIBERS = 32/);
   assert.match(source, /MAX_REALTIME_SUBSCRIBERS_PER_OWNER = 16/);
@@ -51,7 +51,7 @@ import importlib.util
 import sys
 
 path = sys.argv[1]
-spec = importlib.util.spec_from_file_location("unicorn_sidecar", path)
+spec = importlib.util.spec_from_file_location("trader_sidecar", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
@@ -95,7 +95,7 @@ import threading
 import time
 
 path = sys.argv[1]
-spec = importlib.util.spec_from_file_location("unicorn_sidecar", path)
+spec = importlib.util.spec_from_file_location("trader_sidecar", path)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

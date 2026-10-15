@@ -5,8 +5,8 @@ usage() {
   printf '%s\n' "usage: $0 [--live-smoke] [--tauri-output]"
   printf '%s\n' ""
   printf '%s\n' "Builds the standalone Apple Silicon TradingView/yfinance helper."
-  printf '%s\n' "Set UNICORN_MARKET_SIDECAR_BUILD_PYTHON to override python3.12."
-  printf '%s\n' "Set UNICORN_MARKET_SIDECAR_BUILD_VENV or UNICORN_MARKET_SIDECAR_DIST_DIR to override build paths."
+  printf '%s\n' "Set TRADER_MARKET_SIDECAR_BUILD_PYTHON to override python3.12."
+  printf '%s\n' "Set TRADER_MARKET_SIDECAR_BUILD_VENV or TRADER_MARKET_SIDECAR_DIST_DIR to override build paths."
   printf '%s\n' "Use --tauri-output to write the exact externalBin into src/desktop/tauri/binaries."
 }
 
@@ -31,19 +31,19 @@ done
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 desktop_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 repository_root=$(CDPATH= cd -- "$desktop_root/../.." && pwd)
-build_python=${UNICORN_MARKET_SIDECAR_BUILD_PYTHON:-python3.12}
-venv_dir=${UNICORN_MARKET_SIDECAR_BUILD_VENV:-"$script_dir/.venv"}
-dist_dir=${UNICORN_MARKET_SIDECAR_DIST_DIR:-"$script_dir/dist"}
+build_python=${TRADER_MARKET_SIDECAR_BUILD_PYTHON:-python3.12}
+venv_dir=${TRADER_MARKET_SIDECAR_BUILD_VENV:-"$script_dir/.venv"}
+dist_dir=${TRADER_MARKET_SIDECAR_DIST_DIR:-"$script_dir/dist"}
 if [ "$tauri_output" = true ]; then
   dist_dir="$desktop_root/tauri/binaries"
 fi
 work_dir="$script_dir/build"
-binary_name=unicorn-market-sidecar-aarch64-apple-darwin
+binary_name=trader-market-sidecar-aarch64-apple-darwin
 binary_path="$dist_dir/$binary_name"
 
 if ! command -v "$build_python" >/dev/null 2>&1; then
   printf '%s\n' "Python 3.12 is required to build the pinned arm64 helper." >&2
-  printf '%s\n' "Install it or set UNICORN_MARKET_SIDECAR_BUILD_PYTHON to an arm64 Python 3.12 executable." >&2
+  printf '%s\n' "Install it or set TRADER_MARKET_SIDECAR_BUILD_PYTHON to an arm64 Python 3.12 executable." >&2
   exit 1
 fi
 

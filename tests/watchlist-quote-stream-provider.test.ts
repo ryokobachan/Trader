@@ -113,9 +113,9 @@ test("stream route rejects cross-site requests before provider access", async ()
 
 test("stream route reports a configured market without streaming support", async () => {
   await withEnvironment({
-    UNICORN_INSTRUMENT_PROVIDER: "mock",
-    UNICORN_MARKET_PROVIDER: "mock",
-    UNICORN_BARS_PROVIDER: "mock",
+    TRADER_INSTRUMENT_PROVIDER: "mock",
+    TRADER_MARKET_PROVIDER: "mock",
+    TRADER_BARS_PROVIDER: "mock",
   }, async () => {
     const response = await GET(new Request(
       "http://localhost/api/v1/watchlists/quotes/stream?symbols=AAPL",
@@ -167,14 +167,14 @@ test("stream route refuses a real market stream when instrument identity is fixt
     };
     const upstream = [
       `event: ready\ndata: ${JSON.stringify({
-        schemaVersion: "unicorn.tradingview-realtime-quotes.v1",
+        schemaVersion: "trader.tradingview-realtime-quotes.v1",
         type: "ready",
         state: "connected",
         items: [item],
         ingestedAt: INGESTED_AT,
       })}`,
       `event: quote\ndata: ${JSON.stringify({
-        schemaVersion: "unicorn.tradingview-realtime-quotes.v1",
+        schemaVersion: "trader.tradingview-realtime-quotes.v1",
         type: "quote",
         item: {
           ...item,
@@ -194,11 +194,11 @@ test("stream route refuses a real market stream when instrument identity is fixt
 
   try {
     await withEnvironment({
-      UNICORN_INSTRUMENT_PROVIDER: "mock",
-      UNICORN_MARKET_PROVIDER: "tradingview-websocket",
-      UNICORN_BARS_PROVIDER: "mock",
-      UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
-      UNICORN_TRADINGVIEW_SIDECAR_TOKEN: secret,
+      TRADER_INSTRUMENT_PROVIDER: "mock",
+      TRADER_MARKET_PROVIDER: "tradingview-websocket",
+      TRADER_BARS_PROVIDER: "mock",
+      TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+      TRADER_TRADINGVIEW_SIDECAR_TOKEN: secret,
     }, async () => {
       const response = await GET(new Request(
         "http://localhost/api/v1/watchlists/quotes/stream?symbols=AAPL",

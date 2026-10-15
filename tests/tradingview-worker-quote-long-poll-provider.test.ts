@@ -256,8 +256,8 @@ test("Worker quote poll rejects mislabeled and malformed values until a complete
 });
 
 test("quote poll route keeps the existing response schema and reports the native TradingView provider", async () => {
-  const previousInstrument = process.env.UNICORN_INSTRUMENT_PROVIDER;
-  process.env.UNICORN_INSTRUMENT_PROVIDER = "mock";
+  const previousInstrument = process.env.TRADER_INSTRUMENT_PROVIDER;
+  process.env.TRADER_INSTRUMENT_PROVIDER = "mock";
   const previousFetch = globalThis.fetch;
   const socket = new FakeTradingViewSocket();
   globalThis.fetch = (async (input, init) => {
@@ -279,7 +279,7 @@ test("quote poll route keeps the existing response schema and reports the native
     assert.equal(response.headers.get("x-long-poll-result"), "initial");
     assert.match(response.headers.get("cache-control") ?? "", /no-store/);
     const payload = await response.json() as WatchlistQuotesResponse;
-    assert.equal(payload.schemaVersion, "unicorn.watchlist-quotes.v1");
+    assert.equal(payload.schemaVersion, "trader.watchlist-quotes.v1");
     assert.deepEqual(payload.selectedProviders, {
       instrument: "mock",
       market: "tradingview-websocket",
@@ -290,8 +290,8 @@ test("quote poll route keeps the existing response schema and reports the native
     assert.equal(payload.longPollSupported, true);
   } finally {
     globalThis.fetch = previousFetch;
-    if (previousInstrument === undefined) delete process.env.UNICORN_INSTRUMENT_PROVIDER;
-    else process.env.UNICORN_INSTRUMENT_PROVIDER = previousInstrument;
+    if (previousInstrument === undefined) delete process.env.TRADER_INSTRUMENT_PROVIDER;
+    else process.env.TRADER_INSTRUMENT_PROVIDER = previousInstrument;
   }
 });
 

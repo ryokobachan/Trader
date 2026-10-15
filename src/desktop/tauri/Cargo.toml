@@ -1,15 +1,15 @@
 [package]
-name = "unicorn"
+name = "trader"
 version = "0.1.0"
 description = "A lightweight desktop workspace for U.S. stock analysis"
-authors = ["Unicorn contributors"]
+authors = ["Trader contributors"]
 license = "Apache-2.0"
-repository = "https://github.com/ryokobachan/Unicorn"
+repository = "https://github.com/ryokobachan/Trader"
 edition = "2021"
 rust-version = "1.77.2"
 
 [lib]
-name = "unicorn_lib"
+name = "trader_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

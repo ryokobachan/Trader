@@ -71,7 +71,7 @@ class BunD1PreparedStatement {
 
 /**
  * Minimal D1-compatible wrapper over Bun's native SQLite implementation.
- * It covers the D1 surface Unicorn currently uses: prepare/bind/first/all/run
+ * It covers the D1 surface Trader currently uses: prepare/bind/first/all/run
  * and atomic batch execution. Keeping this boundary D1-shaped lets the built
  * Worker and all existing route handlers run unchanged in the desktop app.
  */

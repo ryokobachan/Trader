@@ -150,7 +150,7 @@ test("workspace-derived summary and news accept provider data only", () => {
   assert.match(newsSource, /workspaceStatus === "provider"/);
   assert.match(newsSource, /workspace\?\.dataMode === "provider"/);
   assert.match(newsSource, /return \[\]/);
-  assert.doesNotMatch(newsSource, /NEWS\.map|finance\.yahoo\.com|Unicorn Sample News|Synthetic fixture/);
+  assert.doesNotMatch(newsSource, /NEWS\.map|finance\.yahoo\.com|Trader Sample News|Synthetic fixture/);
   assert.doesNotMatch(pageSource, /visibleNews\.concat\(/);
   assert.match(pageSource, /showAllNews \? visibleNews : visibleNews\.slice\(0, 3\)/);
 

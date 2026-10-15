@@ -369,7 +369,7 @@ test("renders the configured company profile first in the financials tab", async
 
   assert.ok(profileStart >= 0 && profileEnd > profileStart);
   assert.match(profileSource, /profile\.description/);
-  assert.match(profileSource, /unicornConfig\.ui\.symbolDetail\.profileMetrics/);
+  assert.match(profileSource, /traderConfig\.ui\.symbolDetail\.profileMetrics/);
   assert.match(profileSource, /stock-detail-profile-card/);
   assert.match(profileSource, /className=\{descriptionIsExpandable && !expanded \? "clamped" : "expanded"\}/);
   assert.match(profileSource, /aria-expanded=\{expanded\}/);

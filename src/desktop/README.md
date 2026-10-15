@@ -1,4 +1,4 @@
-# Unicorn desktop runtime
+# Trader desktop runtime
 
 This directory contains all source and configuration used for the Apple
 Silicon macOS app: the loading frontend, bundled runtime, native Tauri shell,
@@ -8,7 +8,7 @@ Python.
 
 ## Runtime architecture
 
-`Unicorn.app` uses Tauri and the macOS system WebView. At startup the Rust shell:
+`Trader.app` uses Tauri and the macOS system WebView. At startup the Rust shell:
 
 1. starts the frozen TradingView/yfinance market helper on an ephemeral
    `127.0.0.1` port;
@@ -23,7 +23,7 @@ The Bun runtime invokes the existing compiled Vinext Worker and serves
 web app's pages, API routes, validation, streaming endpoints, and provider
 adapters rather than maintaining a desktop-specific route map.
 
-`d1-bun.mjs` provides the D1 methods used by Unicorn on top of Bun's native
+`d1-bun.mjs` provides the D1 methods used by Trader on top of Bun's native
 SQLite implementation. The hosted build continues to use D1; only the desktop
 binding is replaced.
 
@@ -65,10 +65,10 @@ npm run desktop:build
 ```
 
 The application is written to
-`build/Unicorn.app`. Temporary Tauri, frontend, and sidecar build directories
+`build/Trader.app`. Temporary Tauri, frontend, and sidecar build directories
 are removed automatically after the copied app passes verification.
 
-Set `UNICORN_DESKTOP_LIVE_SMOKE=1` when running `npm run desktop:prepare` to
+Set `TRADER_DESKTOP_LIVE_SMOKE=1` when running `npm run desktop:prepare` to
 include live provider checks in the market-helper build. The default build
 smoke test does not depend on live provider availability.
 
@@ -98,17 +98,17 @@ provider-secret value that was present in the invoking environment.
 Tauri writes desktop state to:
 
 ```text
-~/Library/Application Support/com.ryokobachan.unicorn/
-  unicorn.sqlite3
-  unicorn-desktop.log
+~/Library/Application Support/com.ryokobachan.trader/
+  trader.sqlite3
+  trader-desktop.log
 ```
 
 SQLite stores watchlists, strategy overrides, custom strategies, transaction
-history, and related audit state. Quit Unicorn before backing up the directory
+history, and related audit state. Quit Trader before backing up the directory
 so SQLite can close its WAL cleanly. To reset only the SQLite-backed state,
-quit the app and move `unicorn.sqlite3` and any sibling `unicorn.sqlite3-wal` or
-`unicorn.sqlite3-shm` files aside. A new database is created on the next launch.
+quit the app and move `trader.sqlite3` and any sibling `trader.sqlite3-wal` or
+`trader.sqlite3-shm` files aside. A new database is created on the next launch.
 WebView-managed interface preferences are separate from this database.
 
 The log is intended for local startup and runtime diagnostics and can be
-removed while Unicorn is not running.
+removed while Trader is not running.

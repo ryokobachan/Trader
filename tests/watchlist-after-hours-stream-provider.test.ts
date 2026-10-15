@@ -29,7 +29,7 @@ function latestClose(close: number, updatedAt: string): SyntheticLatestClose {
 
 function readyEvent(item: SyntheticLatestClose) {
   return {
-    schemaVersion: "unicorn.tradingview-sidecar.v1",
+    schemaVersion: "trader.tradingview-sidecar.v1",
     type: "ready",
     exchange: "BINANCE",
     exchanges: EXCHANGES,
@@ -42,7 +42,7 @@ function readyEvent(item: SyntheticLatestClose) {
 
 function quoteEvent(item: SyntheticLatestClose) {
   return {
-    schemaVersion: "unicorn.tradingview-sidecar.v1",
+    schemaVersion: "trader.tradingview-sidecar.v1",
     type: "quote",
     exchange: "BINANCE",
     exchanges: EXCHANGES,
@@ -79,8 +79,8 @@ test("streams server-derived USDT perpetual prices without exposing the bearer t
   let requestBody: unknown;
   let authorization = "";
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
-    UNICORN_TRADINGVIEW_SIDECAR_TOKEN: "stream-secret",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+    TRADER_TRADINGVIEW_SIDECAR_TOKEN: "stream-secret",
   }, {
     fetch: async (input, init) => {
       requestUrl = new URL(input instanceof Request ? input.url : String(input));
@@ -118,7 +118,7 @@ test("rejects a stream item from an exchange outside the server-owned fallback l
     sourceSymbol: "GATEIO:AAPLUSDT.P",
   };
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
   }, {
     fetch: async () => new Response(sidecarStream(["ready", readyEvent(invalid)]), {
       headers: { "content-type": "text/event-stream" },
@@ -135,7 +135,7 @@ test("rejects a stream item from an exchange outside the server-owned fallback l
 test("rejects additional fields at the sidecar stream trust boundary", async () => {
   const item = latestClose(313.3, "2026-08-10T01:30:00Z");
   const adapter = createTradingViewSidecarProvider({
-    UNICORN_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
+    TRADER_TRADINGVIEW_SIDECAR_URL: "http://127.0.0.1:8791",
   }, {
     fetch: async () => new Response(sidecarStream([
       "ready",
@@ -174,8 +174,8 @@ test("same-origin watchlist route relays canonical stream messages and keeps USD
   const address = server.address();
   assert.ok(address && typeof address !== "string");
 
-  const previousUrl = process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
-  process.env.UNICORN_TRADINGVIEW_SIDECAR_URL = `http://127.0.0.1:${address.port}`;
+  const previousUrl = process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
+  process.env.TRADER_TRADINGVIEW_SIDECAR_URL = `http://127.0.0.1:${address.port}`;
   try {
     const response = await GET(new Request(
       "http://localhost/api/v1/watchlists/after-hours/stream?symbols=AAPL",
@@ -192,7 +192,7 @@ test("same-origin watchlist route relays canonical stream messages and keeps USD
     assert.deepEqual(JSON.parse(capturedBody), { symbols: ["AAPL"] });
     assert.equal(dataLines.length, 2);
     assert.ok(dataLines.every(
-      (message) => message.schemaVersion === "unicorn.watchlist-after-hours-stream.v1",
+      (message) => message.schemaVersion === "trader.watchlist-after-hours-stream.v1",
     ));
     assert.deepEqual(dataLines.map((message) => message.type), ["quote", "quote"]);
     assert.deepEqual(
@@ -203,8 +203,8 @@ test("same-origin watchlist route relays canonical stream messages and keeps USD
     await new Promise<void>((resolve, reject) => server.close(
       (error) => error ? reject(error) : resolve(),
     ));
-    if (previousUrl === undefined) delete process.env.UNICORN_TRADINGVIEW_SIDECAR_URL;
-    else process.env.UNICORN_TRADINGVIEW_SIDECAR_URL = previousUrl;
+    if (previousUrl === undefined) delete process.env.TRADER_TRADINGVIEW_SIDECAR_URL;
+    else process.env.TRADER_TRADINGVIEW_SIDECAR_URL = previousUrl;
   }
 });
 
@@ -224,7 +224,7 @@ test("watchlist stream rejects cross-origin and malformed symbol requests before
 test("browser stream parser rejects mislabeled or malformed perpetual prices", () => {
   const item = latestClose(313.3, "2026-08-10T01:30:00Z");
   const valid = JSON.stringify({
-    schemaVersion: "unicorn.watchlist-after-hours-stream.v1",
+    schemaVersion: "trader.watchlist-after-hours-stream.v1",
     type: "quote",
     item,
   });
@@ -238,7 +238,7 @@ test("browser stream parser rejects mislabeled or malformed perpetual prices", (
     { ...item, updatedAt: "not-a-date" },
   ]) {
     assert.equal(parseWatchlistAfterHoursStreamMessage(JSON.stringify({
-      schemaVersion: "unicorn.watchlist-after-hours-stream.v1",
+      schemaVersion: "trader.watchlist-after-hours-stream.v1",
       type: "quote",
       item: invalid,
     })), null);
@@ -308,7 +308,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 
-spec = importlib.util.spec_from_file_location("unicorn_sidecar", sys.argv[1])
+spec = importlib.util.spec_from_file_location("trader_sidecar", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 module.RealtimeQuoteBroker._run = lambda self: None

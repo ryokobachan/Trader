@@ -1,6 +1,6 @@
 # Unified strategy API contract
 
-- Schema: `unicorn.strategies.v1`
+- Schema: `trader.strategies.v1`
 - Storage: immutable built-ins plus owner-scoped D1 custom strategies and built-in preferences
 - Owner adapter: stable Sites `oai-authenticated-user-id`; loopback-only `local-workspace` fallback
 

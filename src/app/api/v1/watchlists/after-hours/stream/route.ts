@@ -41,7 +41,7 @@ export async function GET(request: Request) {
   try {
     const environment = providerEnvironment();
     const sidecarConfigured = Boolean(
-      environment.UNICORN_TRADINGVIEW_SIDECAR_URL?.trim(),
+      environment.TRADER_TRADINGVIEW_SIDECAR_URL?.trim(),
     );
     if (!sidecarConfigured && !tradingViewWorkerLatestCloseStreamSupported()) {
       throw new TradingViewSidecarError(

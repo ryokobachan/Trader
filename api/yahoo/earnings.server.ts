@@ -436,7 +436,7 @@ export function createYahooEarningsHistoryClient(
               accept: "application/json",
               "content-type": "application/json",
               cookie: credential.cookie,
-              "user-agent": "Unicorn/0.1 (Yahoo compatibility provider; personal use only)",
+              "user-agent": "Trader/0.1 (Yahoo compatibility provider; personal use only)",
             },
             body: JSON.stringify(visualizationRequestBody(symbol, requestSize)),
           },
@@ -457,7 +457,7 @@ export function createYahooEarningsHistoryClient(
               headers: {
                 accept: "application/json",
                 cookie: credential.cookie,
-                "user-agent": "Unicorn/0.1 (Yahoo compatibility provider; personal use only)",
+                "user-agent": "Trader/0.1 (Yahoo compatibility provider; personal use only)",
               },
             },
           }),
@@ -470,7 +470,7 @@ export function createYahooEarningsHistoryClient(
             {
               headers: {
                 accept: "application/json",
-                "user-agent": "Unicorn/0.1 (Yahoo compatibility provider; personal use only)",
+                "user-agent": "Trader/0.1 (Yahoo compatibility provider; personal use only)",
               },
             },
           );
