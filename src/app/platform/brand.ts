@@ -5,20 +5,20 @@
  * shell without searching through feature code. Brand artwork is deployment
  * owned and deliberately lives in public/ rather than feature code.
  *
- * The v4 artwork is a tightly framed transparent 1024 px PNG (SHA-256
- * 1680c2e61cfe3cda9eeba7fbcf36377a0769bf2629c1f557f3a435399f3380da).
+ * The v5 artwork is the selected ribbon design, framed on a transparent 1024 px canvas (SHA-256
+ * cb6970020b71677586c238490e9af910630a2337cb152239d96b504fe5839fa8).
  * Favicon variants are deterministic resizes of that file.
  */
 export const TRADER_BRAND = {
   name: "Trader",
   wordmark: "TRADER",
-  logoPath: "/trader-logo-v4.png",
+  logoPath: "/trader-logo-v5.png",
   metadataTitle: "Trader — Stock Analysis Workspace",
   description:
     "A customizable stock-analysis workspace for charts, fundamentals, analyst ratings, and strategies.",
-  favicon16Path: "/favicon-trader-v4-16.png",
-  favicon32Path: "/favicon-trader-v4-32.png",
-  faviconIcoPath: "/favicon-trader-v4.ico",
-  appleTouchIconPath: "/apple-touch-icon-trader-v4.png",
+  favicon16Path: "/favicon-trader-v5-16.png",
+  favicon32Path: "/favicon-trader-v5-32.png",
+  faviconIcoPath: "/favicon-trader-v5.ico",
+  appleTouchIconPath: "/apple-touch-icon-trader-v5.png",
   shareOrigin: "https://trader.local",
 } as const;
