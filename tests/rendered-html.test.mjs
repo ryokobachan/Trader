@@ -1,3 +1,4 @@
+import { inflateSync } from "node:zlib";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { access, readFile } from "node:fs/promises";
@@ -38,7 +39,7 @@ test("server-renders the Trader stock analysis mock", async () => {
   assert.match(html, /<title>Trader — Stock Analysis Workspace<\/title>/i);
   assert.match(html, /aria-label="Trader"/);
   assert.match(html, /TRADER/);
-  assert.match(html, /src="\/trader-logo-v3\.png"/);
+  assert.match(html, /src="\/trader-logo-v4\.png"/);
   assert.doesNotMatch(html, /🦄/u);
   assert.doesNotMatch(html, /Pulseboard/i);
   assert.match(html, /AAPL/);
@@ -80,21 +81,21 @@ test("server-renders the Trader stock analysis mock", async () => {
 test("uses the supplied Trader logo for the favicon and shell metadata", async () => {
   const brand = await readFile(new URL("../src/app/platform/brand.ts", import.meta.url), "utf8");
   const layout = await readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8");
-  const logo = await readFile(new URL("../public/trader-logo-v3.png", import.meta.url));
+  const logo = await readFile(new URL("../public/trader-logo-v4.png", import.meta.url));
   await access(new URL("../public/favicon.ico", import.meta.url));
-  await access(new URL("../public/favicon-trader-v3.ico", import.meta.url));
-  await access(new URL("../public/favicon-trader-v3-16.png", import.meta.url));
-  await access(new URL("../public/favicon-trader-v3-32.png", import.meta.url));
-  await access(new URL("../public/apple-touch-icon-trader-v3.png", import.meta.url));
+  await access(new URL("../public/favicon-trader-v4.ico", import.meta.url));
+  await access(new URL("../public/favicon-trader-v4-16.png", import.meta.url));
+  await access(new URL("../public/favicon-trader-v4-32.png", import.meta.url));
+  await access(new URL("../public/apple-touch-icon-trader-v4.png", import.meta.url));
   assert.equal(
     createHash("sha256").update(logo).digest("hex"),
-    "407f2a3b6c6132ba61d1572790196ba22398634aed6e76fa30e2843de20e5a9d",
+    "1680c2e61cfe3cda9eeba7fbcf36377a0769bf2629c1f557f3a435399f3380da",
   );
-  assert.match(brand, /logoPath:\s*"\/trader-logo-v3\.png"/);
-  assert.match(brand, /favicon16Path:\s*"\/favicon-trader-v3-16\.png"/);
-  assert.match(brand, /favicon32Path:\s*"\/favicon-trader-v3-32\.png"/);
-  assert.match(brand, /faviconIcoPath:\s*"\/favicon-trader-v3\.ico"/);
-  assert.match(brand, /appleTouchIconPath:\s*"\/apple-touch-icon-trader-v3\.png"/);
+  assert.match(brand, /logoPath:\s*"\/trader-logo-v4\.png"/);
+  assert.match(brand, /favicon16Path:\s*"\/favicon-trader-v4-16\.png"/);
+  assert.match(brand, /favicon32Path:\s*"\/favicon-trader-v4-32\.png"/);
+  assert.match(brand, /faviconIcoPath:\s*"\/favicon-trader-v4\.ico"/);
+  assert.match(brand, /appleTouchIconPath:\s*"\/apple-touch-icon-trader-v4\.png"/);
   assert.match(layout, /sizes:\s*"16x16"/);
   assert.match(layout, /sizes:\s*"32x32"/);
   assert.match(layout, /sizes:\s*"180x180"/);
@@ -178,4 +179,21 @@ test("serves normalized fixture data through server-side Provider APIs", async (
   assert.equal(workspace.instrument.symbol, "AAPL");
   assert.equal(workspace.dataMode, "fixture");
   assert.equal(workspace.status, "partial");
+});
+
+// The first pixel of the first scanline has zero filter predictors for RGBA8.
+test("brand PNGs have a transparent exterior instead of an opaque matte", async () => {
+  for (const name of ["trader-logo-v4.png", "apple-touch-icon-trader-v4.png", "favicon-trader-v4-16.png", "favicon-trader-v4-32.png"]) {
+    const png = await readFile(new URL(`../public/${name}`, import.meta.url));
+    assert.equal(png[24], 8, `${name}: 8-bit PNG`);
+    assert.equal(png[25], 6, `${name}: RGBA PNG`);
+    const chunks = [];
+    for (let offset = 8; offset < png.length;) {
+      const length = png.readUInt32BE(offset);
+      if (png.toString("ascii", offset + 4, offset + 8) === "IDAT") chunks.push(png.subarray(offset + 8, offset + 8 + length));
+      offset += length + 12;
+    }
+    const pixels = inflateSync(Buffer.concat(chunks));
+    assert.equal(pixels[4], 0, `${name}: exterior alpha must be zero`);
+  }
 });
