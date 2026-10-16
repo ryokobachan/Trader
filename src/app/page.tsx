@@ -1068,7 +1068,7 @@ function generateSeries(
     volumes.push({
       time: point.time,
       value: point.volume,
-      color: adjustedClose >= open ? "rgba(0, 229, 168, .38)" : "rgba(255, 98, 122, .36)",
+      color: adjustedClose >= open ? "rgba(0, 212, 146, .38)" : "rgba(255, 100, 103, .36)",
     });
 
   });
@@ -1137,8 +1137,8 @@ function PriceChart({
         return {
           ...point,
           color: candle && candle.close >= candle.open
-            ? "rgba(0, 229, 168, .38)"
-            : "rgba(255, 98, 122, .36)",
+            ? "rgba(0, 212, 146, .38)"
+            : "rgba(255, 100, 103, .36)",
         };
       })
       : fullData.volumes,
@@ -1146,8 +1146,8 @@ function PriceChart({
   );
   const latestCandle = displayCandles.at(-1);
   const priceLineColor = latestCandle && latestCandle.close < latestCandle.open
-    ? "#ff627a"
-    : "#00e5a8";
+    ? "#ff6467"
+    : "#00d492";
   const dataIdentity = `${stock.ticker}:${range}:${interval}:${candleCount}`;
 
   useEffect(() => {
@@ -1195,13 +1195,13 @@ function PriceChart({
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#00e5a8",
-      downColor: "#ff627a",
+      upColor: "#00d492",
+      downColor: "#ff6467",
       borderVisible: false,
-      wickUpColor: "#00e5a8",
-      wickDownColor: "#ff627a",
+      wickUpColor: "#00d492",
+      wickDownColor: "#ff6467",
       priceFormat: { type: "price", precision: 2, minMove: 0.01 },
-      priceLineColor: "#00e5a8",
+      priceLineColor: "#00d492",
       priceLineWidth: 1,
       lastValueVisible: true,
       visible: true,
@@ -1302,6 +1302,12 @@ function PriceChart({
       timeScale: { timeVisible: marketBars.some((item) => item.time.includes("T")) },
     });
     runtime.candleSeries.applyOptions({
+      upColor: "#00d492",
+      downColor: "#ff6467",
+      wickUpColor: "#00d492",
+      wickDownColor: "#ff6467",
+      borderUpColor: "#00d492",
+      borderDownColor: "#ff6467",
       priceFormat,
       priceLineColor,
       visible: chartType === "candles" || chartType === "heikin-ashi",
@@ -1473,7 +1479,7 @@ function PortfolioProfitChart({ seed, ariaLabel }: { seed: number; ariaLabel: st
       return {
         time: date.toISOString().slice(0, 10) as Time,
         value: Number(raw.toFixed(2)),
-        color: raw >= 0 ? "#00e5a8" : "#ff627a",
+        color: raw >= 0 ? "#00d492" : "#ff6467",
       };
     });
     const chart = createChart(host, {

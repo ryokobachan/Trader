@@ -11,10 +11,10 @@
   --muted-2: #8e8e93;
   --blue: #2962ff;
   --blue-soft: #16244d;
-  --green: #00e5a8;
-  --green-soft: rgb(0 229 168 / 16%);
-  --red: #ff627a;
-  --red-soft: rgb(255 98 122 / 16%);
+  --green: #00d492;
+  --green-soft: rgb(0 212 146 / 16%);
+  --red: #ff6467;
+  --red-soft: rgb(255 100 103 / 16%);
   --amber: #e0a94f;
   --font-apple: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Hiragino Sans", "Yu Gothic UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -113,7 +113,7 @@ textarea:focus-visible {
 .demo-badge.provider-data {
   color: var(--green);
   border-color: rgba(85, 214, 190, .42);
-  background: rgba(0, 229, 168, .12);
+  background: rgba(0, 212, 146, .12);
 }
 
 .chart-data-state {
@@ -134,7 +134,7 @@ textarea:focus-visible {
 
 .chart-data-state.is-error {
   color: var(--red);
-  border-color: rgba(255, 98, 122, .48);
+  border-color: rgba(255, 100, 103, .48);
 }
 
 .symbol-search-trigger {
@@ -7134,7 +7134,7 @@ textarea:focus-visible {
   flex: 0 0 5px;
   border-radius: 50%;
   background: var(--green);
-  box-shadow: 0 0 0 2px rgba(0, 229, 168, 0.12);
+  box-shadow: 0 0 0 2px rgba(0, 212, 146, 0.12);
 }
 
 .summary-market-status > span {
@@ -7991,14 +7991,14 @@ textarea:focus-visible {
 }
 
 .technical-signal-verdict[data-signal="buy"] {
-  border-color: rgb(0 229 168 / 50%);
-  background: rgb(0 229 168 / 10%);
+  border-color: rgb(0 212 146 / 50%);
+  background: rgb(0 212 146 / 10%);
   color: var(--green);
 }
 
 .technical-signal-verdict[data-signal="sell"] {
-  border-color: rgb(255 98 122 / 50%);
-  background: rgb(255 98 122 / 10%);
+  border-color: rgb(255 100 103 / 50%);
+  background: rgb(255 100 103 / 10%);
   color: var(--red);
 }
 

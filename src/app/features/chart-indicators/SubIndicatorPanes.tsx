@@ -301,7 +301,7 @@ function SubIndicatorPane({
       if (runtimeSeries.kind === "histogram") {
         runtimeSeries.api.setData(seriesDefinition.points.map((point) => ({
           ...point,
-          color: point.value >= 0 ? "rgba(0, 229, 168, .68)" : "rgba(255, 98, 122, .68)",
+          color: point.value >= 0 ? "rgba(0, 212, 146, .68)" : "rgba(255, 100, 103, .68)",
         })) as HistogramData<Time>[]);
       } else {
         runtimeSeries.api.setData(seriesDefinition.points as LineData<Time>[]);
