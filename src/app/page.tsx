@@ -1068,7 +1068,7 @@ function generateSeries(
     volumes.push({
       time: point.time,
       value: point.volume,
-      color: adjustedClose >= open ? "rgba(0, 255, 161, .38)" : "rgba(252, 63, 66, .36)",
+      color: adjustedClose >= open ? "rgba(0, 229, 168, .38)" : "rgba(255, 98, 122, .36)",
     });
 
   });
@@ -1137,8 +1137,8 @@ function PriceChart({
         return {
           ...point,
           color: candle && candle.close >= candle.open
-            ? "rgba(0, 255, 161, .38)"
-            : "rgba(252, 63, 66, .36)",
+            ? "rgba(0, 229, 168, .38)"
+            : "rgba(255, 98, 122, .36)",
         };
       })
       : fullData.volumes,
@@ -1146,8 +1146,8 @@ function PriceChart({
   );
   const latestCandle = displayCandles.at(-1);
   const priceLineColor = latestCandle && latestCandle.close < latestCandle.open
-    ? "#fc3f42"
-    : "#00ffa1";
+    ? "#ff627a"
+    : "#00e5a8";
   const dataIdentity = `${stock.ticker}:${range}:${interval}:${candleCount}`;
 
   useEffect(() => {
@@ -1195,13 +1195,13 @@ function PriceChart({
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#00ffa1",
-      downColor: "#fc3f42",
+      upColor: "#00e5a8",
+      downColor: "#ff627a",
       borderVisible: false,
-      wickUpColor: "#00ffa1",
-      wickDownColor: "#fc3f42",
+      wickUpColor: "#00e5a8",
+      wickDownColor: "#ff627a",
       priceFormat: { type: "price", precision: 2, minMove: 0.01 },
-      priceLineColor: "#00ffa1",
+      priceLineColor: "#00e5a8",
       priceLineWidth: 1,
       lastValueVisible: true,
       visible: true,
@@ -1473,7 +1473,7 @@ function PortfolioProfitChart({ seed, ariaLabel }: { seed: number; ariaLabel: st
       return {
         time: date.toISOString().slice(0, 10) as Time,
         value: Number(raw.toFixed(2)),
-        color: raw >= 0 ? "#00ffa1" : "#fc3f42",
+        color: raw >= 0 ? "#00e5a8" : "#ff627a",
       };
     });
     const chart = createChart(host, {
