@@ -147,14 +147,20 @@ test("uses one market batch and caches instrument identities between refreshes",
     runtime,
     { requestId: "watchlist-batch-second" },
   );
+  const fresh = await loadWatchlistQuotes(
+    ["AAPL", "ZERO", "MISS"],
+    runtime,
+    { requestId: "watchlist-batch-fresh", fresh: true },
+  );
 
   assert.equal(identityCalls, 3, "positive and negative identities should be reused by later polls");
-  assert.equal(batchCalls, 1, "adjacent refreshes should reuse the short server-side batch cache");
+  assert.equal(batchCalls, 2, "an explicit refresh should bypass the completed batch cache");
   assert.equal(individualQuoteCalls, 0);
   assert.equal(first[0]?.quote?.price, 312.5);
   assert.equal(first[1]?.quote, null);
   assert.equal(first[2]?.instrument, null);
   assert.deepEqual(second.map((item) => item.quote?.price ?? null), [312.5, null, null]);
+  assert.deepEqual(fresh.map((item) => item.quote?.price ?? null), [312.5, null, null]);
 });
 
 test("quote batch cache cannot cross the exact New York open or close boundary", async () => {
@@ -277,6 +283,14 @@ test("watchlist quotes API rejects invalid and oversized batches", async () => {
     }));
     assert.equal(response.status, 400);
   }
+
+  const invalidFresh = await POST(new Request("http://localhost/api/v1/watchlists/quotes?fresh=true", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ symbols: ["AAPL"] }),
+  }));
+  assert.equal(invalidFresh.status, 400);
+  assert.equal((await invalidFresh.json() as { error: { code: string } }).error.code, "invalid_fresh");
 });
 
 test("watchlist UI refreshes visible quotes and resumes immediately after tab or network return", async () => {
@@ -296,7 +310,7 @@ test("watchlist UI refreshes visible quotes and resumes immediately after tab or
   assert.match(pageSource, /if \(streamSupported === true\) connectStream\(\)/);
   assert.match(pageSource, /if \(!providerQuotesEnabled\) return;/);
   assert.match(pageSource, /if \(!providerQuotesEnabled \|\| !symbolSet\.has\(symbol\)\) return;/);
-  assert.match(pageSource, /quoteResponse\?\.dataMode === "provider" \? quoteResponse\.items : \[\]/);
+  assert.match(pageSource, /quoteResult\.payload\?\.dataMode === "provider" \? quoteResult\.payload\.items : \[\]/);
   assert.match(pageSource, /window\.addEventListener\("focus", refreshNow\)/);
   assert.match(pageSource, /window\.addEventListener\("online", refreshNow\)/);
   assert.match(pageSource, /window\.addEventListener\("pageshow", refreshNow\)/);

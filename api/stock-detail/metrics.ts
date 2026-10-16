@@ -57,7 +57,7 @@ export type StockDetailViewModel = Readonly<{
     marketState: string;
     source: StockDetailSource;
   }> | null;
-  profile: StockDetailSection & Readonly<{ description?: string }>;
+  profile: StockDetailSection & Readonly<{ description?: string; descriptionLanguage?: "ja" | "en"; descriptionSource?: StockDetailSource }>;
   market: StockDetailSection;
   fundamentals: StockDetailSection;
   earnings: Readonly<{
@@ -96,6 +96,7 @@ const STOCK_DETAIL_METRIC_LABELS = {
   "profile.location": "所在地",
   "profile.employees": "従業員",
   "profile.website": "Webサイト",
+  "profile.marketCap": "時価総額",
   "profile.ipoDate": "IPO",
   "profile.beta": "ベータ",
   "market.currentPrice": "現在値",
@@ -106,6 +107,11 @@ const STOCK_DETAIL_METRIC_LABELS = {
   "market.volume": "出来高",
   "market.marketCap": "時価総額",
   "market.delaySeconds": "公称遅延",
+  "fundamentals.researchAndDevelopment": "研究開発費",
+  "fundamentals.sellingGeneralAndAdministrative": "販売費・一般管理費",
+  "fundamentals.totalLiabilities": "負債合計",
+  "fundamentals.investingCashFlow": "投資CF",
+  "fundamentals.financingCashFlow": "財務CF",
   "fundamentals.revenue": "売上高",
   "fundamentals.revenueGrowth": "売上高成長率",
   "fundamentals.grossProfit": "粗利益",
@@ -240,8 +246,17 @@ function present<T>(items: readonly (T | null)[]): T[] {
 
 function providerName(providerId: string) {
   const normalized = providerId.trim().toLowerCase();
+  if (normalized.includes("google-finance") && normalized.includes("benzinga")) {
+    return "Google Finance + Benzinga";
+  }
+  if (normalized.includes("google-finance")) return "Google Finance";
+  if (normalized.includes("tipranks") && normalized.includes("benzinga")) return "TipRanks + Benzinga";
+  if (normalized.includes("tipranks")) return "TipRanks";
   if (normalized.includes("benzinga")) return "Benzinga";
+  if (normalized === "yahoo-japan") return "Yahoo!ファイナンス（日本）";
   if (normalized.includes("yahoo")) return "Yahoo Finance";
+  if (normalized.includes("tradingview")) return "TradingView";
+  if (normalized === "stockanalysis") return "Stock Analysis";
   if (normalized === "fmp" || normalized.includes("financial-modeling-prep")) return "FMP";
   if (normalized === "mock") return "Mock Provider";
   return providerId.trim();
@@ -383,9 +398,12 @@ export function buildStockDetailViewModel(
   workspace: SymbolWorkspace | null,
   bars: readonly MarketBar[],
   barsProvenance?: DataProvenance,
+  locale: "en" | "ja" = "en",
 ): StockDetailViewModel {
   const selected = workspace?.selectedProviders;
-  const profile = workspace?.profile;
+  const rawProfile = workspace?.profile;
+  const localizedProfile = locale === "ja" ? rawProfile?.localized?.ja : undefined;
+  const profile = rawProfile && localizedProfile ? { ...rawProfile, ...localizedProfile } : rawProfile;
   const fundamentals = workspace?.fundamentals;
   const analyst = workspace?.analyst;
   const instrument = workspace?.instrument;
@@ -406,9 +424,7 @@ export function buildStockDetailViewModel(
   if (location) profileMetrics.push(identifiedMetric("profile.location", { value: location }));
   profileMetrics.push(
     metric("profile.employees", profile?.employees, (value) => `${value.toLocaleString("ja-JP")}人`),
-    profile?.website
-      ? identifiedMetric("profile.website", { value: profile.website, href: profile.website })
-      : null,
+    metric("profile.marketCap", quote?.marketCap ?? profile?.marketCap, formatCompactCurrency),
     profile?.ipoDate ? identifiedMetric("profile.ipoDate", { value: profile.ipoDate }) : null,
     metric("profile.beta", profile?.beta, (value) => value.toFixed(2)),
   );
@@ -431,6 +447,11 @@ export function buildStockDetailViewModel(
   const fundamentalShareCountNote = "Provider最新値 · 株式数";
   const providerScoreNote = "Provider算出値 · スコア";
   const fundamentalMetrics = fundamentals ? present<StockDetailMetric>([
+    metric("fundamentals.researchAndDevelopment", fundamentals.researchAndDevelopment, formatCompactCurrency, { note: fundamentalCurrencyNote }),
+    metric("fundamentals.sellingGeneralAndAdministrative", fundamentals.sellingGeneralAndAdministrative, formatCompactCurrency, { note: fundamentalCurrencyNote }),
+    metric("fundamentals.totalLiabilities", fundamentals.totalLiabilities, formatCompactCurrency, { note: fundamentalCurrencyNote }),
+    metric("fundamentals.investingCashFlow", fundamentals.investingCashFlow, formatCompactCurrency, { note: fundamentalCurrencyNote }),
+    metric("fundamentals.financingCashFlow", fundamentals.financingCashFlow, formatCompactCurrency, { note: fundamentalCurrencyNote }),
     metric("fundamentals.revenue", fundamentals.revenue, formatCompactCurrency, { note: fundamentalCurrencyNote }),
     metric("fundamentals.revenueGrowth", fundamentals.revenueGrowth, formatPercent, {
       tone: isFiniteNumber(fundamentals.revenueGrowth) && fundamentals.revenueGrowth < 0 ? "negative" : "positive",
@@ -465,8 +486,8 @@ export function buildStockDetailViewModel(
     metric("fundamentals.freeCashFlowMargin", fundamentals.freeCashFlowMargin, formatUnsignedPercent, { note: fundamentalPercentNote }),
     metric("fundamentals.assetTurnover", fundamentals.assetTurnover, formatMultiple, { note: fundamentalRatioNote }),
     metric("fundamentals.interestCoverage", fundamentals.interestCoverage, formatMultiple, { note: fundamentalRatioNote }),
-    metric("fundamentals.piotroskiScore", fundamentals.financialHealth?.piotroskiScore, (value) => `${value.toFixed(0)} / 9`, { note: providerScoreNote }),
-    metric("fundamentals.altmanZScore", fundamentals.financialHealth?.altmanZScore, (value) => value.toFixed(2), { note: providerScoreNote }),
+    metric("fundamentals.piotroskiScore", fundamentals.financialHealth?.piotroskiScore, (value) => `${value.toFixed(0)} / 9`, { note: fundamentals.financialHealth?.piotroskiScorePeriod ?? providerScoreNote }),
+    metric("fundamentals.altmanZScore", fundamentals.financialHealth?.altmanZScore, (value) => value.toFixed(2), { note: fundamentals.financialHealth?.altmanZScorePeriod ?? providerScoreNote }),
     metric("fundamentals.freeFloatRatio", fundamentals.shareStructure?.freeFloatRatio, formatUnsignedPercent, { note: fundamentalPercentNote }),
     metric("fundamentals.floatShares", fundamentals.shareStructure?.floatShares, formatCompactNumber, { note: fundamentalShareCountNote }),
     metric("fundamentals.outstandingShares", fundamentals.shareStructure?.outstandingShares, formatCompactNumber, { note: fundamentalShareCountNote }),
@@ -508,7 +529,7 @@ export function buildStockDetailViewModel(
     metric("analyst.targetMedian", analyst.targetMedian, formatCurrency),
     metric("analyst.targetLow", analyst.targetLow, formatCurrency),
     metric("analyst.targetHigh", analyst.targetHigh, formatCurrency),
-    metric("analyst.analystCount", analyst.analystCount, (value) => `${value.toLocaleString("ja-JP")}名`),
+    metric("analyst.analystCount", analyst.ratingCount ?? analyst.analystCount, (value) => `${value.toLocaleString("ja-JP")}名`),
     metric("analyst.strongBuy", analyst.strongBuy, (value) => value.toLocaleString("ja-JP")),
     metric("analyst.buy", analyst.buy, (value) => value.toLocaleString("ja-JP")),
     metric("analyst.hold", analyst.hold, (value) => value.toLocaleString("ja-JP")),
@@ -542,8 +563,12 @@ export function buildStockDetailViewModel(
     } : null,
     profile: {
       description: profile?.description,
+      descriptionLanguage: profile?.description && /[ぁ-んァ-ヶ一-龯]/u.test(profile.description) ? "ja" : "en",
+      descriptionSource: sourceFrom([localizedProfile?.description
+        ? localizedProfile.descriptionProvenance ?? localizedProfile.provenance
+        : rawProfile?.provenance], selected?.profile),
       metrics: present(profileMetrics),
-      source: sourceFrom([profile?.provenance, instrument?.provenance], selected?.profile ?? selected?.fundamentals ?? selected?.instrument),
+      source: sourceFrom([rawProfile?.provenance, localizedProfile?.provenance, instrument?.provenance], selected?.profile ?? selected?.fundamentals ?? selected?.instrument),
     },
     market: {
       metrics: marketMetrics,

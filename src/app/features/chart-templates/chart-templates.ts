@@ -13,6 +13,8 @@ export const CHART_INDICATOR_IDS = [
   "atr14",
   "adx14",
   "obv",
+  "volume",
+  "volumeProfile",
 ] as const;
 
 export type ChartIndicatorId = (typeof CHART_INDICATOR_IDS)[number];

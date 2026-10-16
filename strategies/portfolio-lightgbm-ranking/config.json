@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "trader.strategy-package.v1",
+  "id": "portfolio-lightgbm-ranking",
+  "name": "Portfolio LightGBM Ranking",
+  "version": "1.0.0",
+  "display": {
+    "order": 20,
+    "family": "portfolio2",
+    "status": "research",
+    "candidateAt": "2026/08/14 00:00",
+    "audit": {
+      "overfit": null,
+      "leakage": null
+    },
+    "copy": {
+      "en": {
+        "name": "Portfolio LightGBM Ranking",
+        "category": "Machine learning",
+        "sourceLabels": ["Close", "Volume", "LightGBM"],
+        "headline": "Rank multiple symbols with walk-forward LightGBM forecasts and manage the highest-ranked stocks as one portfolio.",
+        "auditVerdict": "Not evaluated"
+      },
+      "ja": {
+        "name": "LightGBMポートフォリオ・ランキング",
+        "category": "機械学習",
+        "sourceLabels": ["終値", "出来高", "LightGBM"],
+        "headline": "複数銘柄をLightGBMのウォークフォワード予測で順位付けし、上位銘柄を一つのポートフォリオとして管理する戦略。",
+        "auditVerdict": "未評価"
+      }
+    }
+  },
+  "entrypoint": "main.py:generate",
+  "runtimeProfile": "trader-vectorbt-v1",
+  "interface": "trader.target-weights.v1",
+  "marketData": {
+    "requiredFields": ["close", "volume"],
+    "minSymbols": 2,
+    "warmupBars": 825
+  },
+  "parameters": {
+    "horizonBars": { "type": "integer", "default": 5, "minimum": 1 },
+    "rebalanceBars": { "type": "integer", "default": 21, "minimum": 1 },
+    "trainWindowBars": { "type": "integer", "default": 756, "minimum": 63 },
+    "minimumTrainingRows": { "type": "integer", "default": 500, "minimum": 20 },
+    "topN": { "type": "integer", "default": 5, "minimum": 1 },
+    "grossExposure": { "type": "number", "default": 1.0, "minimum": 0.0, "maximum": 1.0 },
+    "minimumPrice": { "type": "number", "default": 5.0, "minimum": 0.0 },
+    "liquidityWindowBars": { "type": "integer", "default": 20, "minimum": 1 },
+    "minimumAverageDollarVolume": { "type": "number", "default": 1000000.0, "minimum": 0.0 },
+    "nEstimators": { "type": "integer", "default": 100, "minimum": 1 },
+    "learningRate": { "type": "number", "default": 0.05, "exclusiveMinimum": 0.0 },
+    "numLeaves": { "type": "integer", "default": 15, "minimum": 2 },
+    "seed": { "type": "integer", "default": 42 }
+  },
+  "backtest": {
+    "marketRegion": "US",
+    "baseCurrency": "USD",
+    "initialCash": 100000,
+    "barInterval": "1d",
+    "valuationPriceField": "close",
+    "execution": {
+      "delayBars": 1,
+      "priceField": "close",
+      "rebalanceSequence": "sellThenBuy"
+    },
+    "portfolio": {
+      "cashSharing": true,
+      "grouping": "allSymbols",
+      "direction": "longOnly"
+    },
+    "positionSizing": {
+      "mode": "targetWeight",
+      "weightUnit": "fraction",
+      "minimumOrderShares": 1,
+      "shareIncrement": 1
+    },
+    "costs": {
+      "proportionalFeeRate": 0.0,
+      "fixedFeePerOrder": 0.0,
+      "slippageRate": 0.0005
+    },
+    "risk": {
+      "appliedBy": "runner",
+      "stopLossRate": 0.08,
+      "takeProfitRate": 0.20,
+      "trailingStopLossRate": null,
+      "triggerPriceField": "close",
+      "fillTiming": "nextBarClose",
+      "referencePrice": "weightedAverageFill",
+      "reentryPolicy": "nextExplicitTarget"
+    },
+    "benchmark": {
+      "symbol": "^GSPC",
+      "assetType": "index",
+      "returnType": "price",
+      "costsApplied": false
+    }
+  }
+}

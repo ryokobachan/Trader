@@ -7,7 +7,7 @@
 
 ## 1. Boundary
 
-Providers return canonical OHLCV bars. Trader calculates its built-in indicators locally with pure TypeScript; provider-specific indicator endpoints are not used. This keeps the visible series, pane readout, legend value, and snapshot on one formula and one input series.
+Providers return canonical OHLCV bars. Existing chart overlays/panes and the 26-indicator rating retain their TypeScript calculation contracts. The technicals screen additionally offers Python TA-Lib calculations through Trader's authenticated helper; no external provider indicator endpoint is used. Each result's chart and readout consume the same computed series.
 
 The calculation registry is explicit and build-time only:
 
@@ -68,7 +68,7 @@ Presentation-only settings such as color, width, line style, visibility, and off
 
 VWAP supports session, week, month, quarter, year, and full-range anchors. Timestamped U.S. bars use `America/New_York` unless the calculation caller supplies another exchange timezone; date-only bars retain their provider trading date.
 
-MAMA is intentionally not registered. Its implementation and compatibility differences make it unsuitable as a portable built-in until a separately versioned, independently verified formula is available.
+MAMA is not in the browser calculation registry. It is available in the separate Python TA-Lib library with the native library's version, parameters and lookback.
 
 ## 4. Consistency and chart types
 
@@ -93,7 +93,11 @@ Template JSON contains settings only. It cannot add executable code or unregiste
 4. Add deterministic formula, warm-up, finite-value, parameter, and 10,000-bar performance tests.
 5. If it is a pane indicator, verify the pane header and legend use the returned series rather than recomputing it.
 
-TA-Lib is not bundled in the browser or Worker. Native/WASM packaging and runtime differences would add material deployment cost for formulas already covered by the small pure-TypeScript registry. It remains suitable as an offline oracle when adding independent comparison fixtures.
+TA-Lib runs in Trader's Python helper, not inside the browser or Worker. The helper and desktop packaging include the native Python dependency. The TA-Lib library exposes 129 functions, including 61 candlestick patterns. It excludes generic math functions, MAVP (additional period-series input), and BETA/CORREL (a separate comparison-series contract is needed).
+
+The TA-Lib catalog is derived from the installed library within reviewed function groups. User input can select only those IDs and validated numeric parameters or canonical OHLCV columns; it cannot load code or a file. Up to 10,000 bars and eight functions are accepted. Date labels are preserved, absolute times must be ordered and unique, and invalid/missing OHLCV is rejected. Lookback rows and non-finite output values are null, including leading integer candlestick zeros. The UI stores selections and parameters only, and discards results if the symbol, bars or settings change. Pattern sign/magnitude is function-specific, not a universal trade recommendation or probability.
+
+HTTP: `GET /api/v1/indicators`, `POST /api/v1/indicators/calculate`, and `GET /api/v1/symbols/:symbol/technicals`. CLI: `data get technicals`. Responses contain version, input labels, effective parameters, input mappings and lookback; the symbol route also retains source bar metadata. The additional library currently plots daily bars in the stock-detail screen; the API/CLI accepts other supported intervals.
 
 ## 7. Validation
 
@@ -105,7 +109,9 @@ The current contract suite verifies:
 - Wilder RSI and corrected ADX seeding;
 - finite outputs for all ten indicators over 10,000 bars;
 - identical latest values between renderer and legend;
-- absence of MAMA and fabricated fallback readings.
+- absence of fabricated fallback readings in browser indicators;
+- native TA-Lib equality and prefix invariance for all 129 functions;
+- authenticated HTTP behavior, bounds, timestamp validation and missing warm-up values.
 
 Compatibility means matching the documented Trader policy. It does not claim undocumented bit-for-bit equivalence with TradingView, TA-Lib, or any provider implementation.
 
@@ -114,3 +120,4 @@ Compatibility means matching the documented Trader policy. It does not claim und
 - [TradingView Pine Script reference](https://www.tradingview.com/pine-script-reference/v6/)
 - [TradingView chart information](https://www.tradingview.com/pine-script-docs/concepts/chart-information/)
 - [TradingView time semantics](https://www.tradingview.com/pine-script-docs/concepts/time/)
+- [TA-Lib Python and native parameter/lookback contract](https://github.com/TA-Lib/ta-lib-python)

@@ -66,28 +66,28 @@ export const DEFAULT_WATCHLIST_ITEMS = [
     symbol: "AAPL",
     displayName: "Apple Inc.",
     exchange: "NASDAQ",
-    logoUrl: "https://financialmodelingprep.com/image-stock/AAPL.png",
+    logoUrl: "/api/v1/symbols/AAPL/logo",
   },
   {
     instrumentId: "us_xnas_nvda",
     symbol: "NVDA",
     displayName: "NVIDIA Corporation",
     exchange: "NASDAQ",
-    logoUrl: "https://financialmodelingprep.com/image-stock/NVDA.png",
+    logoUrl: "/api/v1/symbols/NVDA/logo",
   },
   {
     instrumentId: "us_xnas_msft",
     symbol: "MSFT",
     displayName: "Microsoft Corporation",
     exchange: "NASDAQ",
-    logoUrl: "https://financialmodelingprep.com/image-stock/MSFT.png",
+    logoUrl: "/api/v1/symbols/MSFT/logo",
   },
   {
     instrumentId: "us_xnas_tsla",
     symbol: "TSLA",
     displayName: "Tesla, Inc.",
     exchange: "NASDAQ",
-    logoUrl: "https://financialmodelingprep.com/image-stock/TSLA.png",
+    logoUrl: "/api/v1/symbols/TSLA/logo",
   },
 ] as const satisfies readonly AddWatchlistItemInput[];
 

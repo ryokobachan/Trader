@@ -11,7 +11,7 @@ import {
   type ProviderRegistryErrorCode,
 } from "../src/app/platform/provider-registry";
 import { mockProviderRegistration } from "../api/mock/index.server";
-import { createProviderRuntime } from "../api/index.server";
+import { createProviderRuntime, listInstalledProviderManifests } from "../api/index.server";
 
 function expectRegistryError(
   action: () => unknown,
@@ -65,22 +65,53 @@ test("registers and resolves a valid provider", () => {
   assert.deepEqual(registry.listManifests().map((manifest) => manifest.id), ["mock"]);
 });
 
-test("selects profile and earnings providers independently from normalized fundamentals", () => {
+test("composes TradingView financials, Google Finance earnings and Yahoo profile/research independently", () => {
   const runtime = createProviderRuntime({
     TRADER_INSTRUMENT_PROVIDER: "mock",
     TRADER_MARKET_PROVIDER: "mock",
-    TRADER_FUNDAMENTALS_PROVIDER: "yahoo",
-    TRADER_PROFILE_PROVIDER: "fmp",
-    TRADER_EARNINGS_PROVIDER: "fmp",
+    TRADER_FUNDAMENTALS_PROVIDER: "tradingview",
+    TRADER_PROFILE_PROVIDER: "yahoo",
+    TRADER_EARNINGS_PROVIDER: "google-finance-earnings",
+    TRADER_RESEARCH_PROVIDER: "yahoo",
     TRADER_USAGE_MODE: "personal",
     TRADER_ENABLE_YAHOO_COMPAT: "true",
-    FMP_API_KEY: "test-only-key",
   });
 
-  assert.equal(runtime.selectedProviderIds.fundamentals, "yahoo");
-  assert.equal(runtime.selectedProviderIds.profile, "fmp");
-  assert.equal(runtime.selectedProviderIds.earnings, "fmp");
+  assert.equal(runtime.selectedProviderIds.fundamentals, "tradingview");
+  assert.equal(runtime.selectedProviderIds.profile, "yahoo");
+  assert.equal(runtime.selectedProviderIds.earnings, "google-finance-earnings");
+  assert.equal(runtime.selectedProviderIds.research, "yahoo");
   assert.ok(runtime.fundamentals);
+  assert.equal(typeof runtime.fundamentals.getResearch, "function");
+});
+
+test("retired FMP is not registered and cannot be re-enabled with a credential", () => {
+  assert.equal(listInstalledProviderManifests().some((manifest) => manifest.id === "fmp"), false);
+  expectRegistryError(() => createProviderRuntime({
+    TRADER_INSTRUMENT_PROVIDER: "mock", TRADER_MARKET_PROVIDER: "mock",
+    TRADER_FUNDAMENTALS_PROVIDER: "fmp", FMP_API_KEY: "retired-secret",
+  }), "unknown_provider", ["retired-secret"]);
+});
+
+test("TradingView financials do not imply an unsupported dated-earnings role", async () => {
+  const runtime = createProviderRuntime({
+    TRADER_INSTRUMENT_PROVIDER: "mock", TRADER_MARKET_PROVIDER: "mock",
+    TRADER_FUNDAMENTALS_PROVIDER: "tradingview",
+  });
+  assert.equal(runtime.selectedProviderIds.profile, "tradingview");
+  assert.equal(runtime.selectedProviderIds.earnings, undefined);
+  const instrument = await runtime.instrument.getUSStockBySymbol("AAPL", { requestId: "test" });
+  assert.ok(instrument);
+  assert.deepEqual(await runtime.fundamentals!.getEarnings(instrument, { requestId: "test" }), []);
+});
+
+test("TradingView research and dated earnings can be selected independently", () => {
+  const runtime = createProviderRuntime({
+    TRADER_INSTRUMENT_PROVIDER: "mock", TRADER_MARKET_PROVIDER: "mock",
+    TRADER_RESEARCH_PROVIDER: "tradingview", TRADER_EARNINGS_PROVIDER: "tradingview",
+  });
+  assert.equal(runtime.selectedProviderIds.research, "tradingview");
+  assert.equal(runtime.selectedProviderIds.earnings, "tradingview");
 });
 
 test("keeps a single configured company-data role available without requiring the other two", () => {

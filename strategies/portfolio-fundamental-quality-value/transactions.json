@@ -1,0 +1,2727 @@
+{
+  "schemaVersion": "trader.strategy-transactions.v1",
+  "strategyId": "portfolio-fundamental-quality-value",
+  "strategyVersion": "1.0.0",
+  "runId": "run-9b313a3e7ab03e4b5e715824",
+  "generatedAt": "2026-08-14T12:21:25.095Z",
+  "transactions": [
+    {
+      "transactionId": "vbt-order-0000-00000000",
+      "date": "2017-01-03",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 749.0,
+      "price": 26.711560775756833,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000001",
+      "date": "2017-01-03",
+      "symbol": "MSFT",
+      "side": "buy",
+      "shares": 356.0,
+      "price": 56.07771890830993,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000002",
+      "date": "2017-01-03",
+      "symbol": "WMT",
+      "side": "buy",
+      "shares": 1022.0,
+      "price": 19.561390568733213,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000003",
+      "date": "2017-01-03",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 187.0,
+      "price": 106.63418491744994,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000004",
+      "date": "2017-01-03",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 223.0,
+      "price": 89.35350757598876,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000005",
+      "date": "2017-01-04",
+      "symbol": "MSFT",
+      "side": "sell",
+      "shares": 356.0,
+      "price": 55.771024030685425,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000006",
+      "date": "2017-01-04",
+      "symbol": "WMT",
+      "side": "sell",
+      "shares": 4.0,
+      "price": 19.655694580078126,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000007",
+      "date": "2017-01-04",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 1.0,
+      "price": 26.68166722011566,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000008",
+      "date": "2017-01-04",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 1.0,
+      "price": 89.20692705917358,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000009",
+      "date": "2017-01-04",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 308.0,
+      "price": 64.88153038787841,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000010",
+      "date": "2017-03-02",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 750.0,
+      "price": 32.06374831390381,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000011",
+      "date": "2017-04-04",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 308.0,
+      "price": 69.51307001113892,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000012",
+      "date": "2017-04-04",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 1.0,
+      "price": 116.89238610076903,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000013",
+      "date": "2017-04-04",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 3.0,
+      "price": 96.80863403320312,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000014",
+      "date": "2017-04-04",
+      "symbol": "WMT",
+      "side": "buy",
+      "shares": 47.0,
+      "price": 20.66666399860382,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000015",
+      "date": "2017-04-04",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 658.0,
+      "price": 33.43778063392639,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000016",
+      "date": "2017-04-04",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 520.0,
+      "price": 42.274956871032714,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000017",
+      "date": "2017-07-05",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 520.0,
+      "price": 46.180198825836186,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000018",
+      "date": "2017-07-05",
+      "symbol": "JNJ",
+      "side": "sell",
+      "shares": 4.0,
+      "price": 104.34939527130128,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000019",
+      "date": "2017-07-05",
+      "symbol": "WMT",
+      "side": "buy",
+      "shares": 1.0,
+      "price": 21.76128719329834,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000020",
+      "date": "2017-07-05",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 1.0,
+      "price": 122.66938204193114,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000021",
+      "date": "2017-07-05",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 36.0,
+      "price": 33.418098403930664,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000022",
+      "date": "2017-07-05",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 339.0,
+      "price": 68.36858646011352,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000023",
+      "date": "2017-08-09",
+      "symbol": "WMT",
+      "side": "sell",
+      "shares": 1066.0,
+      "price": 23.70318078041077,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000024",
+      "date": "2017-09-11",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 189.0,
+      "price": 127.8571286277771,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000025",
+      "date": "2017-10-03",
+      "symbol": "JNJ",
+      "side": "sell",
+      "shares": 223.0,
+      "price": 103.80307585525513,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000026",
+      "date": "2017-10-03",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 14.0,
+      "price": 35.93253667640686,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000027",
+      "date": "2017-10-03",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 1.0,
+      "price": 72.33012696456909,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000028",
+      "date": "2017-10-03",
+      "symbol": "MSFT",
+      "side": "buy",
+      "shares": 360.0,
+      "price": 67.69003995895385,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000029",
+      "date": "2017-10-03",
+      "symbol": "WMT",
+      "side": "buy",
+      "shares": 1060.0,
+      "price": 23.03203714942932,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000030",
+      "date": "2017-10-03",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 182.0,
+      "price": 133.48038787078858,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000031",
+      "date": "2017-11-06",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 680.0,
+      "price": 40.531093029022216,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000032",
+      "date": "2017-11-17",
+      "symbol": "WMT",
+      "side": "sell",
+      "shares": 1060.0,
+      "price": 28.309625795364383,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000033",
+      "date": "2018-01-03",
+      "symbol": "MSFT",
+      "side": "sell",
+      "shares": 360.0,
+      "price": 79.02663665390016,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000034",
+      "date": "2018-01-03",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 1.0,
+      "price": 153.36680545806885,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000035",
+      "date": "2018-01-03",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 47.0,
+      "price": 71.69390246200561,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000036",
+      "date": "2018-01-03",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 687.0,
+      "price": 40.24548500061035,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000037",
+      "date": "2018-01-03",
+      "symbol": "WMT",
+      "side": "buy",
+      "shares": 951.0,
+      "price": 29.065987904548642,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0014-00000038",
+      "date": "2018-01-03",
+      "symbol": "COST",
+      "side": "buy",
+      "shares": 162.0,
+      "price": 170.08790061950683,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000039",
+      "date": "2018-01-18",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 181.0,
+      "price": 160.92927599334718,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000040",
+      "date": "2018-02-06",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 687.0,
+      "price": 38.05761801338196,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000041",
+      "date": "2018-02-22",
+      "symbol": "WMT",
+      "side": "sell",
+      "shares": 951.0,
+      "price": 27.086538075447084,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000042",
+      "date": "2018-03-01",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 385.0,
+      "price": 62.73073060798645,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0014-00000043",
+      "date": "2018-04-03",
+      "symbol": "COST",
+      "side": "sell",
+      "shares": 162.0,
+      "price": 163.24768103027344,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000044",
+      "date": "2018-04-03",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 666.0,
+      "price": 39.50860933113098,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000045",
+      "date": "2018-04-03",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 170.0,
+      "price": 154.82842838287354,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000046",
+      "date": "2018-04-03",
+      "symbol": "WMT",
+      "side": "buy",
+      "shares": 1032.0,
+      "price": 25.52004734802246,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000047",
+      "date": "2018-04-03",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 185.0,
+      "price": 141.9385790863037,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000048",
+      "date": "2018-04-03",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 420.0,
+      "price": 62.60200984954834,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000049",
+      "date": "2018-05-03",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 420.0,
+      "price": 57.40647832489014,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000050",
+      "date": "2018-05-31",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 170.0,
+      "price": 190.01543364715576,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000051",
+      "date": "2018-07-03",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 8.0,
+      "price": 158.88806078338624,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000052",
+      "date": "2018-07-03",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 16.0,
+      "price": 43.275451517105104,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000053",
+      "date": "2018-07-03",
+      "symbol": "WMT",
+      "side": "buy",
+      "shares": 93.0,
+      "price": 24.982591177940368,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000054",
+      "date": "2018-07-03",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 147.0,
+      "price": 191.14778748321532,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000055",
+      "date": "2018-07-03",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 448.0,
+      "price": 62.73033554649353,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000056",
+      "date": "2018-07-27",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 147.0,
+      "price": 173.28088518524171,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000057",
+      "date": "2018-08-02",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 650.0,
+      "price": 48.79781636428833,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000058",
+      "date": "2018-09-11",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 177.0,
+      "price": 176.3887054977417,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000059",
+      "date": "2018-10-02",
+      "symbol": "WMT",
+      "side": "sell",
+      "shares": 58.0,
+      "price": 28.28648025417328,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000060",
+      "date": "2018-10-02",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 7.0,
+      "price": 68.48040636444092,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000061",
+      "date": "2018-10-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 557.0,
+      "price": 54.191793354034424,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000062",
+      "date": "2018-10-02",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 191.0,
+      "price": 158.02199519348144,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000063",
+      "date": "2018-10-02",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 178.0,
+      "price": 169.0517687988281,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000064",
+      "date": "2018-10-18",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 178.0,
+      "price": 148.8313240890503,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000065",
+      "date": "2018-10-25",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 191.0,
+      "price": 149.5611530838013,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000066",
+      "date": "2018-11-05",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 557.0,
+      "price": 47.59946411895752,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0006-00000067",
+      "date": "2018-11-06",
+      "symbol": "WMT",
+      "side": "sell",
+      "shares": 1067.0,
+      "price": 30.71825097370148,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000068",
+      "date": "2018-11-12",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 441.0,
+      "price": 75.91546871185304,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000069",
+      "date": "2019-01-03",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 877.0,
+      "price": 33.72478166770935,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000070",
+      "date": "2019-01-03",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 226.0,
+      "price": 130.65849728393553,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000071",
+      "date": "2019-01-03",
+      "symbol": "NVDA",
+      "side": "buy",
+      "shares": 9333.0,
+      "price": 3.17084704041481,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000072",
+      "date": "2019-01-03",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 211.0,
+      "price": 140.04552793121337,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000073",
+      "date": "2019-01-03",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 398.0,
+      "price": 74.30268148040771,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000074",
+      "date": "2019-01-22",
+      "symbol": "NVDA",
+      "side": "sell",
+      "shares": 9333.0,
+      "price": 3.6819709502458573,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000075",
+      "date": "2019-02-01",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 226.0,
+      "price": 164.18533757781984,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000076",
+      "date": "2019-02-05",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 877.0,
+      "price": 41.27090009498596,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000077",
+      "date": "2019-04-02",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 211.0,
+      "price": 162.43092042541505,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000078",
+      "date": "2019-04-02",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 398.0,
+      "price": 85.63670277023316,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000079",
+      "date": "2019-04-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 762.0,
+      "price": 46.215230924606324,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000080",
+      "date": "2019-04-02",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 589.0,
+      "price": 59.77707742881775,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000081",
+      "date": "2019-04-02",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 203.0,
+      "price": 172.76990501403807,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000082",
+      "date": "2019-04-02",
+      "symbol": "NVDA",
+      "side": "buy",
+      "shares": 7764.0,
+      "price": 4.538347923517227,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000083",
+      "date": "2019-04-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 292.0,
+      "price": 120.4355080947876,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000084",
+      "date": "2019-05-14",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 292.0,
+      "price": 110.06155698776246,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000085",
+      "date": "2019-05-14",
+      "symbol": "NVDA",
+      "side": "sell",
+      "shares": 7764.0,
+      "price": 4.014528920888901,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000086",
+      "date": "2019-05-30",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 762.0,
+      "price": 42.591688650131225,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000087",
+      "date": "2019-06-03",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 589.0,
+      "price": 51.45477426910401,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000088",
+      "date": "2019-07-02",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 31.0,
+      "price": 193.2058389892578,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000089",
+      "date": "2019-07-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 683.0,
+      "price": 48.47590125274658,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000090",
+      "date": "2019-07-02",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 600.0,
+      "price": 55.16862277221679,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000091",
+      "date": "2019-07-02",
+      "symbol": "NVDA",
+      "side": "buy",
+      "shares": 8221.0,
+      "price": 4.027849863052368,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000092",
+      "date": "2019-07-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 280.0,
+      "price": 117.41446707916259,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000093",
+      "date": "2019-08-06",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 280.0,
+      "price": 106.21873753738404,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000094",
+      "date": "2019-08-16",
+      "symbol": "NVDA",
+      "side": "sell",
+      "shares": 8221.0,
+      "price": 3.9575992014408112,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000095",
+      "date": "2019-10-02",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 600.0,
+      "price": 58.34915250396729,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000096",
+      "date": "2019-10-02",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 62.0,
+      "price": 52.503158048629764,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000097",
+      "date": "2019-10-02",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 16.0,
+      "price": 173.1666181640625,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000098",
+      "date": "2019-10-02",
+      "symbol": "NVDA",
+      "side": "buy",
+      "shares": 7583.0,
+      "price": 4.300493784427642,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000099",
+      "date": "2019-10-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 312.0,
+      "price": 104.47861243057251,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000100",
+      "date": "2019-10-02",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 297.0,
+      "price": 109.56308546447754,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000101",
+      "date": "2019-10-24",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 621.0,
+      "price": 58.40663412475586,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000102",
+      "date": "2019-11-04",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 312.0,
+      "price": 128.83616919708254,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000103",
+      "date": "2019-11-05",
+      "symbol": "NVDA",
+      "side": "sell",
+      "shares": 7583.0,
+      "price": 5.2041460645198825,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000104",
+      "date": "2020-01-03",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 188.0,
+      "price": 206.75005836486818,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000105",
+      "date": "2020-01-03",
+      "symbol": "JNJ",
+      "side": "sell",
+      "shares": 297.0,
+      "price": 120.46493729019166,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000106",
+      "date": "2020-01-03",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 532.0,
+      "price": 71.60469314575195,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000107",
+      "date": "2020-01-03",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 565.0,
+      "price": 67.51139233016967,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000108",
+      "date": "2020-01-03",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 292.0,
+      "price": 130.29930899047852,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0013-00000109",
+      "date": "2020-01-03",
+      "symbol": "PEP",
+      "side": "buy",
+      "shares": 344.0,
+      "price": 110.84531958389282,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000110",
+      "date": "2020-01-31",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 292.0,
+      "price": 115.99059019470215,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000111",
+      "date": "2020-03-10",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 532.0,
+      "price": 68.78831965255738,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000112",
+      "date": "2020-03-10",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 565.0,
+      "price": 63.16651343154908,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0013-00000113",
+      "date": "2020-03-13",
+      "symbol": "PEP",
+      "side": "sell",
+      "shares": 344.0,
+      "price": 104.75862201309205,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000114",
+      "date": "2020-04-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 610.0,
+      "price": 59.10554203033447,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000115",
+      "date": "2020-04-02",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 651.0,
+      "price": 55.38828363418579,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000116",
+      "date": "2020-04-02",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 230.0,
+      "price": 156.89131844329833,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000117",
+      "date": "2020-04-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 349.0,
+      "price": 103.19212661361694,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000118",
+      "date": "2020-04-02",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 322.0,
+      "price": 111.99291915893554,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000119",
+      "date": "2020-04-27",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 230.0,
+      "price": 185.77486395263674,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000120",
+      "date": "2020-04-30",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 651.0,
+      "price": 66.70979248046875,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000121",
+      "date": "2020-05-06",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 610.0,
+      "price": 72.47432667922973,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000122",
+      "date": "2020-05-13",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 349.0,
+      "price": 93.109671875,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000123",
+      "date": "2020-07-02",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 15.0,
+      "price": 119.39227738952636,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000124",
+      "date": "2020-07-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 457.0,
+      "price": 88.10345506668091,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000125",
+      "date": "2020-07-02",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 553.0,
+      "price": 72.88694253158569,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000126",
+      "date": "2020-07-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 353.0,
+      "price": 113.93438776016235,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0012-00000127",
+      "date": "2020-07-02",
+      "symbol": "KO",
+      "side": "buy",
+      "shares": 1074.0,
+      "price": 37.52147505569458,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000128",
+      "date": "2020-08-05",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 457.0,
+      "price": 106.42052563095093,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000129",
+      "date": "2020-09-10",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 353.0,
+      "price": 134.55123625946047,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000130",
+      "date": "2020-10-02",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 553.0,
+      "price": 72.10423441314698,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0012-00000131",
+      "date": "2020-10-02",
+      "symbol": "KO",
+      "side": "sell",
+      "shares": 2.0,
+      "price": 41.559387218475344,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000132",
+      "date": "2020-10-02",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 20.0,
+      "price": 124.6800075187683,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000133",
+      "date": "2020-10-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 406.0,
+      "price": 109.58670261383055,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000134",
+      "date": "2020-10-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 330.0,
+      "price": 134.75777490234375,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0013-00000135",
+      "date": "2020-10-02",
+      "symbol": "PEP",
+      "side": "buy",
+      "shares": 386.0,
+      "price": 115.29801478958129,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0012-00000136",
+      "date": "2020-11-11",
+      "symbol": "KO",
+      "side": "sell",
+      "shares": 1072.0,
+      "price": 45.11248801422119,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000137",
+      "date": "2020-12-07",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 330.0,
+      "price": 161.43416563415528,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000138",
+      "date": "2020-12-29",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 406.0,
+      "price": 130.86766941833497,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000139",
+      "date": "2021-01-05",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 11.0,
+      "price": 135.9341287765503,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0013-00000140",
+      "date": "2021-01-05",
+      "symbol": "PEP",
+      "side": "buy",
+      "shares": 25.0,
+      "price": 121.70414746856689,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000141",
+      "date": "2021-01-05",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 301.0,
+      "price": 166.0536121444702,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000142",
+      "date": "2021-01-05",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 418.0,
+      "price": 119.7850060043335,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0012-00000143",
+      "date": "2021-01-05",
+      "symbol": "KO",
+      "side": "buy",
+      "shares": 1131.0,
+      "price": 44.322511814117426,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000144",
+      "date": "2021-01-07",
+      "symbol": "JNJ",
+      "side": "sell",
+      "shares": 368.0,
+      "price": 137.53925871276857,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000145",
+      "date": "2021-02-23",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 418.0,
+      "price": 110.68321713256836,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000146",
+      "date": "2021-02-24",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 301.0,
+      "price": 202.0331339492798,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0012-00000147",
+      "date": "2021-04-05",
+      "symbol": "KO",
+      "side": "sell",
+      "shares": 1131.0,
+      "price": 45.18581177711487,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0013-00000148",
+      "date": "2021-04-05",
+      "symbol": "PEP",
+      "side": "buy",
+      "shares": 15.0,
+      "price": 121.37036249542236,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000149",
+      "date": "2021-04-05",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 423.0,
+      "price": 122.46880420303344,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000150",
+      "date": "2021-04-05",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 169.0,
+      "price": 306.373996673584,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000151",
+      "date": "2021-04-05",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 186.0,
+      "price": 277.17773469543454,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000152",
+      "date": "2021-04-05",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 437.0,
+      "price": 118.55266254043579,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0013-00000153",
+      "date": "2021-07-02",
+      "symbol": "PEP",
+      "side": "sell",
+      "shares": 426.0,
+      "price": 127.04033752059937,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000154",
+      "date": "2021-07-02",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 11.0,
+      "price": 351.43649853515626,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000155",
+      "date": "2021-07-02",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 17.0,
+      "price": 136.240576713562,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000156",
+      "date": "2021-07-02",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 8.0,
+      "price": 285.0800603485107,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000157",
+      "date": "2021-07-02",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 28.0,
+      "price": 118.83022129440307,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000158",
+      "date": "2021-07-02",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 374.0,
+      "price": 146.8838452835083,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000159",
+      "date": "2021-07-27",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 158.0,
+      "price": 364.4259112243653,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000160",
+      "date": "2021-08-17",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 406.0,
+      "price": 146.41773656463624,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000161",
+      "date": "2021-10-04",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 2.0,
+      "price": 121.99843376922608,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000162",
+      "date": "2021-10-04",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 31.0,
+      "price": 139.22253057861326,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000163",
+      "date": "2021-10-04",
+      "symbol": "MSFT",
+      "side": "buy",
+      "shares": 207.0,
+      "price": 272.3559890899658,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000164",
+      "date": "2021-10-04",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 174.0,
+      "price": 323.55183178710934,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000165",
+      "date": "2021-11-17",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 194.0,
+      "price": 350.2420887145996,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000166",
+      "date": "2021-11-19",
+      "symbol": "MSFT",
+      "side": "sell",
+      "shares": 207.0,
+      "price": 330.350184173584,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000167",
+      "date": "2021-12-17",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 463.0,
+      "price": 139.2677031402588,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000168",
+      "date": "2022-01-04",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 20.0,
+      "price": 150.5727921066284,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000169",
+      "date": "2022-01-04",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 17.0,
+      "price": 333.767294631958,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000170",
+      "date": "2022-01-04",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 364.0,
+      "price": 175.6177637786865,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000171",
+      "date": "2022-01-04",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 174.0,
+      "price": 368.0819897918701,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000172",
+      "date": "2022-01-04",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 442.0,
+      "price": 144.72795220184327,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000173",
+      "date": "2022-01-18",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 174.0,
+      "price": 326.63536770629884,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000174",
+      "date": "2022-01-21",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 364.0,
+      "price": 158.5618842315674,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000175",
+      "date": "2022-01-26",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 191.0,
+      "price": 291.9192139587403,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000176",
+      "date": "2022-03-09",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 442.0,
+      "price": 132.2921582336426,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000177",
+      "date": "2022-04-04",
+      "symbol": "JNJ",
+      "side": "sell",
+      "shares": 425.0,
+      "price": 156.15744740295412,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000178",
+      "date": "2022-04-04",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 338.0,
+      "price": 174.608561920166,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000179",
+      "date": "2022-04-04",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 417.0,
+      "price": 141.78574697113035,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000180",
+      "date": "2022-04-04",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 255.0,
+      "price": 231.96988510894775,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000181",
+      "date": "2022-04-04",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 288.0,
+      "price": 204.82407106018064,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0012-00000182",
+      "date": "2022-04-04",
+      "symbol": "KO",
+      "side": "buy",
+      "shares": 1071.0,
+      "price": 55.21667764091492,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000183",
+      "date": "2022-04-12",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 417.0,
+      "price": 126.52868399047853,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000184",
+      "date": "2022-04-13",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 255.0,
+      "price": 213.01194050598147,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000185",
+      "date": "2022-04-25",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 338.0,
+      "price": 159.22335752868653,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000186",
+      "date": "2022-05-23",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 288.0,
+      "price": 190.08815117645264,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0012-00000187",
+      "date": "2022-07-05",
+      "symbol": "KO",
+      "side": "sell",
+      "shares": 1071.0,
+      "price": 56.21743691253663,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000188",
+      "date": "2022-07-05",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 398.0,
+      "price": 138.723975151062,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000189",
+      "date": "2022-07-05",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 491.0,
+      "price": 112.32362794876099,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000190",
+      "date": "2022-07-05",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 331.0,
+      "price": 166.80923879241942,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000191",
+      "date": "2022-07-05",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 341.0,
+      "price": 161.95325061035155,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0009-00000192",
+      "date": "2022-07-05",
+      "symbol": "CVX",
+      "side": "buy",
+      "shares": 455.0,
+      "price": 121.42887867736816,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000193",
+      "date": "2022-08-15",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 398.0,
+      "price": 169.78617345428466,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000194",
+      "date": "2022-09-14",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 331.0,
+      "price": 150.07635250854494,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000195",
+      "date": "2022-09-16",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 491.0,
+      "price": 101.845513256073,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0009-00000196",
+      "date": "2022-10-04",
+      "symbol": "CVX",
+      "side": "sell",
+      "shares": 455.0,
+      "price": 135.25477225494384,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000197",
+      "date": "2022-10-04",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 1.0,
+      "price": 168.4220334777832,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000198",
+      "date": "2022-10-04",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 399.0,
+      "price": 143.371897315979,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000199",
+      "date": "2022-10-04",
+      "symbol": "MSFT",
+      "side": "buy",
+      "shares": 237.0,
+      "price": 241.43143114471434,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000200",
+      "date": "2022-10-04",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 568.0,
+      "price": 100.79703928756713,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000201",
+      "date": "2022-10-04",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 411.0,
+      "price": 139.12839784240722,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000202",
+      "date": "2022-10-12",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 411.0,
+      "price": 126.32690352249146,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000203",
+      "date": "2022-10-12",
+      "symbol": "MSFT",
+      "side": "sell",
+      "shares": 237.0,
+      "price": 218.77478945159913,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000204",
+      "date": "2022-10-28",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 340.0,
+      "price": 207.0304051818848,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000205",
+      "date": "2022-10-28",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 568.0,
+      "price": 95.39595796966553,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000206",
+      "date": "2022-12-20",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 399.0,
+      "price": 129.91497522735597,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000207",
+      "date": "2023-01-04",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 451.0,
+      "price": 124.2062065887451,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000208",
+      "date": "2023-01-04",
+      "symbol": "MSFT",
+      "side": "buy",
+      "shares": 251.0,
+      "price": 222.8697562637329,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000209",
+      "date": "2023-01-04",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 642.0,
+      "price": 87.34948482513427,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000210",
+      "date": "2023-01-04",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 444.0,
+      "price": 126.32436108398437,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000211",
+      "date": "2023-01-04",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 246.0,
+      "price": 228.04256842803954,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000212",
+      "date": "2023-02-02",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 444.0,
+      "price": 187.03317613220216,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000213",
+      "date": "2023-02-03",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 642.0,
+      "price": 103.80713266372682,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000214",
+      "date": "2023-02-06",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 451.0,
+      "price": 148.99467926025392,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000215",
+      "date": "2023-03-16",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 246.0,
+      "price": 207.42031632995608,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0001-00000216",
+      "date": "2023-03-17",
+      "symbol": "MSFT",
+      "side": "sell",
+      "shares": 251.0,
+      "price": 272.2395750579834,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000217",
+      "date": "2023-04-04",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 412.0,
+      "price": 163.0554249572754,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000218",
+      "date": "2023-04-04",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 648.0,
+      "price": 103.85148322677611,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000219",
+      "date": "2023-04-04",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 316.0,
+      "price": 212.9572707595825,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000220",
+      "date": "2023-04-04",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 247.0,
+      "price": 271.5505023193359,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0009-00000221",
+      "date": "2023-04-04",
+      "symbol": "CVX",
+      "side": "buy",
+      "shares": 456.0,
+      "price": 147.60680179595946,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0009-00000222",
+      "date": "2023-05-17",
+      "symbol": "CVX",
+      "side": "sell",
+      "shares": 456.0,
+      "price": 135.83108307647706,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000223",
+      "date": "2023-05-30",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 316.0,
+      "price": 260.1045933380127,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000224",
+      "date": "2023-06-06",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 648.0,
+      "price": 126.12794451904297,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000225",
+      "date": "2023-07-05",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 14.0,
+      "price": 188.4279404373169,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000226",
+      "date": "2023-07-05",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 13.0,
+      "price": 288.19334106445314,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000227",
+      "date": "2023-07-05",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 621.0,
+      "price": 120.74024107360839,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0009-00000228",
+      "date": "2023-07-05",
+      "symbol": "CVX",
+      "side": "buy",
+      "shares": 544.0,
+      "price": 137.82750052642822,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000229",
+      "date": "2023-07-05",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 536.0,
+      "price": 139.86863594055174,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000230",
+      "date": "2023-10-03",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 52.0,
+      "price": 131.20040396881103,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0009-00000231",
+      "date": "2023-10-03",
+      "symbol": "CVX",
+      "side": "sell",
+      "shares": 41.0,
+      "price": 148.45777743530275,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000232",
+      "date": "2023-10-03",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 18.0,
+      "price": 134.50934447479247,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000233",
+      "date": "2023-10-03",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 13.0,
+      "price": 272.43381729125974,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000234",
+      "date": "2023-10-03",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 40.0,
+      "price": 170.18441491699218,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0009-00000235",
+      "date": "2023-11-09",
+      "symbol": "CVX",
+      "side": "sell",
+      "shares": 503.0,
+      "price": 126.23313176727295,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000236",
+      "date": "2023-12-15",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 273.0,
+      "price": 332.23303134155276,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000237",
+      "date": "2024-01-03",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 10.0,
+      "price": 181.93973108673097,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000238",
+      "date": "2024-01-03",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 4.0,
+      "price": 137.63014037322998,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000239",
+      "date": "2024-01-03",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 11.0,
+      "price": 137.5446595916748,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000240",
+      "date": "2024-01-03",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 244.0,
+      "price": 317.77856085205076,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0009-00000241",
+      "date": "2024-01-03",
+      "symbol": "CVX",
+      "side": "buy",
+      "shares": 567.0,
+      "price": 137.03048661804198,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000242",
+      "date": "2024-01-22",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 565.0,
+      "price": 144.634494720459,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000243",
+      "date": "2024-04-02",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 565.0,
+      "price": 150.18137199401858,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0009-00000244",
+      "date": "2024-04-02",
+      "symbol": "CVX",
+      "side": "sell",
+      "shares": 567.0,
+      "price": 145.15535232543945,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000245",
+      "date": "2024-04-02",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 8.0,
+      "price": 342.71725804138185,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000246",
+      "date": "2024-04-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 55.0,
+      "price": 167.10270515441894,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000247",
+      "date": "2024-04-02",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 527.0,
+      "price": 153.278123588562,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000248",
+      "date": "2024-04-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 228.0,
+      "price": 353.38619952392577,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000249",
+      "date": "2024-04-02",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 546.0,
+      "price": 147.908252494812,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000250",
+      "date": "2024-04-17",
+      "symbol": "JNJ",
+      "side": "sell",
+      "shares": 546.0,
+      "price": 135.61957999420167,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000251",
+      "date": "2024-05-01",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 228.0,
+      "price": 321.53245169067384,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000252",
+      "date": "2024-06-12",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 483.0,
+      "price": 210.9525916671753,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000253",
+      "date": "2024-06-28",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 527.0,
+      "price": 180.66586272430422,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000254",
+      "date": "2024-07-02",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 27.0,
+      "price": 318.77054219055174,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000255",
+      "date": "2024-07-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 385.0,
+      "price": 218.29923484039304,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000256",
+      "date": "2024-07-02",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 457.0,
+      "price": 183.914527885437,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000257",
+      "date": "2024-07-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 263.0,
+      "price": 318.6363198394775,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000258",
+      "date": "2024-07-02",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 608.0,
+      "price": 138.0437340774536,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000259",
+      "date": "2024-07-26",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 457.0,
+      "price": 165.63930688476563,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000260",
+      "date": "2024-09-25",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 263.0,
+      "price": 379.6485817260742,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000261",
+      "date": "2024-10-02",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 263.0,
+      "price": 384.25659761047365,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000262",
+      "date": "2024-10-02",
+      "symbol": "JNJ",
+      "side": "sell",
+      "shares": 12.0,
+      "price": 153.3586918411255,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000263",
+      "date": "2024-10-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 21.0,
+      "price": 225.0111309814453,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000264",
+      "date": "2024-10-02",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 554.0,
+      "price": 164.89168503570556,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000265",
+      "date": "2024-10-02",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 232.0,
+      "price": 393.748258895874,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000266",
+      "date": "2025-01-03",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 67.0,
+      "price": 190.69804505157472,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000267",
+      "date": "2025-01-03",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 21.0,
+      "price": 241.48587085723878,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000268",
+      "date": "2025-01-03",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 16.0,
+      "price": 374.57055349731445,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000269",
+      "date": "2025-01-03",
+      "symbol": "JNJ",
+      "side": "buy",
+      "shares": 75.0,
+      "price": 138.44092048645018,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000270",
+      "date": "2025-01-03",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 260.0,
+      "price": 356.37945565795894,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000271",
+      "date": "2025-01-27",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 487.0,
+      "price": 190.7179173126221,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000272",
+      "date": "2025-03-04",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 260.0,
+      "price": 320.9463496246338,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000273",
+      "date": "2025-03-11",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 248.0,
+      "price": 353.9854553527832,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0010-00000274",
+      "date": "2025-04-02",
+      "symbol": "JNJ",
+      "side": "sell",
+      "shares": 671.0,
+      "price": 150.2092663650513,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000275",
+      "date": "2025-04-02",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 385.0,
+      "price": 222.41007112121582,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000276",
+      "date": "2025-04-02",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 576.0,
+      "price": 156.48211736297606,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000277",
+      "date": "2025-04-02",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 155.0,
+      "price": 581.8657997131347,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000278",
+      "date": "2025-04-02",
+      "symbol": "NVDA",
+      "side": "buy",
+      "shares": 817.0,
+      "price": 110.3205975151062,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000279",
+      "date": "2025-04-02",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 251.0,
+      "price": 359.2325355377197,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000280",
+      "date": "2025-04-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 273.0,
+      "price": 329.04475021362305,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000281",
+      "date": "2025-04-04",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 155.0,
+      "price": 502.44301927185063,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000282",
+      "date": "2025-04-04",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 273.0,
+      "price": 282.9632144622803,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0005-00000283",
+      "date": "2025-04-07",
+      "symbol": "NVDA",
+      "side": "sell",
+      "shares": 817.0,
+      "price": 97.45459762954712,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000284",
+      "date": "2025-04-09",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 251.0,
+      "price": 343.8756751251221,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000285",
+      "date": "2025-07-02",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 99.0,
+      "price": 178.04277001953125,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000286",
+      "date": "2025-07-02",
+      "symbol": "AAPL",
+      "side": "buy",
+      "shares": 401.0,
+      "price": 211.52390673065185,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000287",
+      "date": "2025-07-02",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 119.0,
+      "price": 711.5945721130371,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000288",
+      "date": "2025-07-02",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 234.0,
+      "price": 362.4005921630859,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000289",
+      "date": "2025-07-02",
+      "symbol": "CAT",
+      "side": "buy",
+      "shares": 215.0,
+      "price": 393.6309517364502,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000290",
+      "date": "2025-07-22",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 477.0,
+      "price": 190.70031747436525,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0000-00000291",
+      "date": "2025-09-23",
+      "symbol": "AAPL",
+      "side": "sell",
+      "shares": 401.0,
+      "price": 253.36685976409913,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0008-00000292",
+      "date": "2025-10-01",
+      "symbol": "CAT",
+      "side": "sell",
+      "shares": 215.0,
+      "price": 476.29222181701664,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000293",
+      "date": "2025-10-02",
+      "symbol": "HD",
+      "side": "buy",
+      "shares": 9.0,
+      "price": 387.1560972747803,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000294",
+      "date": "2025-10-02",
+      "symbol": "META",
+      "side": "buy",
+      "shares": 11.0,
+      "price": 725.5265223999023,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000295",
+      "date": "2025-10-02",
+      "symbol": "GOOGL",
+      "side": "buy",
+      "shares": 384.0,
+      "price": 245.33281018066404,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000296",
+      "date": "2025-10-02",
+      "symbol": "PG",
+      "side": "buy",
+      "shares": 639.0,
+      "price": 147.78028937530516,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0013-00000297",
+      "date": "2025-10-02",
+      "symbol": "PEP",
+      "side": "buy",
+      "shares": 682.0,
+      "price": 138.29839320373534,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0004-00000298",
+      "date": "2025-11-03",
+      "symbol": "META",
+      "side": "sell",
+      "shares": 130.0,
+      "price": 635.7377582397461,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0007-00000299",
+      "date": "2025-11-19",
+      "symbol": "HD",
+      "side": "sell",
+      "shares": 243.0,
+      "price": 327.5215210876465,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0002-00000300",
+      "date": "2025-11-24",
+      "symbol": "GOOGL",
+      "side": "sell",
+      "shares": 384.0,
+      "price": 317.7988762969971,
+      "fee": 0.0
+    },
+    {
+      "transactionId": "vbt-order-0011-00000301",
+      "date": "2025-12-09",
+      "symbol": "PG",
+      "side": "sell",
+      "shares": 639.0,
+      "price": 136.52147257232667,
+      "fee": 0.0
+    }
+  ]
+}

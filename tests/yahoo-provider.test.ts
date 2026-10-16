@@ -315,7 +315,7 @@ test("searches arbitrary names and fails closed to US equities on known exchange
   assert.equal(instruments[0]?.industry, "Consumer Electronics");
   assert.equal(
     instruments[0]?.logoPath,
-    "https://financialmodelingprep.com/image-stock/AAPL.png",
+    "/api/v1/symbols/AAPL/logo",
   );
   assert.equal(instruments[1]?.assetType, "adr");
   assert.equal(fetchMock.mock.callCount(), 1);
@@ -1008,7 +1008,7 @@ test("uses an anonymous quoteSummary session for company profile", async (t) => 
   assert.equal(profile?.city, "Cupertino");
   assert.equal(
     profile?.logoUrl,
-    "https://financialmodelingprep.com/image-stock/AAPL.png",
+    "/api/v1/symbols/AAPL/logo",
   );
   assert.equal(profile?.employees, 164_000);
   assert.equal(profile?.beta, 1.2);

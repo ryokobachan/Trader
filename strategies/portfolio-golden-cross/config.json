@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "trader.strategy-package.v1",
+  "id": "portfolio-golden-cross",
+  "name": "Portfolio Golden Cross",
+  "version": "1.0.0",
+  "display": {
+    "order": 10,
+    "family": "portfolio2",
+    "status": "research",
+    "candidateAt": "2026/08/14 00:00",
+    "audit": {
+      "overfit": null,
+      "leakage": null
+    },
+    "copy": {
+      "en": {
+        "name": "Portfolio Golden Cross",
+        "category": "Trend following",
+        "sourceLabels": ["Close", "SMA 50", "SMA 200"],
+        "headline": "Manage a multi-symbol portfolio by equally weighting stocks whose 50-day SMA is above their 200-day SMA.",
+        "auditVerdict": "Not evaluated"
+      },
+      "ja": {
+        "name": "ポートフォリオ・ゴールデンクロス",
+        "category": "トレンドフォロー",
+        "sourceLabels": ["終値", "SMA 50", "SMA 200"],
+        "headline": "複数銘柄を対象に、50日SMAが200日SMAを上回る銘柄を等ウェイトで保有するポートフォリオ戦略。",
+        "auditVerdict": "未評価"
+      }
+    }
+  },
+  "entrypoint": "main.py:generate",
+  "runtimeProfile": "trader-vectorbt-v1",
+  "interface": "trader.target-weights.v1",
+  "marketData": {
+    "requiredFields": ["close"],
+    "minSymbols": 2,
+    "warmupBars": 200
+  },
+  "parameters": {
+    "fastPeriod": {
+      "type": "integer",
+      "default": 50,
+      "minimum": 1
+    },
+    "slowPeriod": {
+      "type": "integer",
+      "default": 200,
+      "minimum": 2
+    },
+    "grossExposure": {
+      "type": "number",
+      "default": 1.0,
+      "minimum": 0.0,
+      "maximum": 1.0
+    }
+  },
+  "backtest": {
+    "marketRegion": "US",
+    "baseCurrency": "USD",
+    "initialCash": 100000,
+    "barInterval": "1d",
+    "valuationPriceField": "close",
+    "execution": {
+      "delayBars": 1,
+      "priceField": "close",
+      "rebalanceSequence": "sellThenBuy"
+    },
+    "portfolio": {
+      "cashSharing": true,
+      "grouping": "allSymbols",
+      "direction": "longOnly"
+    },
+    "positionSizing": {
+      "mode": "targetWeight",
+      "weightUnit": "fraction",
+      "minimumOrderShares": 1,
+      "shareIncrement": 1
+    },
+    "costs": {
+      "proportionalFeeRate": 0.0,
+      "fixedFeePerOrder": 0.0,
+      "slippageRate": 0.0005
+    },
+    "risk": {
+      "appliedBy": "runner",
+      "stopLossRate": 0.08,
+      "takeProfitRate": 0.20,
+      "trailingStopLossRate": null,
+      "triggerPriceField": "close",
+      "fillTiming": "nextBarClose",
+      "referencePrice": "weightedAverageFill",
+      "reentryPolicy": "nextExplicitTarget"
+    },
+    "benchmark": {
+      "symbol": "^GSPC",
+      "assetType": "index",
+      "returnType": "price",
+      "costsApplied": false
+    }
+  }
+}

@@ -131,7 +131,7 @@ export const strategyPortfolioTransactions = sqliteTable(
 );
 
 /**
- * Owner-scoped presentation overrides for the immutable sample catalog.
+ * Owner-scoped presentation overrides for the deployment-owned strategy packages.
  * A non-null deletedAt is a soft-delete tombstone; the deployment-owned
  * strategy definition and its portfolio transactions remain untouched.
  */

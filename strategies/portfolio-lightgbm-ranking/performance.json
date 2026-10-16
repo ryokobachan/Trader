@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "trader.strategy-performance.v1",
+  "strategyId": "portfolio-lightgbm-ranking",
+  "strategyVersion": "1.0.0",
+  "runId": null,
+  "generatedAt": null,
+  "provenance": "unavailable",
+  "metrics": {
+    "netReturn": null,
+    "maxDrawdown": null,
+    "recoveryFactor": null,
+    "sharpe": null,
+    "forwardReturn": null,
+    "winRate": null,
+    "trades": null,
+    "symbols": null,
+    "cash": null
+  }
+}

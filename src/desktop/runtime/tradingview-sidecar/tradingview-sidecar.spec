@@ -19,16 +19,18 @@ GENERATED_DIR = Path(workpath).resolve() / "generated"
 GENERATED_DIR.mkdir(parents=True, exist_ok=True)
 GENERATED_SIDECAR = GENERATED_DIR / "trader_tradingview_sidecar.py"
 copyfile(SIDECAR_SOURCE, GENERATED_SIDECAR)
+for research_module in ("talib_indicators", "financial_history", "shared_data"):
+    copyfile(SIDECAR_SOURCE.with_name(research_module + ".py"), GENERATED_DIR / (research_module + ".py"))
 
 datas = []
 binaries = []
-hiddenimports = []
+hiddenimports = ["talib_indicators", "financial_history", "shared_data"]
 
 # yfinance and curl_cffi both use runtime-selected modules/resources. Collect
 # their complete installed packages so profile and earnings endpoints retain
 # the same behavior as the Python script. The TradingView package is tiny, and
 # collecting it completely protects its websocket import boundary as well.
-for package in ("tradingview_websocket", "yfinance", "curl_cffi", "lxml"):
+for package in ("tradingview_websocket", "yfinance", "curl_cffi", "lxml", "talib"):
     package_datas, package_binaries, package_hiddenimports = collect_all(package)
     datas += package_datas
     binaries += package_binaries
@@ -39,6 +41,7 @@ for distribution in (
     "websocket-client",
     "yfinance",
     "curl_cffi",
+    "TA-Lib",
 ):
     datas += copy_metadata(distribution)
 

@@ -7,7 +7,7 @@ import {
   yahooDevelopmentCommand,
 } from "../src/tooling/scripts/dev-with-yahoo.mjs";
 
-test("builds a forced keyless Yahoo and Benzinga profile without Midas or FMP settings", () => {
+test("builds a forced keyless Yahoo profile with the Google Finance and Benzinga merge", () => {
   const environment = buildYahooDevelopmentEnvironment({
     PATH: "/usr/bin",
     FMP_API_KEY: "not-forwarded",
@@ -33,7 +33,7 @@ test("builds a forced keyless Yahoo and Benzinga profile without Midas or FMP se
   assert.equal(environment.TRADER_PROFILE_PROVIDER, "yahoo");
   assert.equal(environment.TRADER_FUNDAMENTALS_PROVIDER, "yahoo");
   assert.equal(environment.TRADER_EARNINGS_PROVIDER, "yahoo");
-  assert.equal(environment.TRADER_ANALYST_PROVIDER, "benzinga");
+  assert.equal(environment.TRADER_ANALYST_PROVIDER, "google-finance-benzinga");
   assert.equal(environment.TRADER_NEWS_PROVIDER, "yahoo");
   assert.equal(environment.FMP_API_KEY, undefined);
   assert.equal(environment.FMP_BASE_URL, undefined);

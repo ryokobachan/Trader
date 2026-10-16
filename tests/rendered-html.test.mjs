@@ -60,10 +60,12 @@ test("server-renders the Trader stock analysis mock", async () => {
   assert.match(html, /aria-label="Workspace"/);
   assert.match(html, /watchlist-detail-layout/);
   assert.match(html, /aria-label="AAPL symbol overview"/);
-  assert.match(html, /aria-label="Open AAPL details"/);
+  assert.match(html, /aria-label="Details"/);
+  assert.doesNotMatch(html, /stock-summary-detail-button|aria-label="Open AAPL details"/);
   assert.doesNotMatch(html, /aria-label="AAPL 銘柄詳細"/);
   assert.doesNotMatch(html, /> AAPL 詳細<\/button>/);
-  assert.match(html, /financialmodelingprep\.com\/image-stock\/AAPL\.png/);
+  assert.match(html, /\/api\/v1\/symbols\/AAPL\/logo/);
+  assert.doesNotMatch(html, /financialmodelingprep\.com/);
   assert.doesNotMatch(html, /company-logo-fallback/);
   assert.match(html, /data-module-id="core\.identity_quote"/);
   assert.match(html, /data-module-id="core\.key_statistics"/);

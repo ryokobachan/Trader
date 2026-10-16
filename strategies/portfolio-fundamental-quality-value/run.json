@@ -1,0 +1,121 @@
+{
+  "benchmark": {
+    "costsApplied": false,
+    "dataSha256": "c41c41359c46da9d033afcf742361633ded4b7d3f6f24812536581166a72a085",
+    "metrics": {
+      "cagr": 13.12944028534706,
+      "excessReturn": 164.91324431229054,
+      "maxDrawdown": -33.92496000265327,
+      "netReturn": 203.18933503112868,
+      "sharpe": 0.7575374118747881
+    },
+    "returnType": "price",
+    "symbol": "^GSPC"
+  },
+  "data": {
+    "adjustment": "Adj Close execution; historical share-basis screens; SEC diluted-share market-cap proxy",
+    "end": "2025-12-31",
+    "evaluationEndExclusive": "2026-01-01",
+    "evaluationStart": "2017-01-01",
+    "interval": "1d",
+    "provider": "yfinance+sec-edgar-companyfacts",
+    "providerVersion": "yfinance=1.6.0;sec=annual-10k-v1",
+    "requestedEndExclusive": "2026-01-01",
+    "requestedStart": "2016-06-17",
+    "sha256": "ce5aeed90f0168057c702099e1912ea39c0a8454747e562583425e53f1d8f6fa",
+    "start": "2016-06-17",
+    "symbols": [
+      "AAPL",
+      "MSFT",
+      "GOOGL",
+      "AMZN",
+      "META",
+      "NVDA",
+      "WMT",
+      "HD",
+      "CAT",
+      "CVX",
+      "JNJ",
+      "PG",
+      "KO",
+      "PEP",
+      "COST"
+    ],
+    "timezone": "America/New_York"
+  },
+  "execution": {
+    "cagr": 18.734962899769947,
+    "closedTradeCount": 147,
+    "finalCashPercent": 79.49085385585573,
+    "finalPositions": [
+      {
+        "allocationPercent": 20.509146144144275,
+        "averageCost": 138.29839320373534,
+        "markPrice": 140.76809692382812,
+        "marketValue": 96003.84210205078,
+        "shares": 682.0,
+        "symbol": "PEP",
+        "unrealizedPnl": 1684.3379371032788
+      }
+    ],
+    "finalValue": 468102.57934341935,
+    "openTradeCount": 1,
+    "orderCount": 302,
+    "totalFees": 0.0,
+    "totalTradeCount": 148,
+    "transactionMapping": "vectorbt_filled_orders"
+  },
+  "generatedAt": "2026-08-14T12:21:25.095Z",
+  "metricsDefinitionVersion": "trader.strategy-metrics.v1",
+  "reproducibility": {
+    "annualRiskFreeRate": 0.0,
+    "annualizationDays": 252,
+    "codeSha256": "66e6065b58997dc016e050d289853268cb9c3eb78967bde2a4d0e38707c175a0",
+    "configSha256": "855c171dc5efde205b1b656b46a3612003b3de3c62061c525c7c5cf733169746",
+    "effectiveParameters": {
+      "grossExposure": 1.0,
+      "liquidityWindowBars": 20,
+      "maximumFundamentalAgeDays": 450,
+      "minimumAverageDollarVolume": 10000000.0,
+      "minimumMarketCapitalization": 2000000000.0,
+      "minimumOperatingCashFlowToAssets": 0.0,
+      "minimumPrice": 5.0,
+      "minimumReturnOnEquity": 0.0,
+      "qualityWeight": 0.5,
+      "topN": 5
+    },
+    "periodicRiskFreeRate": 0.0,
+    "runnerSha256": "2fee11a1a0f16eab9074bfdfb0f5f816ea7923420e0cce37ab7e07d1471799e3",
+    "runtime": {
+      "lightgbm": "4.7.0",
+      "numba": "0.67.0",
+      "numpy": "2.5.2",
+      "pandas": "3.0.5",
+      "python": "3.12.12",
+      "scipy": "1.18.0",
+      "talib": "0.7.1",
+      "vectorbt": "1.1.0",
+      "yfinance": "1.6.0"
+    }
+  },
+  "runId": "run-9b313a3e7ab03e4b5e715824",
+  "schemaVersion": "trader.strategy-run.v1",
+  "strategyId": "portfolio-fundamental-quality-value",
+  "strategyVersion": "1.0.0",
+  "warnings": [
+    "This trial uses a fixed current-symbol universe and may contain survivorship and selection bias.",
+    "SEC fundamentals use complete annual 10-K accessions and become available on the next trading session after filing.",
+    "Latest annual flow facts remain in force until the next complete 10-K and are not quarterly-updated TTM values; amendments apply prospectively and never backfill prior rows.",
+    "Price and volume screens use Yahoo's contemporaneous historical share basis; later splits change units without changing dollar volume.",
+    "Screening market capitalization is a proxy built from Yahoo split-adjusted raw Close and SEC diluted weighted-average shares normalized to the same share basis; it can differ from period-end equity market capitalization.",
+    "Raw SEC and Yahoo responses are fetched at run time and are not bundled; the normalized input panels are content-hashed.",
+    "Complete annual SEC filing events by symbol: AAPL=18, MSFT=16, GOOGL=10, AMZN=16, META=13, NVDA=16, WMT=16, HD=16, CAT=16, CVX=16, JNJ=14, PG=17, KO=16, PEP=16, COST=16.",
+    "SEC source payload SHA-256: 468efb86dab0a20277ead4ac05a2b0bb0d1052420a306bbdcd3f964606f44d79.",
+    "Yahoo can revise historical adjusted prices or corporate actions, so a later refetch may have a different dataset hash.",
+    "137 bars were used only for indicator warmup and excluded from performance.",
+    "The evaluation starts as a new cash portfolio using the latest pre-start target; pre-start holdings and stop state are not carried forward.",
+    "No out-of-sample interval is designated, so forwardReturn is null.",
+    "Stops trigger on the close and fill at the next bar close, so gaps can exceed the configured threshold.",
+    "Strategy prices are dividend-adjusted while ^GSPC is a price index, so return bases are not identical."
+  ]
+}

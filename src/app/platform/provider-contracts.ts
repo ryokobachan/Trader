@@ -23,6 +23,7 @@ export const PROVIDER_CAPABILITIES = [
   "fundamentals.profile",
   "fundamentals.normalized",
   "fundamentals.earnings",
+  "fundamentals.research",
   "analyst.consensus",
   "analyst.ratings",
   "news.company",
@@ -181,6 +182,13 @@ export function isFreshSyntheticLatestClose(
 }
 
 export type CompanyProfile = Readonly<{
+  localized?: Readonly<{ ja?: Readonly<{
+    description?: string;
+    descriptionProvenance?: DataProvenance;
+    sector?: string;
+    industry?: string;
+    provenance: DataProvenance;
+  }> }>;
   instrumentId: string;
   description?: string;
   website?: string;
@@ -207,16 +215,118 @@ export type ShareStructureSnapshot = Readonly<{
 
 export type FinancialHealthSnapshot = Readonly<{
   altmanZScore?: number;
+  altmanZScorePeriod?: string;
   /** Integer score in the canonical 0–9 range. */
   piotroskiScore?: number;
+  piotroskiScorePeriod?: string;
+  provenance: DataProvenance;
+}>;
+
+/** A source-labelled fiscal period; no dates are inferred from array positions. */
+export type FinancialStatementPeriod = Readonly<{
+  period: string;
+  fiscalDateEnding?: string;
+  currency: "USD";
+  revenue?: number;
+  grossProfit?: number;
+  operatingIncome?: number;
+  ebitda?: number;
+  netIncome?: number;
+  eps?: number;
+  researchAndDevelopment?: number;
+  sellingGeneralAndAdministrative?: number;
+  totalAssets?: number;
+  totalLiabilities?: number;
+  totalDebt?: number;
+  netDebt?: number;
+  shareholdersEquity?: number;
+  cashAndShortTermInvestments?: number;
+  operatingCashFlow?: number;
+  capitalExpenditure?: number;
+  freeCashFlow?: number;
+  investingCashFlow?: number;
+  financingCashFlow?: number;
+  provenance: DataProvenance;
+}>;
+
+/** Fiscal forecasts have a fiscal period, not an invented earnings release date. */
+export type FundamentalFiscalForecast = Readonly<{
+  period: string;
+  reported: boolean;
+  epsActual?: number;
+  epsEstimate?: number;
+  revenueActual?: number;
+  revenueEstimate?: number;
+  provenance: DataProvenance;
+}>;
+
+export type OwnershipSnapshot = Readonly<{
+  /** Fractional ownership and short-interest percentages (0.2 = 20%). */
+  insiderOwnership?: number;
+  institutionalOwnership?: number;
+  sharesShort?: number;
+  sharesShortPriorMonth?: number;
+  shortFloatRatio?: number;
+  shortOutstandingRatio?: number;
+  shortRatio?: number;
+  shortInterestDate?: string;
+  provenance: DataProvenance;
+}>;
+
+export type CorporateAction = Readonly<{
+  id: string;
+  type: "dividend" | "split";
+  /** Source event date; dividends use the ex-dividend date. */
+  date: string;
+  amount?: number;
+  currency?: "USD";
+  numerator?: number;
+  denominator?: number;
+  provenance: DataProvenance;
+}>;
+
+export type CompanyResearch = Readonly<{
+  instrumentId: string;
+  ownership?: OwnershipSnapshot;
+  quarterlyFinancials?: readonly FinancialStatementPeriod[];
+  /** Annual CF retains its own fiscal periods and source. */
+  annualCashFlows?: readonly FinancialStatementPeriod[];
+  corporateActions: readonly CorporateAction[];
+  /** Empty available datasets are distinct from failed upstream requests. */
+  coverage: Readonly<{
+    ownership: "available" | "unavailable";
+    quarterlyFinancials: "available" | "unavailable";
+    corporateActions: "available" | "unavailable";
+  }>;
   provenance: DataProvenance;
 }>;
 
 export type FundamentalsSnapshot = Readonly<{
+  valuationSources?: Readonly<Partial<Record<"trailingPe" | "forwardPe" | "pegRatio", Readonly<{
+    provenance: DataProvenance;
+    basis: "ttm" | "forward" | "growth-adjusted";
+    status: "reported" | "calculated" | "not_reported";
+    /** Explicit calculation inputs; no FY/TTM or adjusted/GAAP substitution. */
+    calculation?: Readonly<{
+      formula: string;
+      inputs: Readonly<Record<string, number>>;
+      earningsPeriod: "TTM" | "NTM";
+      growthBasis?: "diluted-eps-ttm-yoy";
+    }>;
+  }>>>>;
   instrumentId: string;
   currency: "USD";
   /** Provider reporting period or latest field-as-of date. */
   period?: string;
+  reportingBasis?: "annual" | "ttm";
+  annualFinancials?: readonly FinancialStatementPeriod[];
+  quarterlyFinancials?: readonly FinancialStatementPeriod[];
+  fiscalForecasts?: readonly FundamentalFiscalForecast[];
+  researchAndDevelopment?: number;
+  sellingGeneralAndAdministrative?: number;
+  totalLiabilities?: number;
+  investingCashFlow?: number;
+  financingCashFlow?: number;
   /** Monetary totals are expressed in `currency`; per-share fields are USD/share. */
   revenue?: number;
   /** Growth, margin, return, and yield fields use decimal fractions (`0.15` = 15%). */
@@ -281,11 +391,60 @@ export type FundamentalsSnapshot = Readonly<{
 export type EarningsEvent = Readonly<{
   reportDate: string;
   fiscalDateEnding?: string;
+  fiscalPeriod?: string;
+  epsBasis?: "earnings_display" | "statement";
+  statementEPS?: number;
   epsActual?: number;
   epsEstimate?: number;
   revenueActual?: number;
   revenueEstimate?: number;
   provenance: DataProvenance;
+}>;
+
+export type AnalystRatingBucket = "strongBuy" | "buy" | "hold" | "sell" | "strongSell";
+
+export type AnalystSourceCoverage = Readonly<{
+  providerId: string;
+  status: "available" | "unavailable";
+  eventCount: number;
+  firmCount: number;
+  ratingCount: number;
+  priceTargetCount: number;
+  asOf?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  /** True when the upstream returned the configured maximum row count. */
+  truncated?: boolean;
+}>;
+
+export type AnalystMergeCoverage = Readonly<{
+  status: "complete" | "partial";
+  /** True when the merged result itself was limited after source union/de-duplication. */
+  truncated?: boolean;
+  /** Firm-level consensus uses the latest observation in this calendar window. */
+  lookbackMonths?: number;
+  sources: readonly AnalystSourceCoverage[];
+}>;
+
+export type AnalystConsensusConstituent = Readonly<{
+  /** Cross-provider stable firm identity used for de-duplication. */
+  firmId: string;
+  firm: string;
+  analystName?: string;
+  rating?: string;
+  ratingBucket?: AnalystRatingBucket;
+  priceTarget?: number;
+  sourceEventDate: string;
+  eventTime: string;
+  /** Provider whose observation won the deterministic latest-event selection. */
+  providerId: string;
+  ratingProviderId?: string;
+  priceTargetProviderId?: string;
+  /** All providers that supplied an observation for this firm in the window. */
+  sourceProviderIds: readonly string[];
+  /** Same-day providers disagreed on one or more non-empty fields. */
+  conflict?: boolean;
+  conflictFields?: readonly ("rating" | "priceTarget")[];
 }>;
 
 export type AnalystConsensus = Readonly<{
@@ -299,9 +458,17 @@ export type AnalystConsensus = Readonly<{
   hold?: number;
   sell?: number;
   strongSell?: number;
+  /** Backward-compatible alias of priceTargetCount for merged providers. */
   analystCount?: number;
+  firmCount?: number;
+  ratingCount?: number;
+  priceTargetCount?: number;
   forwardEps?: number;
   forwardRevenue?: number;
+  methodology?: "firm_latest_trailing_3_months";
+  coverage?: AnalystMergeCoverage;
+  sources?: readonly DataProvenance[];
+  constituents?: readonly AnalystConsensusConstituent[];
   provenance: DataProvenance;
 }>;
 
@@ -312,6 +479,11 @@ export type AnalystConsensus = Readonly<{
 export type AnalystRatingEvent = Readonly<{
   eventId: string;
   instrumentId: string;
+  providerId?: string;
+  ratingProviderId?: string;
+  priceTargetProviderId?: string;
+  sourceProviderIds?: readonly string[];
+  sourceConflict?: boolean;
   symbol: string;
   companyName?: string;
   exchange?: string;
@@ -322,6 +494,8 @@ export type AnalystRatingEvent = Readonly<{
   analystName?: string;
   analystId?: string;
   firmId?: string;
+  /** Cross-provider identity; provider-local firmId remains untouched. */
+  canonicalFirmId?: string;
   action?: string;
   actionCompany?: string;
   actionPriceTarget?: string;
@@ -337,6 +511,9 @@ export type AnalystRatingEvent = Readonly<{
   priceTargetPercentChange?: number;
   importance?: number;
   smartScore?: number;
+  /** TipRanks analyst credibility fields; distinct from a stock Smart Score. */
+  analystStarRating?: number;
+  analystRank?: number;
   overallSuccessRate?: number;
   totalRatings?: number;
   sourceEventDate: string;
@@ -357,6 +534,15 @@ export type AnalystRatingHistory = Readonly<{
   dateTo: string;
   pageSize: number;
   items: readonly AnalystRatingEvent[];
+  /**
+   * Provider-local firm/day operations retained for deterministic consensus
+   * reconstruction. `items` remains the de-duplicated display history.
+   */
+  consensusItems?: readonly AnalystRatingEvent[];
+  /** Rolling calendar window used when rebuilding this provider's consensus. */
+  consensusLookbackMonths?: number;
+  coverage?: AnalystMergeCoverage;
+  sources?: readonly DataProvenance[];
   provenance: DataProvenance;
 }>;
 
@@ -440,6 +626,11 @@ export interface FundamentalsProvider {
     instrument: Instrument,
     context: ProviderRequestContext,
   ): Promise<readonly EarningsEvent[]>;
+  getResearch?(
+    instrument: Instrument,
+    context: ProviderRequestContext,
+    options?: Readonly<{ financialStatements?: boolean }>,
+  ): Promise<CompanyResearch | null>;
 }
 
 export interface AnalystProvider {
@@ -606,6 +797,7 @@ export type SymbolWorkspace = Readonly<{
   earnings: readonly EarningsEvent[];
   analyst: AnalystConsensus | null;
   news: readonly CompanyNewsItem[];
+  research?: CompanyResearch | null;
   selectedProviders: Readonly<{
     instrument: string;
     market: string;
@@ -614,6 +806,7 @@ export type SymbolWorkspace = Readonly<{
     earnings?: string;
     analyst?: string;
     news?: string;
+    research?: string;
   }>;
   dataMode: "fixture" | "provider";
   status: "complete" | "partial";

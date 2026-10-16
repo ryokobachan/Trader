@@ -6,13 +6,13 @@ import {
   markSamplePortfolio,
   strategyMarketMark,
   type StrategyMarketMark,
-} from "../strategies/market-valuation";
+} from "../src/app/features/strategy/market-valuation";
 import type {
   MarketBar,
   MarketSessionState,
   Quote,
 } from "../src/app/platform/provider-contracts";
-import { samplePortfolioHoldingsForStrategy } from "../strategies/sample-portfolio";
+import { samplePortfolioHoldingsForStrategy } from "../src/app/features/strategy/sample-portfolio";
 
 function quote(marketState: MarketSessionState): Quote {
   return {
@@ -154,10 +154,10 @@ test("StrategyHome loads direct quotes and daily bars without the USDT after-hou
   const strategyEnd = source.indexOf("function WatchlistPanel(", strategyStart);
   const strategySource = source.slice(strategyStart, strategyEnd);
 
-  assert.match(strategySource, /fetch\("\/api\/v1\/watchlists\/quotes"/);
+  assert.match(strategySource, /fetch\(`\/api\/v1\/watchlists\/quotes\$\{strategyRefreshVersion > 0 \? "\?fresh=1" : ""\}`/);
   assert.match(strategySource, /bars\?range=5d&interval=1d&count=3/);
   assert.match(strategySource, /Promise\.all\(\[quoteRequest, barsRequest\]\)/);
-  assert.match(strategySource, /quoteResponse\?\.dataMode === "provider"/);
+  assert.match(strategySource, /quoteResult\.payload\?\.dataMode === "provider"/);
   assert.match(strategySource, /payload\.dataMode === "provider" \? payload\.bars\.items : \[\]/);
   assert.doesNotMatch(strategySource, /watchlists\/after-hours|USDT|afterHoursBySymbol/);
   assert.match(strategySource, /return markedPortfolio\.complete/);

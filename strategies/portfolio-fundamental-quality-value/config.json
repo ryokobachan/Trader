@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "trader.strategy-package.v1",
+  "id": "portfolio-fundamental-quality-value",
+  "name": "Portfolio Fundamental Quality Value",
+  "version": "1.0.0",
+  "display": {
+    "order": 30,
+    "family": "portfolio2",
+    "status": "research",
+    "candidateAt": "2026/08/14 00:00",
+    "audit": {
+      "overfit": null,
+      "leakage": null
+    },
+    "copy": {
+      "en": {
+        "name": "Portfolio Fundamental Quality Value",
+        "category": "Fundamental screening",
+        "sourceLabels": [
+          "SEC Company Facts (10-K)",
+          "Latest annual ROE",
+          "Latest annual operating cash flow / assets",
+          "Earnings yield",
+          "Book-to-market",
+          "Diluted-share market-cap proxy",
+          "20-day dollar volume"
+        ],
+        "headline": "Build a multi-symbol portfolio from annual SEC filings by screening for liquid quality companies at reasonable valuations and equally weighting the highest-ranked stocks.",
+        "auditVerdict": "Uses annual SEC filings only after they become public and a diluted-share market-cap proxy; a fixed current-symbol universe still creates survivorship and selection bias."
+      },
+      "ja": {
+        "name": "ファンダメンタル品質・割安ポートフォリオ",
+        "category": "ファンダメンタル・スクリーニング",
+        "sourceLabels": [
+          "SEC Company Facts（10-K）",
+          "最新年次ROE",
+          "最新年次営業CF / 総資産",
+          "利益利回り",
+          "簿価時価比率",
+          "希薄化株式ベース時価総額proxy",
+          "20日平均売買代金"
+        ],
+        "headline": "年次SEC開示を過去時点で再構築し、流動性があり、品質と割安度の高い銘柄を選び、上位銘柄を等ウェイトで保有する戦略。",
+        "auditVerdict": "SEC年次開示を公表後だけ利用し希薄化株式ベース時価総額proxyを使うが、現在の固定銘柄群にはサバイバーシップ・選択バイアスが残る。"
+      }
+    }
+  },
+  "entrypoint": "main.py:generate",
+  "runtimeProfile": "trader-vectorbt-v1",
+  "interface": "trader.target-weights.v1",
+  "marketData": {
+    "requiredFields": [
+      "close",
+      "screening_close",
+      "volume",
+      "market_cap",
+      "net_income_latest_annual",
+      "operating_cash_flow_latest_annual",
+      "total_equity",
+      "total_assets",
+      "fundamental_age_days",
+      "fundamentals_available"
+    ],
+    "minSymbols": 2,
+    "warmupBars": 84
+  },
+  "parameters": {
+    "topN": {
+      "type": "integer",
+      "default": 5,
+      "minimum": 1
+    },
+    "grossExposure": {
+      "type": "number",
+      "default": 1.0,
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "liquidityWindowBars": {
+      "type": "integer",
+      "default": 20,
+      "minimum": 1
+    },
+    "minimumPrice": {
+      "type": "number",
+      "default": 5.0,
+      "minimum": 0.0
+    },
+    "minimumAverageDollarVolume": {
+      "type": "number",
+      "default": 10000000.0,
+      "minimum": 0.0
+    },
+    "minimumMarketCapitalization": {
+      "type": "number",
+      "default": 2000000000.0,
+      "minimum": 0.0
+    },
+    "maximumFundamentalAgeDays": {
+      "type": "integer",
+      "default": 450,
+      "minimum": 0
+    },
+    "minimumReturnOnEquity": {
+      "type": "number",
+      "default": 0.0
+    },
+    "minimumOperatingCashFlowToAssets": {
+      "type": "number",
+      "default": 0.0
+    },
+    "qualityWeight": {
+      "type": "number",
+      "default": 0.5,
+      "minimum": 0.0,
+      "maximum": 1.0
+    }
+  },
+  "backtest": {
+    "marketRegion": "US",
+    "baseCurrency": "USD",
+    "initialCash": 100000,
+    "barInterval": "1d",
+    "valuationPriceField": "close",
+    "execution": {
+      "delayBars": 1,
+      "priceField": "close",
+      "rebalanceSequence": "sellThenBuy"
+    },
+    "portfolio": {
+      "cashSharing": true,
+      "grouping": "allSymbols",
+      "direction": "longOnly"
+    },
+    "positionSizing": {
+      "mode": "targetWeight",
+      "weightUnit": "fraction",
+      "minimumOrderShares": 1,
+      "shareIncrement": 1
+    },
+    "costs": {
+      "proportionalFeeRate": 0.0,
+      "fixedFeePerOrder": 0.0,
+      "slippageRate": 0.0005
+    },
+    "risk": {
+      "appliedBy": "runner",
+      "stopLossRate": 0.08,
+      "takeProfitRate": 0.20,
+      "trailingStopLossRate": null,
+      "triggerPriceField": "close",
+      "fillTiming": "nextBarClose",
+      "referencePrice": "weightedAverageFill",
+      "reentryPolicy": "nextExplicitTarget"
+    },
+    "benchmark": {
+      "symbol": "^GSPC",
+      "assetType": "index",
+      "returnType": "price",
+      "costsApplied": false
+    }
+  }
+}

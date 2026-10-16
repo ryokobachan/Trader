@@ -7,6 +7,8 @@ import type {
   ProviderAdapter,
   ProviderCapability,
   ProviderEnvironment,
+  Instrument,
+  ProviderRequestContext,
 } from "@/app/platform/provider-contracts";
 import {
   defineProviderRegistry,
@@ -14,9 +16,14 @@ import {
 } from "@/app/platform/provider-registry";
 import { traderConfig } from "@/app/trader.config";
 import type { ProviderRole } from "./provider-roles";
+import { createJapaneseCompanyProfileEnricher } from "./company-profile-localization.server";
 import { mockProviderRegistration } from "./mock/index.server";
 import { benzingaProviderRegistration } from "./benzinga/analyst.server";
-import { fmpProviderRegistration } from "./fmp/index.server";
+import { googleFinanceProviderRegistration } from "./google-finance/analyst.server";
+import { tipRanksProviderRegistration } from "./tipranks/analyst.server";
+import { analystMergeProviderRegistration } from "./google-finance-benzinga/index.server";
+import { tradingViewProviderRegistration } from "./tradingview/index.server";
+import { googleFinanceEarningsProviderRegistration } from "./google-finance-earnings/index.server";
 import { yahooProviderRegistration } from "./yahoo/index.server";
 import { tradingViewWebsocketProviderRegistration } from "./tradingview-websocket/index.server";
 
@@ -24,7 +31,11 @@ const providerEntries = Object.freeze([
   { source: "api/mock/index.server.ts", registration: mockProviderRegistration },
   { source: "api/yahoo/index.server.ts", registration: yahooProviderRegistration },
   { source: "api/benzinga/analyst.server.ts", registration: benzingaProviderRegistration },
-  { source: "api/fmp/index.server.ts", registration: fmpProviderRegistration },
+  { source: "api/google-finance/analyst.server.ts", registration: googleFinanceProviderRegistration },
+  { source: "api/tipranks/analyst.server.ts", registration: tipRanksProviderRegistration },
+  { source: "api/google-finance-benzinga/index.server.ts", registration: analystMergeProviderRegistration },
+  { source: "api/tradingview/index.server.ts", registration: tradingViewProviderRegistration },
+  { source: "api/google-finance-earnings/index.server.ts", registration: googleFinanceEarningsProviderRegistration },
   {
     source: "api/tradingview-websocket/index.server.ts",
     registration: tradingViewWebsocketProviderRegistration,
@@ -57,6 +68,7 @@ export type ProviderRuntime = Readonly<{
     profile?: string;
     fundamentals?: string;
     earnings?: string;
+    research?: string;
     analyst?: string;
     news?: string;
   }>;
@@ -74,6 +86,7 @@ const ROLE_ENV: Readonly<Record<ProviderRole, string>> = {
   profile: "TRADER_PROFILE_PROVIDER",
   fundamentals: "TRADER_FUNDAMENTALS_PROVIDER",
   earnings: "TRADER_EARNINGS_PROVIDER",
+  research: "TRADER_RESEARCH_PROVIDER",
   analyst: "TRADER_ANALYST_PROVIDER",
   news: "TRADER_NEWS_PROVIDER",
 };
@@ -108,7 +121,7 @@ export function resolveProviderSelections(
       : { id: direct.fundamentals.id, origin: "fallback from fundamentals" },
     earnings: direct.earnings.id
       ? direct.earnings
-      : { id: direct.fundamentals.id, origin: "fallback from fundamentals" },
+      : { id: direct.fundamentals.id === "tradingview" ? null : direct.fundamentals.id, origin: "fallback from fundamentals" },
   });
 }
 
@@ -146,6 +159,7 @@ export function createProviderRuntime(env: ProviderEnvironment): ProviderRuntime
   const fundamentalsId = selection.fundamentals.id ?? undefined;
   const profileId = selection.profile.id ?? undefined;
   const earningsId = selection.earnings.id ?? undefined;
+  const researchId = selection.research.id ?? undefined;
   const analystId = selection.analyst.id ?? undefined;
   const newsId = selection.news.id ?? undefined;
   const fundamentalsAdapter = fundamentalsId
@@ -156,6 +170,9 @@ export function createProviderRuntime(env: ProviderEnvironment): ProviderRuntime
     : undefined;
   const earningsAdapter = earningsId
     ? resolve(earningsId, ["fundamentals.earnings"])
+    : undefined;
+  const researchAdapter = researchId
+    ? resolve(researchId, ["fundamentals.research"])
     : undefined;
   const analystAdapter = analystId ? resolve(analystId, ["analyst.consensus"]) : undefined;
   const newsAdapter = newsId ? resolve(newsId, ["news.company"]) : undefined;
@@ -179,6 +196,9 @@ export function createProviderRuntime(env: ProviderEnvironment): ProviderRuntime
   if (earningsId && !earningsAdapter?.fundamentals) {
     throw new ProviderRegistryError("provider_initialization_failed", "Selected earnings provider is incomplete.");
   }
+  if (researchId && !researchAdapter?.fundamentals?.getResearch) {
+    throw new ProviderRegistryError("provider_initialization_failed", "Selected research provider is incomplete.");
+  }
   if (analystId && !analystAdapter?.analyst) {
     throw new ProviderRegistryError("provider_initialization_failed", "Selected analyst provider is incomplete.");
   }
@@ -189,10 +209,17 @@ export function createProviderRuntime(env: ProviderEnvironment): ProviderRuntime
   const fundamentals = fundamentalsAdapter?.fundamentals;
   const profile = profileAdapter?.fundamentals;
   const earnings = earningsAdapter?.fundamentals;
-  const composedFundamentals = fundamentals || profile || earnings
+  const research = researchAdapter?.fundamentals;
+  const enrichJapaneseProfile = createJapaneseCompanyProfileEnricher();
+  const composedFundamentals = fundamentals || profile || earnings || research
     ? Object.freeze({
         getProfile: profile
-          ? profile.getProfile.bind(profile)
+          ? async (instrument: Instrument, context: ProviderRequestContext) => {
+              const companyProfile = await profile.getProfile(instrument, context);
+              return profileId === "yahoo" || profileId === "tradingview"
+                ? enrichJapaneseProfile(companyProfile, instrument, context)
+                : companyProfile;
+            }
           : () => Promise.resolve(null),
         getFundamentals: fundamentals
           ? fundamentals.getFundamentals.bind(fundamentals)
@@ -200,6 +227,18 @@ export function createProviderRuntime(env: ProviderEnvironment): ProviderRuntime
         getEarnings: earnings
           ? earnings.getEarnings.bind(earnings)
           : () => Promise.resolve([]),
+        ...(research?.getResearch ? { getResearch: async (instrument: Instrument, context: ProviderRequestContext) => {
+          if (fundamentalsId !== "tradingview" || researchId === "tradingview") return research.getResearch!(instrument, context);
+          const [company, financial] = await Promise.allSettled([
+            research.getResearch!(instrument, context, { financialStatements: false }),
+            fundamentals!.getResearch!(instrument, context),
+          ]);
+          const supplemental = company.status === "fulfilled" ? company.value : null;
+          const history = financial.status === "fulfilled" ? financial.value : null;
+          if (!supplemental) return history;
+          return { ...supplemental, quarterlyFinancials: history?.quarterlyFinancials ?? [], annualCashFlows: history?.annualCashFlows ?? [],
+            coverage: { ...supplemental.coverage, quarterlyFinancials: history?.coverage.quarterlyFinancials ?? "unavailable" as const } };
+        } } : {}),
       })
     : undefined;
 
@@ -216,6 +255,7 @@ export function createProviderRuntime(env: ProviderEnvironment): ProviderRuntime
       profile: profileId,
       fundamentals: fundamentalsId,
       earnings: earningsId,
+      research: researchId,
       analyst: analystId,
       news: newsId,
     }),

@@ -1,4 +1,4 @@
-import type { SymbolWorkspace } from "../../platform/provider-contracts";
+import type { DataProvenance, SymbolWorkspace } from "../../platform/provider-contracts";
 
 export type LatestRequestResult<T> = Readonly<
   | { status: "success"; current: boolean; value: T }
@@ -14,7 +14,7 @@ export type LatestRequestCoordinator = Readonly<{
   abort(): void;
 }>;
 
-export type WorkspaceRefreshSection = "financials" | "analyst" | "news";
+export type WorkspaceRefreshSection = "financials" | "analyst" | "news" | "research";
 
 /**
  * Keeps one workspace request active, shares duplicate requests, and prevents
@@ -71,18 +71,75 @@ export function createLatestRequestCoordinator(): LatestRequestCoordinator {
 }
 
 const SECTION_WARNING_PREFIXES: Readonly<Record<WorkspaceRefreshSection, readonly string[]>> = Object.freeze({
-  financials: Object.freeze(["profile:", "fundamentals:", "earnings:"]),
+  financials: Object.freeze(["profile:", "fundamentals:", "earnings:", "research:"]),
   analyst: Object.freeze(["analyst:"]),
   news: Object.freeze(["news:"]),
+  research: Object.freeze(["research:", "news:"]),
 });
 
-type RefreshableWorkspaceRole = "profile" | "fundamentals" | "earnings" | "analyst" | "news";
+type RefreshableWorkspaceRole = "profile" | "fundamentals" | "earnings" | "analyst" | "news" | "research";
 
 function hasTransientUpstreamFailure(
   refreshed: SymbolWorkspace,
   role: RefreshableWorkspaceRole,
 ): boolean {
   return refreshed.warnings.includes(`${role}: upstream_unavailable`);
+}
+
+function stale<T extends { readonly provenance: DataProvenance }>(value: T) {
+  return Object.freeze({
+    ...value,
+    provenance: Object.freeze({ ...value.provenance, isStale: true }),
+  });
+}
+
+function researchRefresh(current: SymbolWorkspace, refreshed: SymbolWorkspace) {
+  if (refreshed.warnings.includes("research: provider_not_configured")) {
+    return { research: null, provider: undefined };
+  }
+  const previous = current.research?.instrumentId === refreshed.instrument.instrumentId
+    ? current.research : undefined;
+  const next = refreshed.research;
+  if (hasTransientUpstreamFailure(refreshed, "research") && previous) {
+    return {
+      research: stale({
+        ...previous,
+        ...(previous.ownership ? { ownership: stale(previous.ownership) } : {}),
+        ...(previous.quarterlyFinancials
+          ? { quarterlyFinancials: Object.freeze(previous.quarterlyFinancials.map(stale)) } : {}),
+        ...(previous.annualCashFlows ? { annualCashFlows: Object.freeze(previous.annualCashFlows.map(stale)) } : {}),
+        corporateActions: Object.freeze(previous.corporateActions.map(stale)),
+        coverage: Object.freeze({
+          ownership: "unavailable" as const,
+          quarterlyFinancials: "unavailable" as const,
+          corporateActions: "unavailable" as const,
+        }),
+      }),
+      provider: current.selectedProviders.research,
+    };
+  }
+  if (!previous || !next || next.instrumentId !== refreshed.instrument.instrumentId) {
+    return { research: next, provider: refreshed.selectedProviders.research };
+  }
+  const retainOwnership = next.coverage.ownership === "unavailable" && previous.ownership !== undefined;
+  const retainFinancials = next.coverage.quarterlyFinancials === "unavailable" && Boolean(previous.quarterlyFinancials?.length);
+  const retainAnnualCashFlows = next.coverage.quarterlyFinancials === "unavailable" && Boolean(previous.annualCashFlows?.length);
+  const retainActions = next.coverage.corporateActions === "unavailable" && previous.corporateActions.length > 0;
+  if (!retainOwnership && !retainFinancials && !retainAnnualCashFlows && !retainActions) {
+    return { research: next, provider: refreshed.selectedProviders.research };
+  }
+  return {
+    research: stale({
+      ...next,
+      ...(retainOwnership ? { ownership: stale(previous.ownership!) } : {}),
+      ...(retainFinancials
+        ? { quarterlyFinancials: Object.freeze(previous.quarterlyFinancials!.map(stale)) } : {}),
+      ...(retainAnnualCashFlows ? { annualCashFlows: Object.freeze(previous.annualCashFlows!.map(stale)) } : {}),
+      ...(retainActions ? { corporateActions: Object.freeze(previous.corporateActions.map(stale)) } : {}),
+      // Keep the latest coverage: retaining old observations does not make a failed source available.
+    }),
+    provider: refreshed.selectedProviders.research,
+  };
 }
 
 /**
@@ -118,12 +175,14 @@ export function mergeFreshWorkspaceSection(
     const retainProfile = hasTransientUpstreamFailure(refreshed, "profile");
     const retainFundamentals = hasTransientUpstreamFailure(refreshed, "fundamentals");
     const retainEarnings = hasTransientUpstreamFailure(refreshed, "earnings");
+    const updatedResearch = researchRefresh(current, refreshed);
     return Object.freeze({
       ...current,
       ...common,
       profile: retainProfile ? current.profile : refreshed.profile,
       fundamentals: retainFundamentals ? current.fundamentals : refreshed.fundamentals,
       earnings: retainEarnings ? current.earnings : refreshed.earnings,
+      research: updatedResearch.research,
       selectedProviders: Object.freeze({
         ...current.selectedProviders,
         instrument: refreshed.selectedProviders.instrument,
@@ -137,6 +196,7 @@ export function mergeFreshWorkspaceSection(
         earnings: retainEarnings
           ? current.selectedProviders.earnings
           : refreshed.selectedProviders.earnings,
+        research: updatedResearch.provider,
       }),
     });
   }
@@ -157,10 +217,12 @@ export function mergeFreshWorkspaceSection(
     });
   }
   const retainNews = hasTransientUpstreamFailure(refreshed, "news");
+  const updatedResearch = section === "research" ? researchRefresh(current, refreshed) : undefined;
   return Object.freeze({
     ...current,
     ...common,
     news: retainNews ? current.news : refreshed.news,
+    ...(updatedResearch ? { research: updatedResearch.research } : {}),
     selectedProviders: Object.freeze({
       ...current.selectedProviders,
       instrument: refreshed.selectedProviders.instrument,
@@ -168,6 +230,7 @@ export function mergeFreshWorkspaceSection(
       news: retainNews
         ? current.selectedProviders.news
         : refreshed.selectedProviders.news,
+      ...(updatedResearch ? { research: updatedResearch.provider } : {}),
     }),
   });
 }

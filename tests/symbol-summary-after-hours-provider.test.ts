@@ -21,7 +21,7 @@ import type { SyntheticLatestClose } from "../src/app/platform/provider-contract
 const stock: SymbolSummaryStock = {
   ticker: "AAPL",
   name: "Apple Inc.",
-  logoPath: "https://financialmodelingprep.com/image-stock/AAPL.png",
+  logoPath: "/api/v1/symbols/AAPL/logo",
   logoFallback: "AA",
   market: "NASDAQ",
   sector: "Technology",
@@ -95,7 +95,6 @@ function renderSummary(
       intelligence,
       watched: false,
       onToggleWatched: () => undefined,
-      onOpenDetails: () => undefined,
       registrations: CORE_SYMBOL_SUMMARY_MODULES,
       initiallyEnabledModuleKeys,
       ...overrides,
@@ -190,7 +189,8 @@ test("fixed identity module renders after-hours value and exposes it to generic 
   assert.match(html, /class="summary-current-price"><strong>200\.00<\/strong><small>USD<\/small><\/div>/);
   assert.doesNotMatch(html, />\$200\.00</);
   assert.doesNotMatch(html, />\$201\.25</);
-  assert.ok(html.indexOf("data-module-id=\"core.identity_quote\"") < html.indexOf("Open AAPL details"));
+  assert.match(html, /data-module-id="core.identity_quote"/);
+  assert.doesNotMatch(html, /stock-summary-detail-button|Open AAPL details/);
 });
 
 test("technical ratings use the same diverging green and red track as performance", () => {
@@ -215,7 +215,7 @@ test("symbol summary SSR defaults to English and localizes provider enum values"
   assert.match(html, />Moving averages</);
   assert.match(html, />Buy</);
   assert.match(html, />Neutral</);
-  assert.match(html, />Details</);
+  assert.doesNotMatch(html, />Details</);
   assert.doesNotMatch(html, />銘柄概要</);
   assert.doesNotMatch(html, />買い</);
 });
@@ -233,6 +233,6 @@ test("symbol summary can render its Japanese locale without changing module data
   assert.match(html, />テクニカル</);
   assert.match(html, />移動平均</);
   assert.match(html, />買い</);
-  assert.match(html, />詳細</);
+  assert.doesNotMatch(html, />詳細</);
   assert.match(html, /Apple designs consumer technology products\./);
 });

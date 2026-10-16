@@ -12,13 +12,20 @@ const eslintConfig = defineConfig([
     "out/**",
     "next-env.d.ts",
     // Generated application and desktop build outputs:
+    "build/**",
     "dist/**",
+    "src/app/generated/**",
+    // Generated standalone MCP bundles; lint src/tooling/mcp instead.
+    "mcp/*/server.mjs",
     "src/desktop/frontend-dist/**",
     "src/desktop/tauri/target/**",
     "src/desktop/tauri/gen/**",
     "src/desktop/runtime/tradingview-sidecar/.venv/**",
     "src/desktop/runtime/tradingview-sidecar/build/**",
     "src/desktop/runtime/tradingview-sidecar/dist/**",
+    // Local tool/runtime state:
+    ".wrangler/**",
+    "venv/**",
   ]),
 ]);
 

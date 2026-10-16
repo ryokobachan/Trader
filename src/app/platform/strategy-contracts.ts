@@ -9,6 +9,7 @@ export type StrategyFamily = "portfolio2" | "rule" | "research";
 export type StrategyStatus = "pinned" | "research";
 export type StrategyPerformanceProvenance =
   | "illustrative_catalog"
+  | "backtest_artifact"
   | "user_supplied"
   | "transaction_snapshot"
   | "unavailable";

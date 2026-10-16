@@ -1,7 +1,7 @@
 # Strategy portfolio transaction API contract
 
 - Schema: `trader.strategy-portfolio-transactions.v1`
-- Storage: App OLTP D1 binding `DB`
+- Storage: read-only package snapshot for deployment-owned strategies; App OLTP D1 binding `DB` for owner-editable ledgers
 - Owner adapter: stable Sites `oai-authenticated-user-id`; anonymous
   `local-workspace` fallback is accepted only on a loopback request URL
 
@@ -9,7 +9,7 @@
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/v1/strategy-portfolios/:strategyId/transactions` | Return the strategy's transactions in reverse date order |
+| `GET` | `/api/v1/strategy-portfolios/:strategyId/transactions` | Return transactions in reverse chronological execution order |
 | `POST` | `/api/v1/strategy-portfolios/:strategyId/transactions` | Persist one transaction and its audit event |
 | `GET` | `/api/v1/strategy-portfolios/:strategyId/transactions/:transactionId` | Return one transaction |
 | `PATCH` | `/api/v1/strategy-portfolios/:strategyId/transactions/:transactionId` | Replace one transaction's canonical fields |
@@ -71,9 +71,16 @@ idempotent after a successful deletion and returns `deleted: false` on a replay.
 
 ## Read and idempotency behavior
 
-GET is always read-only. A new strategy starts with an empty transaction list;
-no demo data is installed implicitly. Public demo fixtures under `strategies/`
-are source examples only.
+GET is always read-only and never seeds D1. A deployment-owned package returns
+the validated `transactions.json` snapshot from the same run as
+`performance.json`. A new custom strategy starts with an empty D1 transaction
+list; no demo data is installed implicitly.
+
+Runner artifacts preserve chronological filled-order execution, including
+same-bar sells before buys. Package GET responses reverse both the date and the
+VectorBT order ID, so the most recently executed order is shown first. Custom
+D1 rows have no intraday execution sequence in the daily schema and retain the
+stable date/transaction-ID ordering defined by the adapter.
 
 POST uses the composite `(ownerId, strategyId, transactionId)` idempotency
 boundary. Concurrent requests with the same ID and payload create one row and
@@ -81,8 +88,9 @@ one audit event; one response is 201 and replays return 200. If the content
 differs, the API returns `409 transaction_id_conflict`.
 
 Unknown, deleted, or inactive strategy IDs return `404 strategy_not_found`
-before a transaction mutation. Both built-in and owner-scoped custom strategy
-IDs are supported while active.
+before a transaction mutation. Current package transactions reject POST,
+PATCH, and DELETE with `409 strategy_package_transactions_read_only`.
+Owner-scoped custom strategy ledgers remain editable in D1.
 
 Every query includes the request-scoped `owner_id`. A non-loopback request
 without a Sites user ID returns `401 authentication_required` before D1 is

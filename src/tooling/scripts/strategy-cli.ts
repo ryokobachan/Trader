@@ -77,6 +77,7 @@ const STRATEGY_FAMILIES = ["portfolio2", "rule", "research"] as const;
 const STRATEGY_STATUSES = ["pinned", "research"] as const;
 const STRATEGY_PROVENANCE = [
   "illustrative_catalog",
+  "backtest_artifact",
   "user_supplied",
   "transaction_snapshot",
   "unavailable",
@@ -107,7 +108,7 @@ Discovery options for list:
   --origin <value>       built_in | custom
   --family <value>       portfolio2 | rule | research
   --status <value>       pinned | research
-  --provenance <value>   illustrative_catalog | user_supplied | transaction_snapshot | unavailable
+  --provenance <value>   illustrative_catalog | backtest_artifact | user_supplied | transaction_snapshot | unavailable
   --category <text>      Match a category exactly (case-insensitive)
   --source <text>        Match a source label exactly (case-insensitive)
   --sort <field>         ${STRATEGY_SORT_FIELDS.join(" | ")}

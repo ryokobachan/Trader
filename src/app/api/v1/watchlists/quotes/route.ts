@@ -34,6 +34,10 @@ function errorResponse(status: number, code: string, message: string, requestId:
 
 export async function POST(request: Request) {
   const requestId = request.headers.get("x-request-id")?.slice(0, 128) || crypto.randomUUID();
+  const fresh = new URL(request.url).searchParams.get("fresh");
+  if (fresh !== null && fresh !== "1") {
+    return errorResponse(400, "invalid_fresh", "freshは1で指定してください。", requestId);
+  }
   try {
     requestOwnerId(request);
   } catch (error) {
@@ -86,7 +90,10 @@ export async function POST(request: Request) {
 
   try {
     const runtime = createProviderRuntime(providerEnvironment());
-    const items = await loadWatchlistQuotes(symbols, runtime, { requestId });
+    const items = await loadWatchlistQuotes(symbols, runtime, {
+      requestId,
+      ...(fresh === "1" ? { fresh: true } : {}),
+    });
     const dataMode = watchlistQuoteDataMode(
       runtime.selectedProviderIds.instrument,
       runtime.selectedProviderIds.market,

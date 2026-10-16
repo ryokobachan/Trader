@@ -5,10 +5,16 @@ import test from "node:test";
 import { translate } from "../src/app/platform/i18n";
 
 test("stock detail has complete English-default and Japanese navigation copy", () => {
-  assert.equal(translate("en", "detail.tab.financials"), "Financials & earnings");
-  assert.equal(translate("ja", "detail.tab.financials"), "財務・決算");
+  assert.equal(translate("en", "detail.tab.financials"), "Financials");
+  assert.equal(translate("ja", "detail.tab.financials"), "財務");
   assert.equal(translate("en", "detail.section.targetHistory"), "Price target history");
   assert.equal(translate("ja", "detail.section.targetHistory"), "目標価格の推移一覧");
+  assert.equal(translate("en", "detail.section.currentTargets"), "Current price targets");
+  assert.equal(translate("ja", "detail.section.currentTargets"), "現在の目標価格一覧");
+  assert.equal(
+    translate("ja", "detail.analyst.current.meta", { count: 12, date: "2026-08-13" }),
+    "直近1年 · 12件 · 2026-08-13時点",
+  );
   assert.equal(translate("en", "detail.analyst.table.ratingPrevious"), "Previous rating");
   assert.equal(translate("en", "detail.analyst.table.ratingCurrent"), "New rating");
   assert.equal(translate("ja", "detail.analyst.table.ratingPrevious"), "変更前レーティング");

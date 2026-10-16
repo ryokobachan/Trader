@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+import { tsImport } from "tsx/esm/api";
+
+try {
+  const { runTraderCli } = await tsImport("../src/tooling/scripts/trader-cli.ts", import.meta.url);
+  process.exitCode = await runTraderCli(process.argv.slice(2));
+} catch {
+  process.stderr.write(JSON.stringify({ ok: false, code: "startup_error", message: "Trader CLI could not start. Install the repository dependencies with npm ci." }) + "\n");
+  process.exitCode = 1;
+}

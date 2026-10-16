@@ -1,0 +1,258 @@
+# 公開ツールの編集元。変更後はMCPを再接続してください。
+# outputSchemaは成功時のstructuredContentの形式です。共通の形式はアンカーで共有します。
+tools:
+
+  list_institutional_managers:
+    dataset: institutional-managers
+    description: 公開済みの機関投資家一覧を読み取ります。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        institution:
+          type: string
+          description: 機関投資家のSEC CIK（1〜10桁）。
+          pattern: ^[0-9]{1,10}$
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: &shared
+      type: object
+      required: [schemaVersion, dataset, status, rows, columns, source, provenance, coverage, pagination, warnings]
+      additionalProperties: true
+      properties:
+        schemaVersion:
+          type: string
+        dataset:
+          type: string
+        status:
+          type: string
+        rows:
+          type: array
+          items:
+            type: object
+            description: 列の構成はdatasetとcolumnsで確認してください。欠損値はそのまま保持します。
+            required: []
+            additionalProperties: true
+            properties: {}
+        columns:
+          type: array
+          items:
+            type: object
+            required: [key, label, nullable]
+            additionalProperties: true
+            properties:
+              key:
+                type: string
+              label:
+                type: string
+              nullable:
+                type: boolean
+              unit:
+                type: string
+        source:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        provenance:
+          type: object
+          required: [revision]
+          additionalProperties: true
+          properties:
+            revision:
+              type: string
+            publishedAt:
+              type: [string, 'null']
+            readAt:
+              type: string
+            databaseMutable:
+              type: boolean
+            consistencyModel:
+              type: string
+            validation:
+              type: string
+        coverage:
+          type: object
+          required: [status]
+          additionalProperties: true
+          properties:
+            status:
+              type: string
+            returned:
+              type: number
+        pagination:
+          type: object
+          required: [limit, nextCursor]
+          additionalProperties: true
+          properties:
+            limit:
+              type: number
+            nextCursor:
+              type: [string, 'null']
+            hasMore:
+              type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+
+  get_institutional_filings:
+    dataset: institutional-filings
+    description: 公開済みの13F提出情報を読み取ります。報告対象期間と提出日を区別してください。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        institution:
+          type: string
+          description: 機関投資家のSEC CIK（1〜10桁）。
+          pattern: ^[0-9]{1,10}$
+          maxLength: 2048
+        accession:
+          type: string
+          description: SEC提出書類のアクセッション番号。
+          pattern: ^[0-9]{10}-[0-9]{2}-[0-9]{6}$
+          maxLength: 2048
+        period:
+          type: string
+          description: 13F報告対象の期末日（YYYY-MM-DD）。公表日ではありません。
+          format: date
+          maxLength: 2048
+        from:
+          type: string
+          description: 提出日（filing_date）の開始日。当日を含みます。
+          format: date
+          maxLength: 2048
+        to:
+          type: string
+          description: 提出日（filing_date）の終了日。当日を含みます。
+          format: date
+          maxLength: 2048
+        asOf:
+          type: string
+          description: 既知情報の締切日時。タイムゾーン付きISO形式。現在保存されている版を絞り込み、上書き済みの過去版は復元しません。
+          format: date-time
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: *shared
+
+  get_institutional_holdings:
+    dataset: institutional-holdings
+    description: 13F提出書類ごとの保有情報を読み取ります。現在の保有を保証するものではありません。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        institution:
+          type: string
+          description: 機関投資家のSEC CIK（1〜10桁）。
+          pattern: ^[0-9]{1,10}$
+          maxLength: 2048
+        accession:
+          type: string
+          description: SEC提出書類のアクセッション番号。
+          pattern: ^[0-9]{10}-[0-9]{2}-[0-9]{6}$
+          maxLength: 2048
+        period:
+          type: string
+          description: 13F報告対象の期末日（YYYY-MM-DD）。公表日ではありません。
+          format: date
+          maxLength: 2048
+        symbol:
+          type: string
+          description: 銘柄コード（例：NVDA）
+          pattern: ^[A-Z0-9.^:/_-]{1,32}$
+          maxLength: 2048
+        from:
+          type: string
+          description: 提出日（filing_date）の開始日。当日を含みます。
+          format: date
+          maxLength: 2048
+        to:
+          type: string
+          description: 提出日（filing_date）の終了日。当日を含みます。
+          format: date
+          maxLength: 2048
+        asOf:
+          type: string
+          description: 既知情報の締切日時。タイムゾーン付きISO形式。現在保存されている版を絞り込み、上書き済みの過去版は復元しません。
+          format: date-time
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: *shared
+
+  get_status:
+    dataset: status
+    description: 保存データを読み取れるか確認します。鮮度・完全性や収集プロセスの稼働は保証しません。
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+    outputSchema: &status
+      type: object
+      required: [server, checkedAt, reachable, checkedDataset, status, notes, source, provenance, coverage, warnings]
+      additionalProperties: true
+      properties:
+        server:
+          type: string
+        checkedAt:
+          type: string
+        reachable:
+          type: boolean
+        checkedDataset:
+          type: string
+        status:
+          type: string
+        notes:
+          type: array
+          items:
+            type: string
+        source:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        provenance:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        coverage:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        warnings:
+          type: array
+          items:
+            type: string

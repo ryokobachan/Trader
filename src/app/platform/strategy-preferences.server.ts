@@ -1,12 +1,12 @@
 import { ensureTransactionDatabase, getD1 } from "../../db";
-import { SAMPLE_STRATEGY_DEFINITIONS } from "@strategies/catalog";
+import { STRATEGY_PACKAGE_DEFINITIONS } from "../features/strategy/catalog";
 import {
   type StrategyPreference,
   type UpdateStrategyPreferenceInput,
 } from "./strategy-preference-contracts";
 import { DEFAULT_LOCAL_OWNER_ID } from "./watchlist-contracts";
 
-const BUILT_IN_STRATEGY_IDS = SAMPLE_STRATEGY_DEFINITIONS.map(
+const BUILT_IN_STRATEGY_IDS = STRATEGY_PACKAGE_DEFINITIONS.map(
   (strategy) => strategy.id,
 ) as readonly string[];
 const BUILT_IN_STRATEGY_ID_SET = new Set<string>(BUILT_IN_STRATEGY_IDS);

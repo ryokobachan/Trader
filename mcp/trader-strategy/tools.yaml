@@ -1,0 +1,740 @@
+# 公開ツールの編集元。変更後はMCPを再接続してください。
+# outputSchemaは成功時のstructuredContentの形式です。共通の形式はアンカーで共有します。
+tools:
+
+  list_strategies:
+    dataset: strategy-list
+    description: このMacの保存済み戦略を一覧表示します。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        locale:
+          type: string
+          description: 表示言語。既定en。
+          enum: [en, ja]
+          maxLength: 2048
+    outputSchema: &strategies
+      type: object
+      required: [schemaVersion, ownerId, strategies]
+      additionalProperties: true
+      properties:
+        schemaVersion:
+          type: string
+          enum: [trader.strategies.v1]
+        ownerId:
+          type: string
+        strategies:
+          type: array
+          items:
+            type: object
+            required: [id, origin, version, family, status, candidateAt, name, category, sourceLabels, headline, audit, performance, createdAt, updatedAt]
+            additionalProperties: true
+            properties:
+              id:
+                type: string
+              origin:
+                type: string
+                enum: [built_in, custom]
+              version:
+                type: number
+              family:
+                type: string
+                enum: [portfolio2, rule, research]
+              status:
+                type: string
+                enum: [research, pinned]
+              candidateAt:
+                type: string
+              name:
+                type: string
+              category:
+                type: string
+              sourceLabels:
+                type: array
+                items:
+                  type: string
+              headline:
+                type: string
+              audit:
+                type: object
+                required: [overfit, leakage, verdict]
+                additionalProperties: true
+                properties:
+                  overfit:
+                    type: ['null', number]
+                  leakage:
+                    type: ['null', number]
+                  verdict:
+                    type: string
+              performance:
+                type: object
+                required: [provenance, netReturn, maxDrawdown, recoveryFactor, sharpe, forwardReturn, winRate, trades, symbols, cash]
+                additionalProperties: true
+                properties:
+                  provenance:
+                    type: string
+                    enum: [illustrative_catalog, backtest_artifact, user_supplied, transaction_snapshot, unavailable]
+                  netReturn:
+                    type: ['null', number]
+                  maxDrawdown:
+                    type: ['null', number]
+                  recoveryFactor:
+                    type: ['null', number]
+                  sharpe:
+                    type: ['null', number]
+                  forwardReturn:
+                    type: ['null', number]
+                  winRate:
+                    type: ['null', number]
+                  trades:
+                    type: ['null', number]
+                  symbols:
+                    type: ['null', number]
+                  cash:
+                    type: ['null', number]
+              createdAt:
+                type: ['null', string]
+              updatedAt:
+                type: ['null', string]
+
+  get_strategy:
+    dataset: strategy
+    description: 保存済み戦略の詳細を取得します。バックテストや注文は実行しません。
+    inputSchema:
+      type: object
+      required: [strategy]
+      additionalProperties: false
+      properties:
+        strategy:
+          type: string
+          description: 保存済み戦略のIDを完全一致で指定。
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+          maxLength: 2048
+        locale:
+          type: string
+          description: 表示言語。既定en。
+          enum: [en, ja]
+          maxLength: 2048
+    outputSchema: &strategy
+      type: object
+      required: [schemaVersion, strategy, ownerId]
+      additionalProperties: true
+      properties:
+        schemaVersion:
+          type: string
+          enum: [trader.strategies.v1]
+        strategy:
+          type: object
+          required: [id, origin, version, family, status, candidateAt, name, category, sourceLabels, headline, audit, performance, createdAt, updatedAt]
+          additionalProperties: true
+          properties:
+            id:
+              type: string
+            origin:
+              type: string
+              enum: [built_in, custom]
+            version:
+              type: number
+            family:
+              type: string
+              enum: [portfolio2, rule, research]
+            status:
+              type: string
+              enum: [research, pinned]
+            candidateAt:
+              type: string
+            name:
+              type: string
+            category:
+              type: string
+            sourceLabels:
+              type: array
+              items:
+                type: string
+            headline:
+              type: string
+            audit:
+              type: object
+              required: [overfit, leakage, verdict]
+              additionalProperties: true
+              properties:
+                overfit:
+                  type: ['null', number]
+                leakage:
+                  type: ['null', number]
+                verdict:
+                  type: string
+            performance:
+              type: object
+              required: [provenance, netReturn, maxDrawdown, recoveryFactor, sharpe, forwardReturn, winRate, trades, symbols, cash]
+              additionalProperties: true
+              properties:
+                provenance:
+                  type: string
+                  enum: [illustrative_catalog, backtest_artifact, user_supplied, transaction_snapshot, unavailable]
+                netReturn:
+                  type: ['null', number]
+                maxDrawdown:
+                  type: ['null', number]
+                recoveryFactor:
+                  type: ['null', number]
+                sharpe:
+                  type: ['null', number]
+                forwardReturn:
+                  type: ['null', number]
+                winRate:
+                  type: ['null', number]
+                trades:
+                  type: ['null', number]
+                symbols:
+                  type: ['null', number]
+                cash:
+                  type: ['null', number]
+            createdAt:
+              type: ['null', string]
+            updatedAt:
+              type: ['null', string]
+        ownerId:
+          type: string
+        transactions:
+          type: array
+          items:
+            type: object
+            required: [strategyId, transactionId, date, symbol, side, shares, price, fee, createdAt, updatedAt]
+            additionalProperties: true
+            properties:
+              strategyId:
+                type: string
+              transactionId:
+                type: string
+              date:
+                type: string
+              symbol:
+                type: string
+              side:
+                type: string
+                enum: [buy, sell, dividend]
+              shares:
+                type: number
+              price:
+                type: number
+              fee:
+                type: number
+              createdAt:
+                type: string
+              updatedAt:
+                type: string
+        performance:
+          type: object
+          required: [provenance, netReturn, maxDrawdown, recoveryFactor, sharpe, forwardReturn, winRate, trades, symbols, cash]
+          additionalProperties: true
+          properties:
+            provenance:
+              type: string
+              enum: [illustrative_catalog, backtest_artifact, user_supplied, transaction_snapshot, unavailable]
+            netReturn:
+              type: ['null', number]
+            maxDrawdown:
+              type: ['null', number]
+            recoveryFactor:
+              type: ['null', number]
+            sharpe:
+              type: ['null', number]
+            forwardReturn:
+              type: ['null', number]
+            winRate:
+              type: ['null', number]
+            trades:
+              type: ['null', number]
+            symbols:
+              type: ['null', number]
+            cash:
+              type: ['null', number]
+
+  get_strategy_performance:
+    dataset: strategy-performance
+    description: 保存済み戦略の運用成績を取得します。再計算は行いません。
+    inputSchema:
+      type: object
+      required: [strategy]
+      additionalProperties: false
+      properties:
+        strategy:
+          type: string
+          description: 保存済み戦略のIDを完全一致で指定。
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+          maxLength: 2048
+        locale:
+          type: string
+          description: 表示言語。既定en。
+          enum: [en, ja]
+          maxLength: 2048
+    outputSchema: *strategy
+
+  get_strategy_equity:
+    dataset: strategy-equity
+    description: 保存済み戦略の資産推移を取得します。
+    inputSchema:
+      type: object
+      required: [strategy]
+      additionalProperties: false
+      properties:
+        strategy:
+          type: string
+          description: 保存済み戦略のIDを完全一致で指定。
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+          maxLength: 2048
+        locale:
+          type: string
+          description: 表示言語。既定en。
+          enum: [en, ja]
+          maxLength: 2048
+    outputSchema: &equity
+      type: object
+      required: [schemaVersion, dataset, ownerId, strategyId, strategy, retrievedAt, basis, coverage, warnings, equity, run, provenance]
+      additionalProperties: true
+      properties:
+        schemaVersion:
+          type: string
+        dataset:
+          type: string
+        ownerId:
+          type: string
+        strategyId:
+          type: string
+        strategy:
+          type: object
+          required: [id, origin, version, family, status, candidateAt, name, category, sourceLabels, headline, audit, performance, createdAt, updatedAt]
+          additionalProperties: true
+          properties:
+            id:
+              type: string
+            origin:
+              type: string
+              enum: [built_in, custom]
+            version:
+              type: number
+            family:
+              type: string
+              enum: [portfolio2, rule, research]
+            status:
+              type: string
+              enum: [research, pinned]
+            candidateAt:
+              type: string
+            name:
+              type: string
+            category:
+              type: string
+            sourceLabels:
+              type: array
+              items:
+                type: string
+            headline:
+              type: string
+            audit:
+              type: object
+              required: [overfit, leakage, verdict]
+              additionalProperties: true
+              properties:
+                overfit:
+                  type: ['null', number]
+                leakage:
+                  type: ['null', number]
+                verdict:
+                  type: string
+            performance:
+              type: object
+              required: [provenance, netReturn, maxDrawdown, recoveryFactor, sharpe, forwardReturn, winRate, trades, symbols, cash]
+              additionalProperties: true
+              properties:
+                provenance:
+                  type: string
+                  enum: [illustrative_catalog, backtest_artifact, user_supplied, transaction_snapshot, unavailable]
+                netReturn:
+                  type: ['null', number]
+                maxDrawdown:
+                  type: ['null', number]
+                recoveryFactor:
+                  type: ['null', number]
+                sharpe:
+                  type: ['null', number]
+                forwardReturn:
+                  type: ['null', number]
+                winRate:
+                  type: ['null', number]
+                trades:
+                  type: ['null', number]
+                symbols:
+                  type: ['null', number]
+                cash:
+                  type: ['null', number]
+            createdAt:
+              type: ['null', string]
+            updatedAt:
+              type: ['null', string]
+        retrievedAt:
+          type: string
+        basis:
+          type: string
+        coverage:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        warnings:
+          type: array
+          items:
+            type: string
+        equity:
+          anyOf:
+            - type: object
+              required: [frequency, initialValue, points]
+              additionalProperties: true
+              properties:
+                frequency:
+                  type: string
+                  enum: [1d]
+                initialValue:
+                  type: number
+                points:
+                  type: array
+                  items:
+                    type: object
+                    required: [date, portfolioValue, benchmarkValue]
+                    additionalProperties: true
+                    properties:
+                      date:
+                        type: string
+                      portfolioValue:
+                        type: number
+                      benchmarkValue:
+                        type: ['null', number]
+            - type: 'null'
+        run:
+          anyOf:
+            - type: object
+              required: [runId, generatedAt, data, execution, warnings]
+              additionalProperties: true
+              properties:
+                runId:
+                  type: string
+                generatedAt:
+                  type: string
+                data:
+                  type: object
+                  required: []
+                  additionalProperties: true
+                  properties: {}
+                execution:
+                  type: object
+                  required: []
+                  additionalProperties: true
+                  properties: {}
+                warnings:
+                  type: array
+                  items:
+                    type: string
+            - type: 'null'
+        provenance:
+          type: string
+
+  get_strategy_holdings:
+    dataset: strategy-holdings
+    description: 保存済み戦略の保有情報を取得します。
+    inputSchema:
+      type: object
+      required: [strategy]
+      additionalProperties: false
+      properties:
+        strategy:
+          type: string
+          description: 保存済み戦略のIDを完全一致で指定。
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+          maxLength: 2048
+        locale:
+          type: string
+          description: 表示言語。既定en。
+          enum: [en, ja]
+          maxLength: 2048
+    outputSchema: &holdings
+      type: object
+      required: [schemaVersion, dataset, ownerId, strategyId, strategy, retrievedAt, basis, coverage, warnings, holdings, provenance]
+      additionalProperties: true
+      properties:
+        schemaVersion:
+          type: string
+        dataset:
+          type: string
+        ownerId:
+          type: string
+        strategyId:
+          type: string
+        strategy:
+          type: object
+          required: [id, origin, version, family, status, candidateAt, name, category, sourceLabels, headline, audit, performance, createdAt, updatedAt]
+          additionalProperties: true
+          properties:
+            id:
+              type: string
+            origin:
+              type: string
+              enum: [built_in, custom]
+            version:
+              type: number
+            family:
+              type: string
+              enum: [portfolio2, rule, research]
+            status:
+              type: string
+              enum: [research, pinned]
+            candidateAt:
+              type: string
+            name:
+              type: string
+            category:
+              type: string
+            sourceLabels:
+              type: array
+              items:
+                type: string
+            headline:
+              type: string
+            audit:
+              type: object
+              required: [overfit, leakage, verdict]
+              additionalProperties: true
+              properties:
+                overfit:
+                  type: ['null', number]
+                leakage:
+                  type: ['null', number]
+                verdict:
+                  type: string
+            performance:
+              type: object
+              required: [provenance, netReturn, maxDrawdown, recoveryFactor, sharpe, forwardReturn, winRate, trades, symbols, cash]
+              additionalProperties: true
+              properties:
+                provenance:
+                  type: string
+                  enum: [illustrative_catalog, backtest_artifact, user_supplied, transaction_snapshot, unavailable]
+                netReturn:
+                  type: ['null', number]
+                maxDrawdown:
+                  type: ['null', number]
+                recoveryFactor:
+                  type: ['null', number]
+                sharpe:
+                  type: ['null', number]
+                forwardReturn:
+                  type: ['null', number]
+                winRate:
+                  type: ['null', number]
+                trades:
+                  type: ['null', number]
+                symbols:
+                  type: ['null', number]
+                cash:
+                  type: ['null', number]
+            createdAt:
+              type: ['null', string]
+            updatedAt:
+              type: ['null', string]
+        retrievedAt:
+          type: string
+        basis:
+          type: string
+        coverage:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        warnings:
+          type: array
+          items:
+            type: string
+        holdings:
+          type: array
+          items:
+            anyOf:
+              - type: object
+                required: [symbol, shares, averageCost, markPrice, marketValue, allocationPercent, unrealizedPnl]
+                additionalProperties: true
+                properties:
+                  symbol:
+                    type: string
+                  shares:
+                    type: number
+                  averageCost:
+                    type: number
+                  markPrice:
+                    type: number
+                  marketValue:
+                    type: number
+                  allocationPercent:
+                    type: number
+                  unrealizedPnl:
+                    type: number
+              - type: object
+                required: [ticker, shares, average, beta, rsi, performance1M, technicalRating, currentPrice, value, allocation, daily, unrealized, mark]
+                additionalProperties: true
+                properties:
+                  ticker:
+                    type: string
+                  shares:
+                    type: number
+                  average:
+                    type: number
+                  beta:
+                    type: ['null', number]
+                  rsi:
+                    type: ['null', number]
+                  performance1M:
+                    type: ['null', number]
+                  technicalRating:
+                    anyOf:
+                      - type: 'null'
+                      - type: string
+                        enum: [強い買い]
+                      - type: string
+                        enum: [買い]
+                      - type: string
+                        enum: [中立]
+                      - type: string
+                        enum: [売り]
+                      - type: string
+                        enum: [強い売り]
+                  currentPrice:
+                    type: ['null', number]
+                  value:
+                    type: ['null', number]
+                  allocation:
+                    type: ['null', number]
+                  daily:
+                    type: ['null', number]
+                  unrealized:
+                    type: ['null', number]
+                  mark:
+                    anyOf:
+                      - type: object
+                        required: [price, changePercent, asOf, source]
+                        additionalProperties: true
+                        properties:
+                          price:
+                            type: number
+                          changePercent:
+                            type: ['null', number]
+                          asOf:
+                            type: string
+                          source:
+                            type: string
+                            enum: [regular_quote, completed_daily_close]
+                      - type: 'null'
+        provenance:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        asOf:
+          type: string
+        portfolioValue:
+          type: [number, 'null']
+        cashPercent:
+          type: [number, 'null']
+        holdingsValue:
+          type: [number, 'null']
+        unrealizedGain:
+          type: [number, 'null']
+        dataMode:
+          type: string
+
+  get_strategy_transactions:
+    dataset: strategy-transactions
+    description: 保存済み戦略の売買履歴を取得します。
+    inputSchema:
+      type: object
+      required: [strategy]
+      additionalProperties: false
+      properties:
+        strategy:
+          type: string
+          description: 保存済み戦略のIDを完全一致で指定。
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$
+          maxLength: 2048
+        locale:
+          type: string
+          description: 表示言語。既定en。
+          enum: [en, ja]
+          maxLength: 2048
+    outputSchema: &transactions
+      type: object
+      required: [schemaVersion, ownerId, strategyId, transactions]
+      additionalProperties: true
+      properties:
+        schemaVersion:
+          type: string
+          enum: [trader.strategy-portfolio-transactions.v1]
+        ownerId:
+          type: string
+        strategyId:
+          type: string
+        transactions:
+          type: array
+          items:
+            type: object
+            required: [strategyId, transactionId, date, symbol, side, shares, price, fee, createdAt, updatedAt]
+            additionalProperties: true
+            properties:
+              strategyId:
+                type: string
+              transactionId:
+                type: string
+              date:
+                type: string
+              symbol:
+                type: string
+              side:
+                type: string
+                enum: [buy, sell, dividend]
+              shares:
+                type: number
+              price:
+                type: number
+              fee:
+                type: number
+              createdAt:
+                type: string
+              updatedAt:
+                type: string
+
+  get_status:
+    dataset: status
+    description: 保存データを読み取れるか確認します。鮮度・完全性や収集プロセスの稼働は保証しません。
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+    outputSchema: &status
+      type: object
+      required: [server, checkedAt, reachable, checkedDataset, status, notes, strategyCount]
+      additionalProperties: true
+      properties:
+        server:
+          type: string
+        checkedAt:
+          type: string
+        reachable:
+          type: boolean
+        checkedDataset:
+          type: string
+        status:
+          type: string
+        notes:
+          type: array
+          items:
+            type: string
+        strategyCount:
+          type: number

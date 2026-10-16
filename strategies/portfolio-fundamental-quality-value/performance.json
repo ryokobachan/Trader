@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "trader.strategy-performance.v1",
+  "strategyId": "portfolio-fundamental-quality-value",
+  "strategyVersion": "1.0.0",
+  "runId": "run-9b313a3e7ab03e4b5e715824",
+  "generatedAt": "2026-08-14T12:21:25.095Z",
+  "provenance": "backtest_artifact",
+  "metrics": {
+    "netReturn": 368.1025793434192,
+    "maxDrawdown": -17.05929982739528,
+    "recoveryFactor": 21.57782459232522,
+    "sharpe": 1.3382241005530606,
+    "forwardReturn": null,
+    "winRate": 64.62585034013605,
+    "trades": 302,
+    "symbols": 14,
+    "cash": 79.49085385585573
+  }
+}

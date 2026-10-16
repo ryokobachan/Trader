@@ -35,6 +35,19 @@ test("strategy holdings use one native table with the fixed position-to-technica
   assert.match(holdingsPanel, /<thead><tr>/);
   assert.match(holdingsPanel, /<tbody>/);
   assert.doesNotMatch(holdingsPanel, /holdingView|holding-view-tabs/);
+  assert.match(holdingsPanel, /selectedBacktestRun \? backtestPositionTable/);
+  assert.match(pageSource, /const backtestPositionRows = selectedBacktestRun\?\.execution\.finalPositions \?\? \[\]/);
+  const backtestPositionTable = sourceBetween(
+    "const backtestPositionTable = (",
+    "const strategyCategories =",
+  );
+  assert.match(backtestPositionTable, /st\("holdings\.costBasis"\)/);
+  assert.match(backtestPositionTable, /st\("holdings\.closePrice"\)/);
+  assert.match(backtestPositionTable, /st\("holdings\.recordedValue"\)/);
+  assert.match(backtestPositionTable, /holding\.markPrice/);
+  assert.match(backtestPositionTable, /holding\.marketValue/);
+  assert.match(backtestPositionTable, /holding\.allocationPercent/);
+  assert.match(backtestPositionTable, /holding\.unrealizedPnl/);
 
   const header = holdingsPanel.slice(
     holdingsPanel.indexOf("<thead><tr>"),
@@ -63,8 +76,9 @@ test("strategy holdings use one native table with the fixed position-to-technica
   assert.match(header, /<th aria-label=\{st\("holdings\.actions"\)\}\s*\/>/);
 });
 
-test("strategy analysis content lives in Overview without a separate Analysis tab", () => {
-  const portfolioTabType = pageSource.match(/type PortfolioTab = ([^;]+);/)?.[1];
+test("strategy analysis content lives in Overview without a separate Analysis tab", async () => {
+  const routeSource = await readFile(new URL("../src/app/features/navigation/workspace-route.ts", import.meta.url), "utf8");
+  const portfolioTabType = routeSource.match(/type PortfolioTab = ([^;]+);/)?.[1];
   assert.equal(portfolioTabType, '"概要" | "保有銘柄" | "取引"');
   assert.doesNotMatch(pageSource, /tab\s*===\s*["']分析["']/);
 
@@ -79,7 +93,15 @@ test("strategy analysis content lives in Overview without a separate Analysis ta
     '{tab === "概要"',
     '{tab === "保有銘柄"',
   );
-  assert.match(overviewPanel, /<h2>\{st\("profitability\.title"\)\}<\/h2>/);
+  assert.match(overviewPanel, /selectedBacktestEquityPoints \? <PortfolioValueChart/);
+  assert.match(overviewPanel, /selectedBacktestEquityPoints \? <PortfolioProfitChart/);
+  assert.match(overviewPanel, /points=\{selectedBacktestEquityPoints\}/);
+  assert.match(overviewPanel, /\(\["1M", "3M", "6M", "YTD", "1Y", "ALL"\] as const\)\.map/);
+  assert.match(overviewPanel, /\(\["TTM", "ALL"\] as const\)\.map/);
+  assert.match(overviewPanel, /className="backtest-comparison"/);
+  assert.match(overviewPanel, /className="portfolio-main-card backtest-position-card"/);
+  assert.match(overviewPanel, /backtestPositionTable/);
+  assert.match(overviewPanel, /className="backtest-execution-grid"/);
   assert.match(overviewPanel, /<h2>\{st\("contribution\.title"\)\}<\/h2>/);
 
   const summaryCards = sourceBetween(
@@ -93,9 +115,9 @@ test("strategy analysis content lives in Overview without a separate Analysis ta
     "portfolio.unrealizedGain",
     "portfolio.totalGain",
     "portfolio.annualReturn",
-    "risk.beta",
+    "risk.recoveryFactor",
     "risk.sharpe",
-    "risk.sortino",
+    "trades.winRate",
     "risk.maxDrawdown",
   ]);
 });

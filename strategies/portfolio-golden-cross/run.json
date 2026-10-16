@@ -1,0 +1,130 @@
+{
+  "benchmark": {
+    "costsApplied": false,
+    "dataSha256": "e787ea14e240f5f24e5f7c338c6113c27d7628c61393f8be6d3a067098841de6",
+    "metrics": {
+      "cagr": 13.035113608957793,
+      "excessReturn": 26.900607188149962,
+      "maxDrawdown": -33.92496000265325,
+      "netReturn": 240.12202178944065,
+      "sharpe": 0.7680717630336695
+    },
+    "returnType": "price",
+    "symbol": "^GSPC"
+  },
+  "data": {
+    "adjustment": "yfinance_auto_adjust=true;repair=true",
+    "end": "2025-12-31",
+    "evaluationEndExclusive": "2026-01-01",
+    "evaluationStart": "2016-01-01",
+    "interval": "1d",
+    "provider": "yfinance",
+    "providerVersion": "1.6.0",
+    "requestedEndExclusive": "2026-01-01",
+    "requestedStart": "2014-10-28",
+    "sha256": "80b8d4db0f5c3bd009ed11d0bd590b62ff9a8a15f5eb210813a5e60aa1ff61e4",
+    "start": "2014-10-28",
+    "symbols": [
+      "AAPL",
+      "MSFT",
+      "AMZN",
+      "GOOGL",
+      "JPM",
+      "XOM",
+      "JNJ",
+      "WMT",
+      "CAT",
+      "NEE"
+    ],
+    "timezone": "America/New_York"
+  },
+  "execution": {
+    "cagr": 13.905316598784045,
+    "closedTradeCount": 569,
+    "finalCashPercent": 63.18583483261302,
+    "finalPositions": [
+      {
+        "allocationPercent": 8.65816009433485,
+        "averageCost": 467.4219181365967,
+        "markPrice": 481.4758605957031,
+        "marketValue": 31777.406799316406,
+        "shares": 66.0,
+        "symbol": "MSFT",
+        "unrealizedPnl": 927.5602023010251
+      },
+      {
+        "allocationPercent": 8.99324958226993,
+        "averageCost": 222.65126328277583,
+        "markPrice": 230.82000732421875,
+        "marketValue": 33007.26104736328,
+        "shares": 143.0,
+        "symbol": "AMZN",
+        "unrealizedPnl": 1168.1303979263394
+      },
+      {
+        "allocationPercent": 9.522012683940945,
+        "averageCost": 277.9835267944336,
+        "markPrice": 317.70855712890625,
+        "marketValue": 34947.94128417969,
+        "shares": 110.0,
+        "symbol": "JPM",
+        "unrealizedPnl": 4369.75333679199
+      },
+      {
+        "allocationPercent": 9.640742806841251,
+        "averageCost": 102.90290431594848,
+        "markPrice": 118.73727416992188,
+        "marketValue": 35383.70770263672,
+        "shares": 298.0,
+        "symbol": "XOM",
+        "unrealizedPnl": 4718.642216484073
+      }
+    ],
+    "finalValue": 367022.6289775906,
+    "openTradeCount": 4,
+    "orderCount": 1107,
+    "totalFees": 0.0,
+    "totalTradeCount": 573,
+    "transactionMapping": "vectorbt_filled_orders"
+  },
+  "generatedAt": "2026-08-14T12:21:06.451Z",
+  "metricsDefinitionVersion": "trader.strategy-metrics.v1",
+  "reproducibility": {
+    "annualRiskFreeRate": 0.0,
+    "annualizationDays": 252,
+    "codeSha256": "cbae8837521938b5da9c6bcf0c72256e83a85477eaa1246572f9ff7db05c73a9",
+    "configSha256": "e25605511d624ef2246f19f6442891c6c5e4ddad778a06b48a0a0171e0355abe",
+    "effectiveParameters": {
+      "fastPeriod": 50,
+      "grossExposure": 1.0,
+      "slowPeriod": 200
+    },
+    "periodicRiskFreeRate": 0.0,
+    "runnerSha256": "2fee11a1a0f16eab9074bfdfb0f5f816ea7923420e0cce37ab7e07d1471799e3",
+    "runtime": {
+      "lightgbm": "4.7.0",
+      "numba": "0.67.0",
+      "numpy": "2.5.2",
+      "pandas": "3.0.5",
+      "python": "3.12.12",
+      "scipy": "1.18.0",
+      "talib": "0.7.1",
+      "vectorbt": "1.1.0",
+      "yfinance": "1.6.0"
+    }
+  },
+  "runId": "run-c59cc8af1f99810048ba5980",
+  "schemaVersion": "trader.strategy-run.v1",
+  "strategyId": "portfolio-golden-cross",
+  "strategyVersion": "1.0.0",
+  "warnings": [
+    "This trial uses a fixed current-symbol universe and may contain survivorship and selection bias.",
+    "Yahoo adjusted daily data is fetched at run time; the raw market dataset is not bundled.",
+    "Yahoo can revise historical adjusted values, so a later refetch may have a different dataset hash.",
+    "297 bars were used only for indicator warmup and excluded from performance.",
+    "The evaluation starts as a new cash portfolio using the latest pre-start target; pre-start holdings and stop state are not carried forward.",
+    "No out-of-sample interval is designated, so forwardReturn is null.",
+    "Stops trigger on the close and fill at the next bar close, so gaps can exceed the configured threshold.",
+    "Strategy prices are dividend-adjusted while ^GSPC is a price index, so return bases are not identical."
+  ]
+}

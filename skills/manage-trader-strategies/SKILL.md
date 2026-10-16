@@ -46,7 +46,8 @@ npm run strategy -- performance get <strategy-id>
 Use `list` to narrow the registered catalog before fetching full detail:
 
 ```bash
-npm run strategy -- list --family rule --source "RSI 14" --provenance illustrative_catalog --sort sharpe --order desc --limit 10
+npm run strategy -- list --family portfolio2 --provenance unavailable
+npm run strategy -- list --provenance backtest_artifact --sort sharpe --order desc --limit 10
 npm run strategy -- list --query "AAPL" --origin custom --sort updatedAt --limit 20
 npm run strategy -- compare <strategy-id-a> <strategy-id-b> --sort netReturn
 ```
@@ -57,12 +58,13 @@ Apply this workflow:
 2. Rank only a methodologically compatible provenance cohort. Null metrics always sort last.
 3. Compare two to twenty stable IDs with `compare`; inspect its provenance groups and disclosures.
 4. Fetch finalists with `get <id> --include transactions,performance` before drawing a conclusion.
-5. State whether a metric is illustrative, user-supplied, transaction-derived, or unavailable.
+5. State whether a metric is a package backtest artifact, illustrative legacy data, user-supplied, transaction-derived, or unavailable.
 
 This explores strategies already registered in Trader. It does not generate candidates, execute strategy rules, search a parameter space, fetch market data, or run a backtest. Use a dedicated research/backtest workflow for those tasks, then save reviewed results through this CLI.
 
 Treat performance according to its `provenance`:
 
+- `backtest_artifact`: values from the validated result snapshot bundled with a strategy package.
 - `illustrative_catalog`: built-in sample values, not verified backtest results.
 - `user_supplied`: values supplied by a user or agent; preserve them but do not imply independent verification.
 - `transaction_snapshot`: exact activity derived from persisted transactions; currently trade and distinct-symbol counts only.
@@ -100,6 +102,9 @@ npm run strategy -- transactions delete <strategy-id> <transaction-id> --yes
 ```
 
 Transaction reads must remain read-only. Do not initialize demo trades implicitly. Preserve exact dates, symbols, sides, shares, prices, and fees supplied by the user.
+Transactions bundled with a current strategy package are a read-only backtest
+snapshot; do not attempt to add, edit, or delete them through the API. The D1
+mutation commands apply to owner-scoped custom strategy ledgers.
 Immediately before editing, run `transactions get` and copy its exact
 `updatedAt` into the edit payload as `expectedUpdatedAt` (or pass it with
 `--updated-at`). A `409 transaction_changed` response means another writer won;

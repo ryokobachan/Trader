@@ -8,10 +8,10 @@
 - Storage: App OLTP D1 binding `DB`
 - Owner adapter: stable Sites `oai-authenticated-user-id`; anonymous
   `local-workspace` fallback is accepted only on a loopback request URL
-- Catalog source: immutable `SAMPLE_STRATEGY_DEFINITIONS`
+- Catalog source: generated `STRATEGY_PACKAGE_DEFINITIONS`
 
 This API stores only owner-specific presentation overrides and soft-delete
-tombstones. It never rewrites the deployment-owned sample definition, strategy
+tombstones. It never rewrites the deployment-owned package definition, strategy
 portfolio transactions, market data, or backtest artifacts.
 
 ## Endpoints
@@ -46,7 +46,7 @@ in the current deployment catalog.
 - Every query is scoped by the server-owned `owner_id`; requests cannot choose an owner.
 - A non-loopback request without a Sites user ID fails closed with
   `401 authentication_required` before D1 is accessed.
-- IDs must exist in `SAMPLE_STRATEGY_DEFINITIONS`; unknown IDs return
+- IDs must exist in `STRATEGY_PACKAGE_DEFINITIONS`; unknown IDs return
   `404 strategy_not_found` before D1 is accessed.
 - Editing a tombstoned strategy returns `409 strategy_deleted`. Restoration is
   intentionally not part of version 1.

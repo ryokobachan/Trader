@@ -169,7 +169,7 @@ async function loadQuoteBatch(
     .sort()
     .join("\u0000")}`;
   const now = Date.now();
-  const cached = quoteBatchCache.get(key);
+  const cached = context.fresh ? undefined : quoteBatchCache.get(key);
   if (cached && cached.expiresAt > now) return cached.values;
   quoteBatchCache.delete(key);
 

@@ -153,7 +153,7 @@ test("renders only present workspace fields with Yahoo and Benzinga provenance",
       "profile.assetType",
       "profile.sector",
       "profile.location",
-      "profile.website",
+      "profile.marketCap",
       "profile.beta",
     ],
   );
@@ -345,26 +345,33 @@ test("keeps stock detail concise with merged financials and real category tabs",
   assert.match(detailSource, /activeSection === "analyst"/);
   assert.match(detailSource, /activeSection === "technicals"/);
   assert.match(pageSource, /detail\.tab\.financials/);
-  assert.match(detailSource, /detail\.section\.financials/);
+  assert.match(detailSource, /FinancialHistoryPanel/);
   assert.match(detailSource, /EarningsActualEstimateChart/);
+  assert.match(pageSource, /detail\.section\.currentTargets/);
   assert.match(detailSource, /detail\.section\.targetHistory/);
+  assert.match(detailSource, /AnalystCurrentTargets/);
   assert.match(detailSource, /AnalystRatingHistoryTable/);
+  assert.ok(
+    detailSource.indexOf("<AnalystCurrentTargets")
+      < detailSource.indexOf('aria-label={t("detail.section.targetHistory")}'),
+  );
   assert.doesNotMatch(detailSource, /scrollIntoView/);
   assert.doesNotMatch(detailSource, /stock-detail-sticky-chart/);
   assert.doesNotMatch(detailSource, /stock-detail-price-stage|価格推移/);
-  assert.doesNotMatch(detailSource, /activeSection === "overview"|activeSection === "earnings"/);
+  assert.match(detailSource, /activeSection === "overview"/);
+  assert.doesNotMatch(detailSource, /activeSection === "earnings"/);
   assert.doesNotMatch(detailSource, /aria-expanded=\{profileExpanded\}/);
   assert.match(pageSource, /earnings-comparison-grid/);
   assert.doesNotMatch(workspaceTabsSource, /> 詳細<\/button>/);
 });
 
-test("renders the configured company profile first in the financials tab", async () => {
+test("renders the configured company profile first in the overview tab", async () => {
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const profileStart = pageSource.indexOf("function CompanyProfileSection(");
   const profileEnd = pageSource.indexOf("function FundamentalMetricSections(", profileStart);
   const profileSource = pageSource.slice(profileStart, profileEnd);
-  const financialsStart = pageSource.indexOf('activeSection === "financials"');
-  const financialsEnd = pageSource.indexOf('activeSection === "analyst"', financialsStart);
+  const financialsStart = pageSource.indexOf('activeSection === "overview"');
+  const financialsEnd = pageSource.indexOf('activeSection === "financials"', financialsStart);
   const financialsSource = pageSource.slice(financialsStart, financialsEnd);
 
   assert.ok(profileStart >= 0 && profileEnd > profileStart);
@@ -375,6 +382,28 @@ test("renders the configured company profile first in the financials tab", async
   assert.match(profileSource, /aria-expanded=\{expanded\}/);
   assert.match(profileSource, /StockDetailEmptyState/);
   assert.match(profileSource, /DetailSourceChip source=\{profile\.source\}/);
-  assert.ok(financialsSource.indexOf("<CompanyProfileSection") < financialsSource.indexOf("<FundamentalMetricSections"));
+  assert.ok(financialsSource.indexOf("<CompanyProfileSection") < financialsSource.indexOf("<FundamentalHighlights"));
   assert.match(financialsSource, /profile=\{detail\.profile\}/);
+});
+
+test("company profile uses quote market cap and localizes prose without changing financial values", () => {
+  const workspace = workspaceFixture();
+  const source = provenance("yahoo-japan", "https://finance.yahoo.co.jp/quote/AAPL/profile");
+  const localized = { ...workspace, profile: { ...workspace.profile!, localized: { ja: {
+    description: "日本語の企業説明です。", sector: "電子テクノロジー", industry: "通信機器", provenance: provenance("tradingview", "jp-profile"), descriptionProvenance: source,
+  } } } };
+  const japanese = buildStockDetailViewModel(localized, [], undefined, "ja");
+  const english = buildStockDetailViewModel(localized, [], undefined, "en");
+  assert.equal(japanese.profile.description, "日本語の企業説明です。");
+  assert.equal(japanese.profile.descriptionLanguage, "ja");
+  assert.equal(japanese.profile.descriptionSource?.sourceId, source.sourceId);
+  assert.equal(japanese.profile.descriptionSource?.label, "Yahoo!ファイナンス（日本）");
+  assert.equal(japanese.profile.source.label, "Yahoo Finance / TradingView");
+  assert.equal(english.profile.description, workspace.profile!.description);
+  assert.deepEqual(japanese.fundamentals.metrics, english.fundamentals.metrics);
+  assert.ok(japanese.profile.metrics.some(metric => metric.id === "profile.marketCap"));
+  assert.ok(!japanese.profile.metrics.some(metric => metric.id === "profile.website"));
+  assert.equal(japanese.identity?.sector, "電子テクノロジー");
+  const unavailable = buildStockDetailViewModel(workspace, [], undefined, "ja");
+  assert.equal(unavailable.profile.descriptionLanguage, "en");
 });

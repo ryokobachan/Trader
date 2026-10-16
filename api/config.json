@@ -10,6 +10,7 @@
     "profile": null,
     "fundamentals": null,
     "earnings": null,
+    "research": null,
     "analyst": null,
     "news": null
   },
@@ -29,7 +30,15 @@
       ]
     },
     "symbolDetail": {
-      "tabs": ["financials", "analyst", "technicals"],
+      "tabs": [
+        "overview",
+        "financials",
+        "technicals",
+        "ownership",
+        "dividends",
+        "analyst",
+        "news"
+      ],
       "profileMetrics": [
         "profile.exchange",
         "profile.assetType",
@@ -37,7 +46,7 @@
         "profile.industry",
         "profile.location",
         "profile.employees",
-        "profile.website",
+        "profile.marketCap",
         "profile.ipoDate",
         "profile.beta"
       ],
@@ -52,7 +61,9 @@
             "fundamentals.ebitda",
             "fundamentals.netIncome",
             "fundamentals.eps",
-            "fundamentals.epsGrowth"
+            "fundamentals.epsGrowth",
+            "fundamentals.researchAndDevelopment",
+            "fundamentals.sellingGeneralAndAdministrative"
           ]
         },
         {
@@ -106,7 +117,8 @@
             "fundamentals.debtToEquity",
             "fundamentals.currentRatio",
             "fundamentals.quickRatio",
-            "fundamentals.cashRatio"
+            "fundamentals.cashRatio",
+            "fundamentals.totalLiabilities"
           ]
         },
         {
@@ -118,7 +130,9 @@
             "fundamentals.freeCashFlowYield",
             "fundamentals.dividendYield",
             "fundamentals.dividendPerShare",
-            "fundamentals.payoutRatio"
+            "fundamentals.payoutRatio",
+            "fundamentals.investingCashFlow",
+            "fundamentals.financingCashFlow"
           ]
         },
         {
@@ -174,9 +188,9 @@
         "portfolio.unrealizedGain",
         "portfolio.totalGain",
         "portfolio.annualReturn",
-        "risk.beta",
+        "risk.recoveryFactor",
         "risk.sharpe",
-        "risk.sortino",
+        "trades.winRate",
         "risk.maxDrawdown"
       ]
     }

@@ -60,8 +60,6 @@ export type StrategyPortfolioTransactionDeleteResponse = {
   deleted: boolean;
 };
 
-export { SAMPLE_STRATEGY_TRANSACTIONS as SAMPLE_STRATEGY_PORTFOLIO_TRANSACTIONS } from "@strategies/sample-transactions";
-
 export class StrategyPortfolioTransactionInputError extends Error {
   constructor(message: string) {
     super(message);

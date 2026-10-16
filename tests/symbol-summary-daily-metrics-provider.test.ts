@@ -168,7 +168,7 @@ test("wires a dedicated daily series into summary, detail technicals, and analys
   assert.match(pageSource, /interval:\s*"1d",[\s\S]*?count:\s*String\(DEFAULT_CHART_CANDLE_COUNT\)/);
   assert.match(
     pageSource,
-    /buildStockDetailViewModel\(detailWorkspace, detailDailyMarketBars, detailDailyBarsProvenance\)/,
+    /buildStockDetailViewModel\(detailWorkspace, detailDailyMarketBars, detailDailyBarsProvenance, locale\)/,
   );
   assert.match(
     pageSource,

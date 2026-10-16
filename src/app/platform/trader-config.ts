@@ -18,7 +18,7 @@ import {
 import {
   STRATEGY_SUMMARY_METRIC_IDS,
   type StrategySummaryMetricId,
-} from "@strategies/metric-ids";
+} from "../features/strategy/metric-ids";
 
 export { PROVIDER_IDS_BY_ROLE, PROVIDER_ROLES, type ProviderRole } from "@api/provider-roles";
 export {
@@ -37,7 +37,7 @@ export {
 export {
   STRATEGY_SUMMARY_METRIC_IDS,
   type StrategySummaryMetricId,
-} from "@strategies/metric-ids";
+} from "../features/strategy/metric-ids";
 
 export const TRADER_CONFIG_SCHEMA_VERSION = "trader.config.v1" as const;
 
@@ -163,7 +163,7 @@ export function defineTraderConfig(value: unknown): TraderConfig {
   exactKeys(rawProviders, PROVIDER_ROLES, "providers");
   const providers = Object.fromEntries(PROVIDER_ROLES.map((role) => {
     const raw = rawProviders[role];
-    if (raw === null) return [role, null];
+    if (raw === null || (role === "research" && raw === undefined)) return [role, null];
     const id = text(raw, `providers.${role}`);
     if (!PROVIDER_ID_PATTERN.test(id)) {
       throw new TraderConfigError(`providers.${role}`, "must be a lowercase provider id");

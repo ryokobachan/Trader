@@ -11,7 +11,7 @@ import {
   strategyDurationLabel,
   strategyTechnicalRatingLabel,
   strategyTranslate,
-} from "../strategies/i18n";
+} from "../src/app/features/strategy/i18n";
 
 test("strategy feature defaults to readable English and supports Japanese", () => {
   const english = createStrategyTranslator("en");
@@ -35,8 +35,11 @@ test("strategy feature defaults to readable English and supports Japanese", () =
 test("strategy view labels localize without changing internal state values", () => {
   assert.equal(strategyDurationLabel("en", "全期間"), "All time");
   assert.equal(strategyDurationLabel("ja", "全期間"), "全期間");
-  assert.equal(portfolioTabLabel("en", "概要"), "Overview");
+  assert.equal(portfolioTabLabel("en", "概要"), "Performance");
   assert.equal(portfolioTabLabel("en", "保有銘柄"), "Holdings");
+  assert.equal(portfolioTabLabel("en", "取引"), "Trade history");
+  assert.equal(portfolioTabLabel("ja", "概要"), "成績");
+  assert.equal(portfolioTabLabel("ja", "取引"), "取引履歴");
   assert.equal(portfolioChartModeLabel("en", "資産額"), "Value");
   assert.equal(portfolioTransactionTabLabel("en", "取引"), "Trades");
   assert.equal(portfolioTransactionSideLabel("en", "売却"), "Sell");
@@ -49,6 +52,8 @@ test("strategy view labels localize without changing internal state values", () 
 test("strategy dictionaries keep parameter placeholders when data is absent", () => {
   assert.equal(strategyTranslate("en", "table.symbolCount", { count: 12 }), "12 symbols");
   assert.equal(strategyTranslate("ja", "table.symbolCount", { count: 12 }), "12銘柄");
+  assert.equal(strategyTranslate("en", "table.tradeCount", { count: 302 }), "302 filled orders");
+  assert.equal(strategyTranslate("ja", "table.tradeCount", { count: 302 }), "約定注文302件");
   assert.equal(strategyTranslate("en", "table.symbolCount"), "{count} symbols");
 });
 
@@ -65,7 +70,8 @@ test("StrategyHome uses the locale while preserving API and state identifiers", 
   assert.match(strategySource, /DialogShell title=\{st\("transaction\.dialogTitle"\)\}/);
   assert.match(strategySource, /onAction\(st\("toast\.transactionSaveFailed"\)\)/);
 
-  assert.match(strategySource, /useState<PortfolioTab>\("概要"\)/);
+  assert.match(pageSource, /useState<PortfolioTab>\("概要"\)/);
+  assert.match(strategySource, /tab: PortfolioTab/);
   assert.match(strategySource, /<option value="買付">/);
   assert.match(strategySource, /transactionSide === "買付" \? "buy"/);
   assert.match(strategySource, /transactionSide === "売却" \? "sell"/);

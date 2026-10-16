@@ -1,4 +1,4 @@
-export const SYMBOL_DETAIL_TAB_IDS = ["financials", "analyst", "technicals"] as const;
+export const SYMBOL_DETAIL_TAB_IDS = ["overview", "financials", "technicals", "ownership", "dividends", "analyst", "news"] as const;
 
 export const FUNDAMENTAL_GROUP_IDS = [
   "income_statement",
@@ -18,6 +18,7 @@ export const STOCK_DETAIL_METRIC_IDS = [
   "profile.location",
   "profile.employees",
   "profile.website",
+  "profile.marketCap",
   "profile.ipoDate",
   "profile.beta",
   "market.currentPrice",
@@ -28,6 +29,11 @@ export const STOCK_DETAIL_METRIC_IDS = [
   "market.volume",
   "market.marketCap",
   "market.delaySeconds",
+  "fundamentals.researchAndDevelopment",
+  "fundamentals.sellingGeneralAndAdministrative",
+  "fundamentals.totalLiabilities",
+  "fundamentals.investingCashFlow",
+  "fundamentals.financingCashFlow",
   "fundamentals.revenue",
   "fundamentals.revenueGrowth",
   "fundamentals.grossProfit",

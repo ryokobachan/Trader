@@ -1,0 +1,11 @@
+{
+  "instrument": "yahoo",
+  "market": "tradingview-websocket",
+  "bars": "tradingview-websocket",
+  "profile": "yahoo",
+  "fundamentals": "tradingview",
+  "earnings": "tradingview",
+  "research": "yahoo",
+  "analyst": "google-finance-benzinga",
+  "news": "yahoo"
+}

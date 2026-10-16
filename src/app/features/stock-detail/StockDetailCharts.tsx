@@ -34,6 +34,11 @@ export type AnalystTargetPoint = Readonly<{
   analystCount: number;
 }>;
 
+export type CurrentAnalystTarget = Readonly<{
+  event: AnalystRatingEvent;
+  priceTarget: number;
+}>;
+
 export type ActualStockPricePoint = Readonly<{
   date: string;
   close: number;
@@ -85,6 +90,65 @@ function analystTargetIsFresh(targetDate: string, actualDate: string, validityDa
     return false;
   }
   return actualTimestamp - targetTimestamp < Math.floor(validityDays) * DAY_MS;
+}
+
+function calendarMonthCutoff(date: string, months: number) {
+  const timestamp = isoCalendarDayTimestamp(date);
+  if (timestamp === undefined || !Number.isInteger(months) || months < 1) return undefined;
+  const result = new Date(timestamp);
+  const day = result.getUTCDate();
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() - months);
+  const lastDay = new Date(Date.UTC(
+    result.getUTCFullYear(),
+    result.getUTCMonth() + 1,
+    0,
+  )).getUTCDate();
+  result.setUTCDate(Math.min(day, lastDay));
+  return result.toISOString().slice(0, 10);
+}
+
+function analystTargetIsInWindow(
+  targetDate: string,
+  actualDate: string,
+  validityDays: number,
+  trailingMonths?: number,
+) {
+  if (trailingMonths !== undefined) {
+    const cutoff = calendarMonthCutoff(actualDate, trailingMonths);
+    return cutoff !== undefined
+      && isoCalendarDayTimestamp(targetDate) !== undefined
+      && targetDate >= cutoff
+      && targetDate <= actualDate;
+  }
+  return analystTargetIsFresh(targetDate, actualDate, validityDays);
+}
+
+function analystTargetValue(event: AnalystRatingEvent) {
+  const candidates = [
+    event.effectivePriceTarget,
+    event.adjustedPriceTarget,
+    event.priceTarget,
+  ];
+  return candidates.find(finitePositive);
+}
+
+/** The visible history range begins at the oldest row actually returned. */
+export function analystHistoryDataStartDate(
+  items: readonly AnalystRatingEvent[],
+): string | undefined {
+  let earliest: string | undefined;
+  for (const event of items) {
+    if (isoCalendarDayTimestamp(event.sourceEventDate) === undefined) continue;
+    if (earliest === undefined || event.sourceEventDate < earliest) {
+      earliest = event.sourceEventDate;
+    }
+  }
+  return earliest;
+}
+
+function analystTargetIsUsd(event: AnalystRatingEvent) {
+  return !event.currency || event.currency.toUpperCase() === "USD";
 }
 
 function normalizedAnalystLabel(value: string | undefined) {
@@ -147,21 +211,130 @@ export function analystTargetRightOffsetPixels(width: number) {
   return Math.round(Math.min(128, Math.max(56, finiteWidth * 0.14)));
 }
 
+function normalizedIdentityPart(value: string | undefined) {
+  return value?.normalize("NFKC").trim().toLocaleLowerCase("en-US") || undefined;
+}
+
 function eventIdentity(event: AnalystRatingEvent) {
-  const firm = event.firmId || event.analystFirm || "unknown-firm";
-  const analyst = event.analystId || event.analystName || event.eventId;
-  return `${firm}\u0000${analyst}`;
+  const canonicalFirm = normalizedIdentityPart(event.canonicalFirmId);
+  if (canonicalFirm) return canonicalFirm;
+  const firm = normalizedIdentityPart(event.firmId) || normalizedIdentityPart(event.analystFirm);
+  const analyst = normalizedIdentityPart(event.analystId) || normalizedIdentityPart(event.analystName);
+  if (!firm && !analyst) return undefined;
+  return `${firm || "unknown-firm"}\u0000${analyst || "firm-level"}`;
+}
+
+function compareAnalystEvents(left: AnalystRatingEvent, right: AnalystRatingEvent) {
+  return left.eventTime.localeCompare(right.eventTime)
+    || (left.updatedAt ?? "").localeCompare(right.updatedAt ?? "")
+    || left.eventId.localeCompare(right.eventId);
+}
+
+const ANALYST_PROVIDER_PRIORITY: Readonly<Record<string, number>> = Object.freeze({
+  benzinga: 1,
+  "google-finance": 2,
+  tipranks: 2,
+});
+
+function primaryAnalystProvider(event: AnalystRatingEvent) {
+  return normalizedIdentityPart(event.providerId)
+    ?? normalizedIdentityPart(event.sourceProviderIds?.[0])
+    ?? "legacy";
+}
+
+function targetAnalystProvider(event: AnalystRatingEvent) {
+  return normalizedIdentityPart(event.priceTargetProviderId)
+    ?? primaryAnalystProvider(event);
+}
+
+function compareTargetCandidates(left: AnalystRatingEvent, right: AnalystRatingEvent) {
+  const providerDifference = (ANALYST_PROVIDER_PRIORITY[targetAnalystProvider(left)] ?? 0)
+    - (ANALYST_PROVIDER_PRIORITY[targetAnalystProvider(right)] ?? 0);
+  return providerDifference || compareAnalystEvents(left, right);
 }
 
 /**
- * Rebuild a trailing consensus from Midas-normalized Benzinga events.
- * Each point keeps the latest event per analyst/firm observed strictly after
- * the one-year cutoff. The cutoff date itself is not part of the window.
+ * Match the composite server's same-firm/same-day target policy: first retain
+ * each provider's latest operation, then prefer a non-empty Google Finance or
+ * TipRanks field over Benzinga. An unpaired raw history row remains visible without changing the
+ * selected consensus constituent.
+ */
+function targetUpdateForFirmDate(
+  events: readonly AnalystRatingEvent[],
+): CurrentAnalystTarget | undefined {
+  const latestByProvider = new Map<string, AnalystRatingEvent>();
+  for (const event of events) {
+    const provider = primaryAnalystProvider(event);
+    const current = latestByProvider.get(provider);
+    if (!current || compareAnalystEvents(event, current) > 0) {
+      latestByProvider.set(provider, event);
+    }
+  }
+  const selected = [...latestByProvider.values()]
+    .filter((event) => analystTargetValue(event) !== undefined && analystTargetIsUsd(event))
+    .sort(compareTargetCandidates)
+    .at(-1);
+  const priceTarget = selected ? analystTargetValue(selected) : undefined;
+  return selected && priceTarget !== undefined
+    ? Object.freeze({ event: selected, priceTarget })
+    : undefined;
+}
+
+/**
+ * Resolve the current target-price constituents as of a calendar date.
+ * A later no-target or non-USD event supersedes the prior target instead of
+ * allowing a stale value for that analyst / firm to reappear.
+ */
+export function buildCurrentAnalystTargets(
+  items: readonly AnalystRatingEvent[],
+  asOfDate: string,
+  trailingDays = ANALYST_TARGET_VALIDITY_DAYS,
+  trailingMonths?: number,
+): readonly CurrentAnalystTarget[] {
+  const normalizedTrailingDays = Number.isFinite(trailingDays) && trailingDays >= 0
+    ? Math.floor(trailingDays)
+    : ANALYST_TARGET_VALIDITY_DAYS;
+  if (isoCalendarDayTimestamp(asOfDate) === undefined) return Object.freeze([]);
+
+  const byIdentity = new Map<string, AnalystRatingEvent[]>();
+  for (const event of items
+    .filter((event) => analystTargetIsInWindow(
+      event.sourceEventDate,
+      asOfDate,
+      normalizedTrailingDays,
+      trailingMonths,
+    ))) {
+    const identity = eventIdentity(event);
+    if (!identity) continue;
+    const current = byIdentity.get(identity) ?? [];
+    current.push(event);
+    byIdentity.set(identity, current);
+  }
+
+  return Object.freeze(
+    [...byIdentity.values()]
+      .map((events): CurrentAnalystTarget | undefined => {
+        const latestDate = events.reduce((latest, event) => (
+          event.sourceEventDate > latest ? event.sourceEventDate : latest
+        ), "");
+        return targetUpdateForFirmDate(
+          events.filter((event) => event.sourceEventDate === latestDate),
+        );
+      })
+      .filter((item): item is CurrentAnalystTarget => item !== undefined)
+      .sort((left, right) => compareAnalystEvents(right.event, left.event)),
+  );
+}
+
+/**
+ * Rebuild the historical rolling consensus from every returned observation.
+ * `asOfDate` caps future events; each point applies its own trailing window.
  */
 export function buildAnalystTargetPoints(
   items: readonly AnalystRatingEvent[],
   trailingDays = 365,
   asOfDate?: string,
+  trailingMonths?: number,
 ): readonly AnalystTargetPoint[] {
   const normalizedTrailingDays = Number.isFinite(trailingDays) && trailingDays >= 0
     ? Math.floor(trailingDays)
@@ -171,12 +344,9 @@ export function buildAnalystTargetPoints(
   const events = [...items]
     .filter((event) => (
       isoCalendarDayTimestamp(event.sourceEventDate) !== undefined
-      && (
-        asOfDate === undefined
-        || analystTargetIsFresh(event.sourceEventDate, asOfDate, normalizedTrailingDays)
-      )
+      && (asOfDate === undefined || event.sourceEventDate <= asOfDate)
     ))
-    .sort((left, right) => left.eventTime.localeCompare(right.eventTime));
+    .sort(compareAnalystEvents);
   const byDate = new Map<string, AnalystRatingEvent[]>();
   for (const event of events) {
     const current = byDate.get(event.sourceEventDate) ?? [];
@@ -184,15 +354,28 @@ export function buildAnalystTargetPoints(
     byDate.set(event.sourceEventDate, current);
   }
 
-  const active = new Map<string, Readonly<{ target: number; observedDate: number }>>();
+  const active = new Map<string, Readonly<{
+    target: number;
+    observedDate: number;
+    observedCalendarDate: string;
+  }>>();
   const points: AnalystTargetPoint[] = [];
   for (const [date, dateEvents] of [...byDate].sort(([left], [right]) => left.localeCompare(right))) {
+    const byIdentity = new Map<string, AnalystRatingEvent[]>();
     for (const event of dateEvents) {
       const identity = eventIdentity(event);
-      if (finitePositive(event.effectivePriceTarget) && (!event.currency || event.currency === "USD")) {
+      if (!identity) continue;
+      const current = byIdentity.get(identity) ?? [];
+      current.push(event);
+      byIdentity.set(identity, current);
+    }
+    for (const [identity, identityEvents] of byIdentity) {
+      const update = targetUpdateForFirmDate(identityEvents);
+      if (update) {
         active.set(identity, {
-          target: event.effectivePriceTarget,
-          observedDate: isoCalendarDayTimestamp(event.sourceEventDate)!,
+          target: update.priceTarget,
+          observedDate: isoCalendarDayTimestamp(update.event.sourceEventDate)!,
+          observedCalendarDate: update.event.sourceEventDate,
         });
       } else {
         active.delete(identity);
@@ -201,8 +384,15 @@ export function buildAnalystTargetPoints(
 
     const dateMilliseconds = isoCalendarDayTimestamp(date)!;
     const oldestAllowed = dateMilliseconds - normalizedTrailingDays * DAY_MS;
+    const calendarCutoff = trailingMonths === undefined
+      ? undefined
+      : calendarMonthCutoff(date, trailingMonths);
     for (const [identity, value] of active) {
-      if (value.observedDate < oldestAllowed) active.delete(identity);
+      if (
+        calendarCutoff !== undefined
+          ? value.observedCalendarDate < calendarCutoff
+          : value.observedDate <= oldestAllowed
+      ) active.delete(identity);
     }
     const targets = [...active.values()].map((value) => value.target);
     if (targets.length === 0) continue;
@@ -453,7 +643,12 @@ export function AnalystTargetHistoryChart({
     [history?.dateTo, marketBars],
   );
   const points = useMemo(
-    () => buildAnalystTargetPoints(history?.items ?? [], ANALYST_TARGET_VALIDITY_DAYS, history?.dateTo),
+    () => buildAnalystTargetPoints(
+      history?.consensusItems ?? history?.items ?? [],
+      ANALYST_TARGET_VALIDITY_DAYS,
+      history?.dateTo,
+      history?.consensusLookbackMonths,
+    ),
     [history],
   );
   const actualPrices = useMemo(() => {
@@ -495,6 +690,10 @@ export function AnalystTargetHistoryChart({
     actualPrice: latestActualPrice?.close,
     analystCount: latestReadoutTarget?.analystCount,
   } : null);
+  const chartStartDate = points[0]?.date;
+  const chartDateRange = chartStartDate && latestReadoutDate
+    ? `${formatChartDate(chartStartDate, locale)} — ${formatChartDate(latestReadoutDate, locale)}`
+    : undefined;
 
   const hasPoints = points.length > 0;
 
@@ -608,7 +807,11 @@ export function AnalystTargetHistoryChart({
   return (
     <section className="detail-visual-card analyst-target-visual">
       <header>
-        <div><span>PRICE TARGET HISTORY</span><strong>{t("detail.chart.target.title")}</strong></div>
+        <div>
+          <span>PRICE TARGET HISTORY</span>
+          <strong>{t("detail.chart.target.title")}</strong>
+          {chartDateRange && <small>{chartDateRange}</small>}
+        </div>
         {displayedReadout && <AnalystTargetReadout readout={displayedReadout} />}
       </header>
       <div
@@ -622,7 +825,11 @@ export function AnalystTargetHistoryChart({
         <span className="average"><i />{t("detail.chart.target.averageLegend")}</span>
         <span className="high"><i />{t("detail.chart.target.highLegend")}</span>
         {latestActualPrice && <span className="reported"><i />{t("detail.chart.target.actualLegend", { value: currency(latestActualPrice.close, locale), date: formatChartDate(latestActualPrice.date, locale) })}</span>}
-        <small>{t("detail.chart.target.methodology")}</small>
+        <small>
+          {history.consensusLookbackMonths
+            ? t("detail.chart.target.methodologyMonths", { count: history.consensusLookbackMonths })
+            : t("detail.chart.target.methodology")}
+        </small>
       </footer>
     </section>
   );

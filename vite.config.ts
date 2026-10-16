@@ -1,5 +1,5 @@
 import vinext from "vinext";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import hostingConfig from "./.openai/hosting.json" with { type: "json" };
 import { PROVIDER_ENVIRONMENT_KEYS } from "./api/environment.ts";
 import { sites } from "./src/tooling/sites-vite-plugin.ts";
@@ -11,12 +11,13 @@ const { d1, r2 } = hostingConfig;
 
 // Local Cloudflare workers do not inherit arbitrary shell variables. Forward
 // only the reviewed server-side provider allow-list as runtime bindings.
-const providerBindings = Object.fromEntries(
-  PROVIDER_ENVIRONMENT_KEYS.flatMap((name) => {
-    const value = process.env[name];
+function providerBindings(mode: string) {
+  const localEnvironment = loadEnv(mode, process.cwd(), "");
+  return Object.fromEntries(PROVIDER_ENVIRONMENT_KEYS.flatMap((name) => {
+    const value = process.env[name] ?? localEnvironment[name];
     return value === undefined ? [] : [[name, value]];
-  }),
-);
+  }));
+}
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
@@ -24,7 +25,6 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localBindingConfig = {
   main: "./src/worker/index.ts",
   compatibility_flags: ["nodejs_compat", "enable_request_signal"],
-  vars: providerBindings,
   d1_databases: d1
     ? [
         {
@@ -44,7 +44,7 @@ const localBindingConfig = {
     : [],
 };
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ mode, command }) => {
   // Keep Wrangler and Miniflare state project-local. These are non-secret tool
   // settings; application environment belongs in ignored `.env*` files.
   process.env.WRANGLER_WRITE_LOGS ??= "false";
@@ -72,7 +72,8 @@ export default defineConfig(async () => {
         // Runtime state belongs in ignored var/, never beside source or migrations.
         persistState: { path: "var/cloudflare" },
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
-        config: localBindingConfig,
+        // Production credentials are runtime secrets, never serialized build vars.
+        config: { ...localBindingConfig, vars: command === "serve" ? providerBindings(mode) : {} },
       }),
     ],
   };

@@ -7,6 +7,7 @@ import {
   findAvailableLoopbackPort,
   isTradingViewSidecarHealth,
   selectedDevelopmentProfile,
+  standaloneDevelopmentEnvironment,
   tradingViewDevelopmentProfile,
 } from "../src/tooling/scripts/dev-with-tradingview.mjs";
 
@@ -86,7 +87,18 @@ test("sidecar exposes cached authenticated yfinance fallbacks with a pinned runt
 
 test("selects the requested live-data profile without reading credential values", () => {
   assert.equal(selectedDevelopmentProfile(["--profile=yahoo"], { MIDAS_ENV_FILE: "/private/midas.env" }), "yahoo");
-  assert.equal(selectedDevelopmentProfile(["--profile=midas"], {}), "midas");
-  assert.equal(selectedDevelopmentProfile([], { MIDAS_ENV_FILE: "/private/midas.env" }), "midas");
-  assert.equal(selectedDevelopmentProfile([], {}), "yahoo");
+  assert.equal(selectedDevelopmentProfile(["--profile=midas"], {}), "standalone");
+  assert.equal(selectedDevelopmentProfile([], { MIDAS_ENV_FILE: "/private/midas.env" }), "standalone");
+  assert.equal(selectedDevelopmentProfile([], {}), "standalone");
+});
+
+test("standalone configuration uses Trader's settings and drops Midas dependencies", () => {
+  const env = standaloneDevelopmentEnvironment({ MIDAS_ENV_FILE: "/unavailable/.env", MIDAS_TOKEN: "ignored", FMP_API_KEY: "ignored", FRED_API_KEY: "own-key", TRADER_SHARED_DATA_ROOT: "/data/root", TRADER_FUNDAMENTALS_PROVIDER: "" });
+  assert.equal(env.MIDAS_ENV_FILE, undefined);
+  assert.equal(env.MIDAS_TOKEN, undefined);
+  assert.equal(env.FMP_API_KEY, undefined);
+  assert.equal(env.FRED_API_KEY, "own-key");
+  assert.equal(env.TRADER_SHARED_DATA_ROOT, "/data/root");
+  assert.equal(env.TRADER_FUNDAMENTALS_PROVIDER, "tradingview");
+  assert.equal(env.TRADER_EARNINGS_PROVIDER, "tradingview");
 });

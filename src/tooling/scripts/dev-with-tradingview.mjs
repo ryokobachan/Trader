@@ -1,12 +1,17 @@
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
+import { readFile } from "node:fs/promises";
+import { parseEnv } from "node:util";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const SIDECAR_PATH = path.join(PROJECT_ROOT, "api", "tradingview-websocket", "sidecar.py");
+const LOCAL_PROVIDER_PROFILE = JSON.parse(readFileSync(path.join(PROJECT_ROOT, "api", "local-provider-profile.json"), "utf8"));
+const LOCAL_PROVIDER_ENVIRONMENT = Object.fromEntries(Object.entries(LOCAL_PROVIDER_PROFILE)
+  .map(([role, provider]) => [`TRADER_${role.toUpperCase()}_PROVIDER`, provider]));
 
 export function tradingViewDevelopmentProfile(baseEnvironment, token, port = 8791) {
   return {
@@ -24,14 +29,28 @@ export function tradingViewDevelopmentProfile(baseEnvironment, token, port = 879
 
 export function selectedDevelopmentProfile(argv = process.argv.slice(2), environment = process.env) {
   const explicit = argv.find((argument) => argument.startsWith("--profile="))?.slice("--profile=".length);
-  if (explicit === "midas" || explicit === "yahoo") return explicit;
-  return environment.MIDAS_ENV_FILE ? "midas" : "yahoo";
+  if (explicit === "yahoo") return "yahoo";
+  // Preserve old LaunchAgent/npm arguments as aliases without reading Midas.
+  if (explicit === "midas" || explicit === "standalone") return "standalone";
+  void environment;
+  return "standalone";
+}
+
+export function standaloneDevelopmentEnvironment(environment) {
+  const own = Object.fromEntries(Object.entries(environment).filter(([key]) => !key.startsWith("MIDAS_") && !key.startsWith("FMP_")));
+  return {
+    TRADER_USAGE_MODE: "personal", TRADER_ENABLE_YAHOO_COMPAT: "true",
+    ...LOCAL_PROVIDER_ENVIRONMENT,
+    ...Object.fromEntries(Object.entries(own).filter(([, value]) => value !== "")),
+    TRADER_SHARED_DATA_ROOT: own.TRADER_SHARED_DATA_ROOT?.trim() || path.resolve(PROJECT_ROOT, "..", ".data"),
+  };
 }
 
 function childCommand(profile) {
   return {
     executable: process.platform === "win32" ? "npm.cmd" : "npm",
-    args: ["run", profile === "midas" ? "dev:midas:app" : "dev:yahoo:app"],
+    args: profile === "standalone" ? ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", "3001"]
+      : ["run", "dev:yahoo:app"],
   };
 }
 
@@ -102,14 +121,20 @@ function forwardAndCleanUp(children) {
 
 async function run() {
   const profile = selectedDevelopmentProfile();
-  const configuredPort = process.env.TRADER_TRADINGVIEW_SIDECAR_PORT?.trim();
+  let ownSettings = {};
+  if (profile === "standalone") {
+    try { ownSettings = parseEnv(await readFile(path.join(PROJECT_ROOT, ".env.local"), "utf8")); }
+    catch (error) { if (error?.code !== "ENOENT") throw new Error("Trader's local configuration could not be read."); }
+  }
+  const baseEnvironment = profile === "standalone" ? standaloneDevelopmentEnvironment({ ...ownSettings, ...process.env }) : process.env;
+  const configuredPort = baseEnvironment.TRADER_TRADINGVIEW_SIDECAR_PORT?.trim();
   const portValue = Number(configuredPort);
   const port = configuredPort && Number.isInteger(portValue) && portValue >= 1 && portValue <= 65_535
     ? portValue
     : await findAvailableLoopbackPort();
   const token = randomBytes(32).toString("base64url");
-  const environment = tradingViewDevelopmentProfile(process.env, token, port);
-  const python = process.env.TRADER_TRADINGVIEW_PYTHON?.trim() || "python3";
+  const environment = tradingViewDevelopmentProfile(baseEnvironment, token, port);
+  const python = baseEnvironment.TRADER_TRADINGVIEW_PYTHON?.trim() || "python3";
   const sidecar = spawn(python, [SIDECAR_PATH, "--host", "127.0.0.1", "--port", String(port)], {
     cwd: PROJECT_ROOT,
     env: environment,

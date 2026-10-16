@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import hmac
+import importlib.util
 import json
 import math
 import multiprocessing
@@ -25,12 +26,15 @@ import re
 import sys
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
 from urllib.parse import parse_qs, urlsplit
+from urllib.error import HTTPError, URLError
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 from zoneinfo import ZoneInfo
+
 
 
 SCHEMA_VERSION = "trader.tradingview-sidecar.v1"
@@ -1592,6 +1596,130 @@ class TradingViewSidecarServer(ThreadingHTTPServer):
         super().server_close()
 
 
+USASPENDING_AWARDS_URL = "https://api.usaspending.gov/api/v2/search/spending_by_award/"
+MAX_USASPENDING_RESPONSE_BYTES = 2_000_000
+
+
+class _UsaspendingNoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # Never follow an official endpoint redirect to another destination.
+        return None
+
+
+def fetch_usaspending_awards(payload: dict, timeout_seconds: float = 12, opener=None) -> dict:
+    """Return a bounded raw award response; TypeScript owns normalization."""
+    if not isinstance(payload, dict) or set(payload) != {"recipient", "endDate"}:
+        raise ValueError("Invalid USAspending request.")
+    recipient = payload["recipient"]
+    end_date = payload["endDate"]
+    if not isinstance(recipient, str) or re.search(r"[\x00-\x1f\x7f]", recipient):
+        raise ValueError("Invalid USAspending request.")
+    recipient = recipient.strip()
+    if not 2 <= len(recipient) <= 120:
+        raise ValueError("Invalid USAspending request.")
+    if not isinstance(end_date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", end_date):
+        raise ValueError("Invalid USAspending request.")
+    try:
+        end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise ValueError("Invalid USAspending request.") from None
+    if end.strftime("%Y-%m-%d") != end_date or not "2008-10-01" <= end_date <= datetime.now(timezone.utc).date().isoformat():
+        raise ValueError("Invalid USAspending request.")
+    if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, (float, int)) or not math.isfinite(timeout_seconds):
+        raise ValueError("Invalid USAspending timeout.")
+    timeout = min(12.0, max(1.0, float(timeout_seconds)))
+    start_date = (end - timedelta(days=365)).date().isoformat()
+    body = {
+        "filters": {
+            "time_period": [{"start_date": start_date, "end_date": end_date}],
+            "award_type_codes": ["A", "B", "C", "D"],
+            "recipient_search_text": [recipient],
+        },
+        "fields": [
+            "Award ID", "Recipient Name", "Recipient UEI", "Award Amount",
+            "Awarding Agency", "Start Date", "Last Modified Date", "generated_internal_id",
+        ],
+        "page": 1,
+        "limit": 50,
+        "sort": "Last Modified Date",
+        "order": "desc",
+        "subawards": False,
+    }
+    request = Request(
+        USASPENDING_AWARDS_URL,
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "TraderResearch/1.0"},
+        method="POST",
+    )
+    client = opener if opener is not None else build_opener(_UsaspendingNoRedirect())
+    deadline = time.monotonic() + timeout
+    try:
+        with client.open(request, timeout=timeout) as response:
+            if response.getcode() != 200 or response.geturl() != USASPENDING_AWARDS_URL:
+                raise RuntimeError("USAspending unavailable.")
+            declared_size = response.headers.get("Content-Length")
+            if declared_size is not None and (not re.fullmatch(r"\d+", str(declared_size)) or int(declared_size) > MAX_USASPENDING_RESPONSE_BYTES):
+                raise RuntimeError("USAspending unavailable.")
+            # read1 avoids waiting for a whole 64 KiB buffer while a server
+            # trickles bytes, permitting deadline checks between socket reads.
+            read = getattr(response, "read1", response.read)
+            chunks = []
+            size = 0
+            while True:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("USAspending timeout.")
+                chunk = read(min(65_536, MAX_USASPENDING_RESPONSE_BYTES + 1 - size))
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("USAspending timeout.")
+                if not chunk:
+                    break
+                if not isinstance(chunk, bytes):
+                    raise RuntimeError("USAspending unavailable.")
+                size += len(chunk)
+                if size > MAX_USASPENDING_RESPONSE_BYTES:
+                    raise RuntimeError("USAspending unavailable.")
+                chunks.append(chunk)
+            def reject_nonfinite(_value):
+                raise ValueError("Invalid upstream number.")
+
+            result = json.loads(b"".join(chunks).decode("utf-8"), parse_constant=reject_nonfinite)
+            if not isinstance(result, dict) or result.get("spending_level") != "awards" or not isinstance(result.get("results"), list) or len(result["results"]) > 50:
+                raise RuntimeError("USAspending unavailable.")
+            return result
+    except TimeoutError:
+        raise TimeoutError("USAspending timeout.") from None
+    except URLError as error:
+        if isinstance(error.reason, TimeoutError):
+            raise TimeoutError("USAspending timeout.") from None
+        raise RuntimeError("USAspending unavailable.") from None
+    except (HTTPError, OSError, ValueError, UnicodeError, RuntimeError):
+        raise RuntimeError("USAspending unavailable.") from None
+
+
+TALIB_CAPACITY = threading.BoundedSemaphore(2)
+FINANCIALS_CAPACITY = threading.BoundedSemaphore(4)
+SHARED_DATA_CAPACITY = threading.BoundedSemaphore(4)
+
+
+def local_research_module(name: str):
+    """Load only reviewed bundled modules, including importlib-based test runners."""
+    if name not in {"talib_indicators", "financial_history", "shared_data"}:
+        raise ValueError("invalid module")
+    if name in sys.modules:
+        return sys.modules[name]
+    try:
+        return __import__(name)
+    except ModuleNotFoundError:
+        from pathlib import Path
+        spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(name + ".py"))
+        if spec is None or spec.loader is None:
+            raise RuntimeError("research module unavailable") from None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        sys.modules[name] = module
+        return module
+
+
 class TradingViewSidecarHandler(BaseHTTPRequestHandler):
     server: TradingViewSidecarServer
     protocol_version = "HTTP/1.1"
@@ -1832,6 +1960,75 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         parsed = urlsplit(self.path)
+        if parsed.path.startswith("/v1/shared-data/"):
+            if not self.server.auth_token or not self.authenticated():
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            dataset = parsed.path.removeprefix("/v1/shared-data/")
+            if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", dataset) or len(parsed.query) > 8192:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request"})
+                return
+            params = parse_qs(parsed.query, keep_blank_values=True)
+            if any(len(values) != 1 or len(values[0]) > 4096 for values in params.values()):
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request"})
+                return
+            if not SHARED_DATA_CAPACITY.acquire(blocking=False):
+                self.send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "capacity"})
+                return
+            try:
+                module = local_research_module("shared_data")
+                result = module.load_dataset(dataset, {key: values[0] for key, values in params.items()})
+                if len(json.dumps(result, ensure_ascii=False, allow_nan=False).encode("utf-8")) > 8 * 1024 * 1024:
+                    self.send_json(HTTPStatus.BAD_GATEWAY, {"error": "invalid_response"})
+                    return
+                self.send_json(HTTPStatus.OK, result)
+            except Exception as error:
+                status = getattr(error, "status", 503)
+                code = getattr(error, "code", "unavailable")
+                if status not in {400, 404, 409, 429, 503, 504}:
+                    status = 503
+                if not isinstance(code, str) or not re.fullmatch(r"[a-z_]{1,64}", code):
+                    code = "unavailable"
+                self.send_json(HTTPStatus(status), {"error": code})
+            finally:
+                SHARED_DATA_CAPACITY.release()
+            return
+        if parsed.path in {"/v1/indicators", "/v1/tradingview/financials"}:
+            if not self.server.auth_token or not self.authenticated():
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            if parsed.path == "/v1/indicators":
+                if parsed.query:
+                    self.send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request"})
+                    return
+                try:
+                    result = local_research_module("talib_indicators").catalog()
+                except Exception:
+                    self.send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "talib_unavailable"})
+                    return
+                self.send_json(HTTPStatus.OK, result)
+                return
+            params = parse_qs(parsed.query, keep_blank_values=True)
+            if set(params) != {"symbol", "mic"} or any(len(values) != 1 for values in params.values()):
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request"})
+                return
+            symbol, mic = params["symbol"][0], params["mic"][0]
+            if not SYMBOL_PATTERN.fullmatch(symbol) or mic not in MIC_TO_TRADINGVIEW_EXCHANGE:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request"})
+                return
+            if not FINANCIALS_CAPACITY.acquire(blocking=False):
+                self.send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "capacity"})
+                return
+            try:
+                result = local_research_module("financial_history").fetch_financial_history(symbol, mic, timeout_seconds=12.0)
+                self.send_json(HTTPStatus.OK, result)
+            except TimeoutError:
+                self.send_json(HTTPStatus.GATEWAY_TIMEOUT, {"error": "upstream_timeout"})
+            except Exception:
+                self.send_json(HTTPStatus.BAD_GATEWAY, {"error": "upstream_error"})
+            finally:
+                FINANCIALS_CAPACITY.release()
+            return
         if parsed.path == "/healthz":
             if not self.authenticated():
                 self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
@@ -1980,6 +2177,8 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         parsed = urlsplit(self.path)
         if parsed.path not in {
+            "/v1/indicators/calculate",
+            "/v1/research/usaspending",
             "/v1/latest-closes",
             "/v1/latest-closes/stream",
             "/v1/realtime-quotes",
@@ -1995,6 +2194,53 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
         if not self.authenticated():
             self.close_connection = True
             self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+            return
+
+        if parsed.path == "/v1/indicators/calculate":
+            if not self.server.auth_token:
+                self.close_connection = True
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            if not TALIB_CAPACITY.acquire(blocking=False):
+                self.close_connection = True
+                self.send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "capacity"})
+                return
+            try:
+                self.connection.settimeout(20.0)
+                payload = self.read_json_body(3_000_000)
+                result = local_research_module("talib_indicators").calculate(payload)
+                self.send_json(HTTPStatus.OK, result)
+            except (ValueError, TypeError):
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request"})
+            except Exception:
+                self.send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "talib_unavailable"})
+            finally:
+                TALIB_CAPACITY.release()
+            return
+
+        if parsed.path == "/v1/research/usaspending":
+            if not self.server.auth_token:
+                self.close_connection = True
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                return
+            request_payload = self.read_json_body(1_024)
+            try:
+                result = fetch_usaspending_awards(request_payload)
+            except ValueError:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_request"})
+                return
+            except TimeoutError:
+                self.send_json(HTTPStatus.GATEWAY_TIMEOUT, {"error": "upstream_timeout"})
+                return
+            except Exception:
+                self.send_json(HTTPStatus.BAD_GATEWAY, {"error": "upstream_error"})
+                return
+            self.send_json(HTTPStatus.OK, {
+                "schemaVersion": "trader.usaspending.v1",
+                "recipient": request_payload["recipient"].strip(),
+                "endDate": request_payload["endDate"],
+                "payload": result,
+            })
             return
 
         if parsed.path == "/v1/latest-closes/stream":

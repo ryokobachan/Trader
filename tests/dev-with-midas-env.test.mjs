@@ -13,26 +13,20 @@ import {
 test("parses basic, quoted, and exported allowlisted values", () => {
   const parsed = parseMidasEnv(`
     # Midas development settings
-    FMP_API_KEY=plain-secret
-    FMP_BASE_URL="https://example.test/stable?mode=dev#fragment"
-    export FMP_TIMEOUT_SECONDS='25'
     BENZINGA_API_TOKEN=benzinga-token
-    BENZINGA_API_KEY=legacy-benzinga-key
-    BENZINGA_TIMEOUT_SECONDS=15
-    BENZINGA_ANALYST_RATINGS_ENDPOINT=https://ratings.example.test/calendar/ratings
+    BENZINGA_API_KEY='legacy-benzinga-key'
+    export BENZINGA_TIMEOUT_SECONDS='15'
+    BENZINGA_ANALYST_RATINGS_ENDPOINT="https://ratings.example.test/calendar/ratings?mode=dev#fragment"
     BENZINGA_ANALYST_RATINGS_DISABLED=false
     API_SERVER_KEY=must-not-cross-the-boundary
     X_API_BEARER_TOKEN="also-blocked"
   `);
 
   assert.deepEqual(parsed, {
-    FMP_API_KEY: "plain-secret",
-    FMP_BASE_URL: "https://example.test/stable?mode=dev#fragment",
-    FMP_TIMEOUT_SECONDS: "25",
     BENZINGA_API_TOKEN: "benzinga-token",
     BENZINGA_API_KEY: "legacy-benzinga-key",
     BENZINGA_TIMEOUT_SECONDS: "15",
-    BENZINGA_ANALYST_RATINGS_ENDPOINT: "https://ratings.example.test/calendar/ratings",
+    BENZINGA_ANALYST_RATINGS_ENDPOINT: "https://ratings.example.test/calendar/ratings?mode=dev#fragment",
     BENZINGA_ANALYST_RATINGS_DISABLED: "false",
   });
   assert.deepEqual(Object.keys(parsed).sort(), [...MIDAS_ENV_ALLOWLIST].sort());
@@ -42,15 +36,15 @@ test("parses basic, quoted, and exported allowlisted values", () => {
 
 test("handles comments and ignores malformed allowlisted assignments", () => {
   const parsed = parseMidasEnv(`
-    FMP_API_KEY=value-before-comment # local note
-    FMP_BASE_URL=https://example.test/path#literal-fragment
-    FMP_TIMEOUT_SECONDS="unterminated
-    BENZINGA_API_TOKEN="valid" unexpected-suffix
+    BENZINGA_API_TOKEN=value-before-comment # local note
+    BENZINGA_ANALYST_RATINGS_ENDPOINT=https://example.test/path#literal-fragment
+    BENZINGA_TIMEOUT_SECONDS="unterminated
+    BENZINGA_API_KEY="valid" unexpected-suffix
   `);
 
   assert.deepEqual(parsed, {
-    FMP_API_KEY: "value-before-comment",
-    FMP_BASE_URL: "https://example.test/path#literal-fragment",
+    BENZINGA_API_TOKEN: "value-before-comment",
+    BENZINGA_ANALYST_RATINGS_ENDPOINT: "https://example.test/path#literal-fragment",
   });
 });
 
@@ -59,35 +53,42 @@ test("merges only allowlisted values, preserves existing values, and applies Tra
     {
       PATH: "/usr/bin",
       MIDAS_ENV_FILE: "/private/source.env",
-      FMP_API_KEY: "existing-fmp-key",
+      BENZINGA_API_TOKEN: "existing-benzinga-token",
       TRADER_USAGE_MODE: "team",
       TRADER_MARKET_PROVIDER: "massive",
     },
     {
-      FMP_API_KEY: "midas-fmp-key",
-      FMP_BASE_URL: "https://example.test/stable",
-      FMP_TIMEOUT_SECONDS: "20",
       BENZINGA_API_TOKEN: "midas-benzinga-token",
+      BENZINGA_TIMEOUT_SECONDS: "20",
       API_SERVER_KEY: "blocked-api-key",
     },
   );
 
   assert.equal(merged.PATH, "/usr/bin");
   assert.equal(merged.MIDAS_ENV_FILE, undefined);
-  assert.equal(merged.FMP_API_KEY, "existing-fmp-key");
-  assert.equal(merged.FMP_BASE_URL, "https://example.test/stable");
-  assert.equal(merged.FMP_TIMEOUT_SECONDS, "20");
-  assert.equal(merged.BENZINGA_API_TOKEN, "midas-benzinga-token");
+  assert.equal(merged.BENZINGA_API_TOKEN, "existing-benzinga-token");
+  assert.equal(merged.BENZINGA_TIMEOUT_SECONDS, "20");
   assert.equal(merged.API_SERVER_KEY, undefined);
   assert.equal(merged.TRADER_USAGE_MODE, "team");
   assert.equal(merged.TRADER_ENABLE_YAHOO_COMPAT, "true");
   assert.equal(merged.TRADER_INSTRUMENT_PROVIDER, "yahoo");
   assert.equal(merged.TRADER_MARKET_PROVIDER, "massive");
-  assert.equal(merged.TRADER_PROFILE_PROVIDER, "fmp");
-  assert.equal(merged.TRADER_FUNDAMENTALS_PROVIDER, "fmp");
-  assert.equal(merged.TRADER_EARNINGS_PROVIDER, "fmp");
-  assert.equal(merged.TRADER_ANALYST_PROVIDER, "benzinga");
+  assert.equal(merged.TRADER_PROFILE_PROVIDER, "yahoo");
+  assert.equal(merged.TRADER_FUNDAMENTALS_PROVIDER, "tradingview");
+  assert.equal(merged.TRADER_EARNINGS_PROVIDER, "tradingview");
+  assert.equal(merged.TRADER_RESEARCH_PROVIDER, "yahoo");
+  assert.equal(merged.TRADER_ANALYST_PROVIDER, "google-finance-benzinga");
   assert.equal(merged.TRADER_NEWS_PROVIDER, "yahoo");
+});
+
+test("retired FMP credentials are neither imported from Midas nor inherited by Trader", () => {
+  const parsed = parseMidasEnv("FMP_API_KEY=retired-secret\nFMP_BASE_URL=https://old.example.test\nFMP_TIMEOUT_SECONDS=20");
+  assert.deepEqual(parsed, {});
+  assert.equal(MIDAS_ENV_ALLOWLIST.some((name) => name.startsWith("FMP_")), false);
+  const merged = mergeMidasEnv({ FMP_API_KEY: "inherited-secret", FMP_CUSTOM_TOKEN: "inherited-other" }, {
+    FMP_API_KEY: "attempted-import", FMP_BASE_URL: "https://old.example.test",
+  });
+  assert.equal(Object.keys(merged).some((name) => name.startsWith("FMP_")), false);
 });
 
 test("importing and using helpers emits no secret values", () => {
@@ -95,7 +96,7 @@ test("importing and using helpers emits no secret values", () => {
   const secret = "secret-that-must-not-be-printed";
   const evaluation = `
     import { parseMidasEnv, mergeMidasEnv } from ${JSON.stringify(launcherUrl)};
-    const parsed = parseMidasEnv(${JSON.stringify(`FMP_API_KEY=${secret}\nAPI_SERVER_KEY=blocked`)});
+    const parsed = parseMidasEnv(${JSON.stringify(`BENZINGA_API_TOKEN=${secret}\nAPI_SERVER_KEY=blocked`)});
     mergeMidasEnv({}, parsed);
   `;
   const result = spawnSync(process.execPath, ["--input-type=module", "--eval", evaluation], {
@@ -122,14 +123,15 @@ test("launcher reports an unreadable source without exposing its path", () => {
   assert.match(result.stderr, /could not be read/i);
 });
 
-test("documents the FMP/Benzinga local real-data profile", async () => {
+test("documents the TradingView, Google Finance and Yahoo real-data roles", async () => {
   const example = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 
   assert.match(example, /^# TRADER_INSTRUMENT_PROVIDER=yahoo$/m);
-  assert.match(example, /^# TRADER_PROFILE_PROVIDER=fmp$/m);
-  assert.match(example, /^# TRADER_FUNDAMENTALS_PROVIDER=fmp$/m);
-  assert.match(example, /^# TRADER_EARNINGS_PROVIDER=fmp$/m);
-  assert.match(example, /^# TRADER_ANALYST_PROVIDER=benzinga$/m);
+  assert.match(example, /^# TRADER_PROFILE_PROVIDER=yahoo$/m);
+  assert.match(example, /^# TRADER_FUNDAMENTALS_PROVIDER=tradingview$/m);
+  assert.match(example, /^# TRADER_EARNINGS_PROVIDER=tradingview$/m);
+  assert.match(example, /^# TRADER_RESEARCH_PROVIDER=yahoo$/m);
+  assert.match(example, /^# TRADER_ANALYST_PROVIDER=google-finance-benzinga$/m);
   assert.match(example, /^# TRADER_NEWS_PROVIDER=yahoo$/m);
-  assert.doesNotMatch(example, /^# TRADER_INSTRUMENT_PROVIDER=fmp$/m);
+  assert.doesNotMatch(example, /^(?:# )?(?:FMP_|TRADER_\w+_PROVIDER=fmp)/m);
 });

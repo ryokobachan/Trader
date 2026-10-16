@@ -226,7 +226,7 @@ test("the selected chart, daily summary bars, and workspace quote all refresh wi
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
 
   assert.match(pageSource, /prioritizedWatchlistQuoteSymbols\(\s*watchedTickers,\s*selectedTicker,/);
-  assert.match(pageSource, /const marketDataSurfaceVisible = primaryView !== "strategy";/);
+  assert.match(pageSource, /const marketDataSurfaceVisible = primaryView === "chart" \|\| primaryView === "stock-detail";/);
   assert.match(pageSource, /if \(!marketDataSurfaceVisible\) return;/);
   assert.match(pageSource, /forceChartBarsRefreshRef\.current\?\.\(\)/);
   assert.match(pageSource, /forceDailyBarsRefreshRef\.current\?\.\(\)/);

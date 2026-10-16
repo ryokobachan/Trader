@@ -1,0 +1,18 @@
+.data-access-shell { display: block; height: 100%; min-height: 0; }
+.data-access-shell > .midas-research-scroll { height: 100%; overflow: auto; }
+.data-access-filters { display: flex; gap: 16px; margin-bottom: 24px; }
+.data-access-filters label, .data-access-collection { display: grid; gap: 8px; font-size: 14px; }
+.data-access-filters select, .data-access-filters input, .data-access-collection select { padding: 9px 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--text); }
+.data-access-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.data-access-tags span { border: 1px solid var(--line); border-radius: 4px; padding: 5px 9px; font-size: 12px; color: var(--muted); }
+.data-access-integration { margin-top: 20px; font-size: 13px; }
+.data-access-integration summary, .data-access-metadata summary { cursor: pointer; padding: 10px 0; }
+.data-access-integration code { display: block; padding: 14px; margin: 8px 0; background: var(--bg); overflow-wrap: anywhere; line-height: 1.8; }
+.data-access-integration button, .data-access-integration a { display: inline-block; margin: 0 18px 8px 0; color: #38bdf8; }
+.data-access-integration button { background: transparent; border: 1px solid var(--line); border-radius: 5px; padding: 7px 12px; }
+.data-access-metadata { font-size: 12px; margin: 14px 0; }
+.data-access-metadata pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 250px; overflow: auto; color: var(--muted); background: var(--bg); padding: 12px; }
+.data-access-metadata > div > strong { color: var(--muted); font-weight: 500; }
+.data-access-collection { margin: 16px 0; }
+.data-access-panel .direct-source-table td button { color: #38bdf8; background: transparent; border: 0; }
+@media (max-width: 700px) { .data-access-filters { flex-direction: column; } }

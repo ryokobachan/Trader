@@ -51,13 +51,8 @@ test("chart template names reject empty, long, and duplicate values", () => {
   assert.equal(validateChartTemplateName("Trend", current), null);
 });
 
-test("chart toolbar wires template CRUD and removes the alert surface", async () => {
+test("chart toolbar no longer exposes template controls", async () => {
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
-
-  assert.match(pageSource, /CHART_TEMPLATE_STORAGE_KEY/);
-  assert.match(pageSource, /openTemplateEditor\("create"\)/);
-  assert.match(pageSource, /openTemplateEditor\("rename", template\)/);
-  assert.match(pageSource, /deleteChartTemplate\(template\)/);
-  assert.doesNotMatch(pageSource, /setAppDialog\("alert"\)/);
-  assert.doesNotMatch(pageSource, /appDialog === "alert"/);
+  assert.doesNotMatch(pageSource, /indicator-template-menu|templateMenuTriggerRef|openTemplateEditor/);
+  assert.doesNotMatch(pageSource, /t\("toolbar\.indicators"\)/);
 });

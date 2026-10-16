@@ -56,15 +56,23 @@ test("validates chart candle preferences against the market-bars contract", () =
   assert.equal(parseChartCandleCount(""), null);
 });
 
-test("puts workspace navigation above chart controls and uses Command-F search", async () => {
+test("puts global navigation above chart-only controls and uses Command-F search", async () => {
   const pageSource = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   const workspaceNavigation = pageSource.indexOf('<nav className="workspace-view-tabs"');
-  const chartToolbar = pageSource.indexOf('<header className="global-toolbar"');
+  const chartToolbar = pageSource.indexOf('<div className="chart-commandbar"');
   assert.ok(workspaceNavigation >= 0 && chartToolbar > workspaceNavigation);
-  const workspaceBrand = pageSource.indexOf('className="brand-lockup workspace-brand-lockup"', workspaceNavigation);
-  const chartTab = pageSource.indexOf('aria-selected={primaryView !== "strategy"}', workspaceNavigation);
-  assert.ok(workspaceBrand > workspaceNavigation && chartTab > workspaceBrand && chartTab < chartToolbar);
-  assert.equal(pageSource.slice(chartToolbar, pageSource.indexOf("{primaryView", chartToolbar)).includes("brand-lockup"), false);
+  const navigationBrand = pageSource.indexOf('className="brand-lockup workspace-brand-lockup"', workspaceNavigation);
+  const navigationSpacer = pageSource.indexOf('className="workspace-nav-spacer"', workspaceNavigation);
+  const chartTab = pageSource.indexOf('aria-current={navigationView === "chart" ? "page" : undefined}', workspaceNavigation);
+  assert.ok(navigationBrand > workspaceNavigation && navigationBrand < chartToolbar);
+  assert.ok(chartTab > navigationBrand && navigationSpacer > chartTab);
+  assert.doesNotMatch(pageSource, /global-toolbar|symbol-search-trigger|interval-group/);
+  assert.match(pageSource, /className="chart-interval-select"/);
+  assert.match(pageSource, /onChange=\{\(event\) => selectChartInterval\(event.target.value as MarketBarInterval\)\}/);
+  const symbol = pageSource.indexOf('className="chart-symbol-button"', chartToolbar);
+  const timeframe = pageSource.indexOf('className="chart-interval-select"', symbol);
+  const candles = pageSource.indexOf('className="toolbar-popover-host chart-type-control"', timeframe);
+  assert.ok(symbol > chartToolbar && timeframe > symbol && candles > timeframe);
   assert.match(pageSource, /key\.toLowerCase\(\) === "f"/);
   assert.match(pageSource, /⌘ F/);
   assert.doesNotMatch(pageSource, /PROVIDER DATA|ShareNetwork|profile-button/);

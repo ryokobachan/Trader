@@ -1,9 +1,9 @@
 import type { Locale } from "./i18n";
 import {
   RETIRED_SAMPLE_STRATEGY_IDS,
-  SAMPLE_STRATEGY_DEFINITIONS,
-  sampleStrategiesForLocale,
-} from "@strategies/catalog";
+  STRATEGY_PACKAGE_DEFINITIONS,
+  strategyPackagesForLocale,
+} from "../features/strategy/catalog";
 import { ensureTransactionDatabase, getD1 } from "../../db";
 import {
   type CreateStrategyInput,
@@ -20,7 +20,7 @@ import {
 import { DEFAULT_LOCAL_OWNER_ID } from "./watchlist-contracts";
 
 const BUILT_IN_IDS = new Set<string>(
-  SAMPLE_STRATEGY_DEFINITIONS.map((strategy) => strategy.id),
+  STRATEGY_PACKAGE_DEFINITIONS.map((strategy) => strategy.id),
 );
 const RETIRED_BUILT_IN_IDS = new Set<string>(RETIRED_SAMPLE_STRATEGY_IDS);
 
@@ -114,7 +114,7 @@ function builtInRecords(
   preferences: Awaited<ReturnType<typeof listStrategyPreferences>>,
 ): StrategyRecord[] {
   const preferenceById = new Map(preferences.map((entry) => [entry.strategyId, entry]));
-  return sampleStrategiesForLocale(locale, preferences).map((strategy) => {
+  return strategyPackagesForLocale(locale, preferences).map((strategy) => {
     const preference = preferenceById.get(strategy.id);
     return {
       id: strategy.id,
@@ -128,18 +128,7 @@ function builtInRecords(
       sourceLabels: strategy.sourceLabels,
       headline: strategy.headline,
       audit: strategy.audit,
-      performance: {
-        provenance: "illustrative_catalog",
-        netReturn: strategy.netReturn,
-        maxDrawdown: strategy.maxDrawdown,
-        recoveryFactor: strategy.recoveryFactor,
-        sharpe: strategy.sharpe,
-        forwardReturn: strategy.forwardReturn,
-        winRate: strategy.winRate,
-        trades: strategy.trades,
-        symbols: strategy.symbols,
-        cash: strategy.cash,
-      },
+      performance: { ...strategy.performance },
       createdAt: null,
       updatedAt: preference?.updatedAt ?? null,
     };
@@ -234,7 +223,7 @@ export async function getStrategy(
   return customRecord(row);
 }
 
-/** Used by transaction routes so custom and visible built-in strategies share one boundary. */
+/** Used by transaction routes so custom and visible packaged strategies share one boundary. */
 export async function assertActiveStrategy(
   strategyId: string,
   ownerId = currentStrategyOwnerId(),
@@ -253,7 +242,7 @@ export async function assertActiveStrategy(
 }
 
 /**
- * Transaction ledgers outlive the sample catalog. Retired built-in IDs are
+ * D1 transaction ledgers outlive the package catalog. Retired built-in IDs are
  * accepted here only so owners can inspect, export, edit, or delete records
  * that were saved before a catalog reduction; they remain hidden elsewhere.
  */

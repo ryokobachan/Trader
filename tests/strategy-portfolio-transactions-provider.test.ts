@@ -5,11 +5,11 @@ import test from "node:test";
 
 import { GET } from "../src/app/api/v1/strategy-portfolios/[strategyId]/transactions/route";
 import {
-  SAMPLE_STRATEGY_PORTFOLIO_TRANSACTIONS,
   StrategyPortfolioTransactionInputError,
   normalizeStrategyId,
   normalizeStrategyPortfolioTransactionInput,
 } from "../src/app/platform/strategy-portfolio-contracts";
+import { strategyPackageById } from "../src/app/features/strategy/catalog";
 import { assertStrategyTransactionAccess } from "../src/app/platform/strategies.server";
 import { installD1Binding } from "../src/db";
 
@@ -22,18 +22,49 @@ function migrations(): string {
     .replaceAll("--> statement-breakpoint", "");
 }
 
-test("preserves the current strategy fixture through the canonical transaction contract", () => {
+test("loads the package transaction snapshot through the canonical transaction contract", () => {
+  const goldenCrossTransactions = strategyPackageById("portfolio-golden-cross")?.transactions;
+  assert.ok(goldenCrossTransactions);
+  assert.equal(goldenCrossTransactions.length, 1107);
   assert.deepEqual(
-    SAMPLE_STRATEGY_PORTFOLIO_TRANSACTIONS.map(({ symbol, side }) => [symbol, side]),
-    [
-      ["NVDA", "buy"],
-      ["AAPL", "buy"],
-      ["MSFT", "dividend"],
-      ["TSLA", "sell"],
-      ["AAPL", "dividend"],
-    ],
+    goldenCrossTransactions[0],
+    {
+      ...goldenCrossTransactions[0],
+      date: "2025-12-03",
+      symbol: "AAPL",
+      side: "sell",
+    },
   );
-  assert.equal(normalizeStrategyId("sample.rsi-14-mean-reversion.v1"), "sample.rsi-14-mean-reversion.v1");
+  assert.equal(
+    goldenCrossTransactions.every((transaction, index) => (
+      index === 0 || goldenCrossTransactions[index - 1]!.date >= transaction.date
+    )),
+    true,
+    "generated package transactions must be newest first",
+  );
+  const fundamentalTransactions = strategyPackageById(
+    "portfolio-fundamental-quality-value",
+  )?.transactions;
+  assert.ok(fundamentalTransactions);
+  assert.equal(fundamentalTransactions.length, 302);
+  assert.deepEqual(
+    fundamentalTransactions[0],
+    {
+      ...fundamentalTransactions[0],
+      date: "2025-12-09",
+      symbol: "PG",
+      side: "sell",
+      fee: 0,
+    },
+  );
+  assert.equal(
+    fundamentalTransactions.every((transaction, index) => (
+      index === 0 || fundamentalTransactions[index - 1]!.date >= transaction.date
+    )),
+    true,
+  );
+  assert.deepEqual(strategyPackageById("portfolio-lightgbm-ranking")?.transactions, []);
+  assert.equal(normalizeStrategyId("portfolio-golden-cross"), "portfolio-golden-cross");
   assert.deepEqual(
     normalizeStrategyPortfolioTransactionInput({
       transactionId: "ui-transaction-1",

@@ -20,6 +20,8 @@ import { aggregateMarketBars } from "@/app/platform/market-bar-aggregation";
 import { companyLogoPathForUSStock } from "@/app/platform/company-logo";
 import { YAHOO_CHART_URL } from "./chart";
 import { createYahooEarningsHistoryClient } from "./earnings.server";
+import { createYahooResearchClient } from "./research.server";
+import { createStockAnalysisOwnershipClient } from "../stockanalysis/ownership.server";
 import {
   YAHOO_FUNDAMENTAL_TYPE_BATCHES,
   YAHOO_TIMESERIES_URL,
@@ -56,6 +58,7 @@ const manifest = {
     "fundamentals.profile",
     "fundamentals.normalized",
     "fundamentals.earnings",
+    "fundamentals.research",
     "news.company",
   ],
   markets: ["US"],
@@ -1752,6 +1755,15 @@ export const yahooProviderRegistration: ProviderRegistration = {
       return rankSearchResults(instruments, trimmedQuery).slice(0, limit);
     }
 
+    const ownershipFallback = createStockAnalysisOwnershipClient({ fetch: fetchImplementation });
+    const researchClient = createYahooResearchClient({
+      fetchQuoteSummary,
+      fetchJson: (url) => fetchJson(fetchImplementation, url, timeoutMs),
+      fetchOwnershipFallback: (instrument) => ownershipFallback.getOwnership(instrument),
+      timeoutMs: Math.max(timeoutMs, 12_000),
+      cacheScope: globalThis.fetch,
+    });
+
     return {
       manifest,
       instrument: {
@@ -1834,6 +1846,7 @@ export const yahooProviderRegistration: ProviderRegistration = {
           context.fresh,
         ),
         getEarnings: (instrument, context) => fetchEarningsWithFallback(instrument, context),
+        getResearch: (instrument, context, request) => researchClient.getResearch(instrument, context, request),
       },
       news: {
         getCompanyNews: async (instrument) => {

@@ -1,7 +1,7 @@
 # Data Storage Boundaries
 
 - Version: 1.0-draft
-- Status: D1 application storage implemented; catalog, analytical stores, cache, and backtest artifacts proposed
+- Status: D1 application storage and checked-in package snapshots implemented; local options archive removed; broader analytical stores, cache, and external artifact storage proposed
 - Goal: keep transactional application data separate from market, fundamental, cache, and run artifacts
 - Project overview: [README](../../README.md)
 
@@ -10,8 +10,19 @@
 The current application persists watchlists, built-in strategy presentation
 overrides, owner-scoped custom strategies, soft-delete tombstones, audit events,
 and strategy portfolio transactions in the Cloudflare D1 `DB` binding. Browser
-display preferences remain in local storage. Provider responses, chart bars,
-fundamentals, and backtest artifacts are not persisted by Trader.
+display preferences remain in local storage. Option chains and external contract
+histories are fetched on demand with bounded in-memory caches. The local option
+archive, its routes and saved-distribution UI have been removed, along with the
+old saved option observations. Viewing stock details does not persist them. See
+[options history](../options-history.md) for source coverage and manual exports.
+Other provider responses, chart bars, and fundamentals are not persisted by
+Trader. Validated `performance.json`,
+`transactions.json`, optional daily `equity.json`, and successful-run `run.json` files provide the latest
+read-only result snapshot and compact provenance record for each checked-in
+strategy package; the API does not write these files. The local VectorBT CLI is
+the only current writer and records a dataset hash rather than the raw bars.
+
+Trader also reads the existing independent `develop/.data/finance/13f` and `finance/x` live WAL stores through its authenticated Python helper. These producer-owned stores are opened read-only with publication contract validation, bounded queries and pagination; Trader does not copy or migrate them. Their publication revisions are mutable-state markers, not immutable point-in-time snapshots. See [data access](../data-cli.md).
 
 The remaining stores below are a future reference architecture. Their URI names
 are intentionally not present in `.env.example` until corresponding adapters
@@ -33,6 +44,8 @@ flowchart LR
 ```
 
 No chart OHLCV, SEC raw payload, or equity-curve blob is stored in the App OLTP database.
+The compact checked-in `equity.json` series is a deployment artifact bundled
+with its strategy package, not an OLTP row or provider-data store.
 
 ## 3. Proposed store responsibilities
 
@@ -95,7 +108,7 @@ fundamentals/
   provider=sec_edgar/
     raw/cik=0000320193/accession=.../payload.json.zst
     facts/cik=0000320193/year=2026/part-....parquet
-  provider=fmp/
+  provider=tradingview/
     normalized/instrument_id=us_xnas_aapl/year=2026/part-....parquet
 ```
 
@@ -165,9 +178,9 @@ R2 remains disabled until an artifact workflow is implemented.
 3. Use `(owner_id, strategy_id, transaction_id)` as the idempotency boundary.
 4. Read market prices independently; a Provider outage does not roll back the committed transaction.
 
-### Edit or remove a built-in sample strategy
+### Edit or remove a packaged strategy from one owner's view
 
-1. Validate the ID against the immutable deployment-owned sample catalog.
+1. Validate the ID against the generated deployment-owned package catalog.
 2. Upsert only the owner's name/headline override, or write a `deleted_at` tombstone.
 3. Append a `strategy_preference` audit event; do not modify portfolio transactions.
 4. Reject deletion when it would leave the owner with no visible strategy.

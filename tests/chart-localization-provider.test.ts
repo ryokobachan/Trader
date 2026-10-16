@@ -39,8 +39,8 @@ test("the main price and strategy charts also receive the selected locale", asyn
   assert.equal(localizedCalls.length, chartCalls.length);
   assert.match(source, /runtime\.chart\.applyOptions\(\{\s*localization:\s*\{\s*locale:\s*chartLocaleTag\(locale\)\s*\}/);
   assert.match(source, /\[activeIndicators, chartType, indicatorSettings, locale, marketBars, priceLineColor, stock\.currency\]/);
-  assert.match(source, /\[locale, mode, period, seed\]/);
-  assert.match(source, /\[locale, seed\]/);
+  assert.match(source, /\[initialValue, locale, mode, period, points, seed\]/);
+  assert.match(source, /\[initialValue, locale, period, points, seed\]/);
 });
 
 test("English indicator readouts do not use the Japanese compact-number locale", async () => {

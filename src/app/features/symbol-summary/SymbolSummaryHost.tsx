@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { CaretRight, Gear } from "@phosphor-icons/react";
+import { Gear } from "@phosphor-icons/react";
 import { useDismissibleLayer } from "../../hooks/useDismissibleLayer";
 import { useI18n } from "../../platform/i18n";
 import type {
@@ -23,7 +23,6 @@ export type SymbolSummaryHostProps = {
   afterHours?: SyntheticLatestClose;
   watched: boolean;
   onToggleWatched: () => void;
-  onOpenDetails: () => void;
   registrations: readonly UiModuleRegistration<SymbolSummaryModuleProps>[];
   density?: UiModuleDensity;
   initiallyEnabledModuleKeys?: readonly string[];
@@ -35,7 +34,6 @@ export function SymbolSummaryHost({
   afterHours,
   watched,
   onToggleWatched,
-  onOpenDetails,
   registrations,
   density = "compact",
   initiallyEnabledModuleKeys,
@@ -139,14 +137,6 @@ export function SymbolSummaryHost({
         })}
 
       <div className="stock-summary-spacer" />
-      <button
-        type="button"
-        className="stock-summary-detail-button"
-        onClick={onOpenDetails}
-        aria-label={t("summary.openDetails", { symbol: stock.ticker })}
-      >
-        <span><strong>{t("summary.details")}</strong><small>{t("summary.detailsDescription")}</small></span><CaretRight size={17} />
-      </button>
     </div>
   );
 }

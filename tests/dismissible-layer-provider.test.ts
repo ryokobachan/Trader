@@ -56,7 +56,7 @@ test("every non-modal app menu uses the shared dismissible-layer behavior", asyn
   );
 
   assert.match(pageSource, /open: toolbarMenu === "chart-type"/);
-  assert.match(pageSource, /open: toolbarMenu === "templates"/);
+  assert.doesNotMatch(pageSource, /open: toolbarMenu === "templates"/);
   assert.match(pageSource, /open: menu === "lists"/);
   assert.match(pageSource, /open: menu === "more"/);
   assert.match(pageSource, /open: rowContextMenu !== null/);

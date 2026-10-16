@@ -188,10 +188,110 @@ test("unified APIs manage owner-scoped strategies and transaction items without 
       new Request("http://localhost/api/v1/strategies?locale=en"),
     );
     assert.equal(initial.status, 200);
+    const packagedStrategies = (
+      await initial.json() as { strategies: StrategyRecord[] }
+    ).strategies;
+    assert.deepEqual(
+      packagedStrategies.map((strategy) => strategy.id),
+      [
+        "portfolio-golden-cross",
+        "portfolio-lightgbm-ranking",
+        "portfolio-fundamental-quality-value",
+      ],
+    );
+    assert.equal(packagedStrategies.every((strategy) => strategy.origin === "built_in"), true);
+    const [goldenCross, lightgbm, fundamental] = packagedStrategies;
+    assert.ok(goldenCross && lightgbm && fundamental);
+    assert.equal(goldenCross.performance.provenance, "backtest_artifact");
+    assert.equal(goldenCross.performance.trades, 1107);
+    assert.equal(goldenCross.performance.symbols, 10);
+    assert.equal(lightgbm.performance.provenance, "unavailable");
     assert.equal(
-      (await initial.json() as { strategies: StrategyRecord[] }).strategies
-        .every((strategy) => strategy.origin === "built_in"),
+      Object.values(lightgbm.performance).slice(1).every((value) => value === null),
       true,
+    );
+    assert.deepEqual(fundamental.performance, {
+      provenance: "backtest_artifact",
+      netReturn: 368.1025793434192,
+      maxDrawdown: -17.05929982739528,
+      recoveryFactor: 21.57782459232522,
+      sharpe: 1.3382241005530606,
+      forwardReturn: null,
+      winRate: 64.62585034013605,
+      trades: 302,
+      symbols: 14,
+      cash: 79.49085385585573,
+    });
+
+    const packageTransactions = await listTransactionsRoute(
+      new Request("http://localhost/api/v1/strategy-portfolios/portfolio-golden-cross/transactions"),
+      strategyContext("portfolio-golden-cross"),
+    );
+    assert.equal(packageTransactions.status, 200);
+    const packagedTransactions = (await packageTransactions.json() as {
+      transactions: Array<{ date: string; symbol: string; side: string }>;
+    }).transactions;
+    assert.equal(packagedTransactions.length, 1107);
+    assert.deepEqual(
+      packagedTransactions[0],
+      {
+        ...packagedTransactions[0],
+        date: "2025-12-03",
+        symbol: "AAPL",
+        side: "sell",
+      },
+    );
+    assert.equal(
+      packagedTransactions.every((transaction, index) => (
+        index === 0 || packagedTransactions[index - 1]!.date >= transaction.date
+      )),
+      true,
+      "package transactions must be newest first",
+    );
+    assert.equal(
+      (sqlite.prepare("SELECT COUNT(*) AS count FROM strategy_portfolio_transactions").get() as {
+        count: number;
+      }).count,
+      0,
+      "package reads must not seed the owner ledger",
+    );
+
+    const fundamentalTransactionsResponse = await listTransactionsRoute(
+      new Request("http://localhost/api/v1/strategy-portfolios/portfolio-fundamental-quality-value/transactions"),
+      strategyContext("portfolio-fundamental-quality-value"),
+    );
+    assert.equal(fundamentalTransactionsResponse.status, 200);
+    const fundamentalTransactions = (await fundamentalTransactionsResponse.json() as {
+      transactions: Array<{ date: string; symbol: string; side: string }>;
+    }).transactions;
+    assert.equal(fundamentalTransactions.length, 302);
+    assert.deepEqual(fundamentalTransactions[0], {
+      ...fundamentalTransactions[0],
+      date: "2025-12-09",
+      symbol: "PG",
+      side: "sell",
+    });
+
+    const packageMutation = await createTransactionRoute(
+      jsonRequest(
+        "/api/v1/strategy-portfolios/portfolio-golden-cross/transactions",
+        "POST",
+        {
+          transactionId: "must-not-write",
+          date: "2026-08-10",
+          symbol: "AAPL",
+          side: "buy",
+          shares: 1,
+          price: 220,
+          fee: 0,
+        },
+      ),
+      strategyContext("portfolio-golden-cross"),
+    );
+    assert.equal(packageMutation.status, 409);
+    assert.equal(
+      (await packageMutation.json() as { error: { code: string } }).error.code,
+      "strategy_package_transactions_read_only",
     );
 
     const create = await createStrategyRoute(jsonRequest(

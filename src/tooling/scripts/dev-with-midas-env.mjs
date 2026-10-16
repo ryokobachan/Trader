@@ -4,9 +4,6 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 export const MIDAS_ENV_ALLOWLIST = Object.freeze([
-  "FMP_API_KEY",
-  "FMP_BASE_URL",
-  "FMP_TIMEOUT_SECONDS",
   "BENZINGA_API_TOKEN",
   "BENZINGA_API_KEY",
   "BENZINGA_TIMEOUT_SECONDS",
@@ -21,10 +18,11 @@ const TRADER_DEVELOPMENT_DEFAULTS = Object.freeze({
   TRADER_ENABLE_YAHOO_COMPAT: "true",
   TRADER_INSTRUMENT_PROVIDER: "yahoo",
   TRADER_MARKET_PROVIDER: "yahoo",
-  TRADER_PROFILE_PROVIDER: "fmp",
-  TRADER_FUNDAMENTALS_PROVIDER: "fmp",
-  TRADER_EARNINGS_PROVIDER: "fmp",
-  TRADER_ANALYST_PROVIDER: "benzinga",
+  TRADER_PROFILE_PROVIDER: "yahoo",
+  TRADER_FUNDAMENTALS_PROVIDER: "tradingview",
+  TRADER_EARNINGS_PROVIDER: "tradingview",
+  TRADER_RESEARCH_PROVIDER: "yahoo",
+  TRADER_ANALYST_PROVIDER: "google-finance-benzinga",
   TRADER_NEWS_PROVIDER: "yahoo",
 });
 
@@ -121,6 +119,9 @@ export function parseMidasEnv(contents) {
 export function mergeMidasEnv(baseEnvironment, parsedMidasEnvironment) {
   const merged = { ...baseEnvironment };
   delete merged.MIDAS_ENV_FILE;
+  for (const key of Object.keys(merged)) {
+    if (key.startsWith("FMP_")) delete merged[key];
+  }
 
   for (const key of MIDAS_ENV_ALLOWLIST) {
     if (
@@ -151,7 +152,7 @@ async function runDevelopmentServer() {
     throw new Error("The configured Midas environment file could not be read.");
   }
 
-  const child = spawn("npm", ["run", "dev", "--", "--port", "3001"], {
+  const child = spawn("npm", ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", "3001"], {
     env: mergeMidasEnv(process.env, parseMidasEnv(contents)),
     stdio: "inherit",
   });

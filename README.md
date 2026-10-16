@@ -4,11 +4,11 @@
 
 # Trader
 
-Trader is an open-source, TradingView-inspired workspace for U.S. stock charts, company research, watchlists, technical indicators, and sample strategy portfolios.
+Trader is an open-source, TradingView-inspired workspace for U.S. stock charts, company research, watchlists, technical indicators, and portable strategy packages.
 
-> Trader is a research prototype. It does not execute orders or provide investment advice. Strategy metrics are illustrative unless a backtest provider is connected.
+> Trader is a research prototype. It does not execute brokerage orders or provide investment advice. Strategy metrics are shown only with their recorded provenance.
 
-The chart and symbol-detail screenshots below were captured with Trader's optional real-data profile and show time-sensitive, provider-derived values. The strategy screenshot uses Trader's deterministic sample catalog. No raw provider response payloads or downloaded datasets are bundled with the repository.
+The screenshots below were captured from the Trader workspace on October 16, 2026. The chart and symbol-detail screens show time-sensitive, provider-derived values. The strategy screen shows recorded package backtest results and unavailable metrics where no result is recorded; these are not live trading results. No raw provider response payloads or downloaded datasets are bundled with the repository.
 
 ## Screens
 
@@ -21,7 +21,6 @@ _Captured with direct USD-listing quotes and bars from the TradingView websocket
 - candlestick, Heikin Ashi, line, and area charts with 1m–1M timeframes
 - configurable 2–10,000 candle history; default 1,000
 - overlay and separate-pane indicators such as SMA, EMA, Bollinger Bands, anchored VWAP, RSI, MACD, Stochastic, ATR, ADX, and OBV
-- saved chart templates that can be created, renamed, applied, and deleted
 - resizable right panel and independently resizable watchlist/symbol-overview split
 - streaming direct-listing USD quote and change, plus the separate optional `{symbol}USDT.P` reference close
 
@@ -32,7 +31,7 @@ _Captured with direct USD-listing quotes and bars from the TradingView websocket
 _Captured from provider-derived AAPL company data. Values and observation times are shown in the interface._
 
 - financial statements, valuation, profitability, balance sheet, cash flow, and earnings
-- Benzinga-compatible analyst ratings and target-price history
+- Google Finance callback data and Benzinga analyst ratings, with an optional firm-level merged consensus and target-price history; licensed TipRanks Enterprise remains available separately
 - technical metrics calculated from the selected OHLCV series
 - provider name, observation time, and missing-data states are shown explicitly
 
@@ -40,26 +39,29 @@ _Captured from provider-derived AAPL company data. Values and observation times 
 
 ![Trader strategy list](public/screenshots/trader-strategies.png)
 
-_The built-in strategy catalog is deterministic sample data, not a verified backtest result._
+_The catalog UI reads checked-in strategy packages. A package without a recorded run shows unavailable metrics rather than illustrative values._
 
-- sortable sample strategy table with return, drawdown, recovery factor, Sharpe ratio, audit state, and win rate
-- portfolio overview, holdings, transactions, profitability, and symbol contribution
+- sortable strategy table with return, drawdown, recovery factor, Sharpe ratio, audit state, and win rate
+- package-backed performance and transaction snapshots with explicit provenance
 - owner-scoped custom strategy CRUD, built-in name/description overrides, soft deletion, and D1-backed transaction history
-- sample values are intentionally conservative examples, not verified backtest results
+- unavailable results remain null until a backtest snapshot is recorded
 
 ## Basic usage
 
 1. Press `Command + F` or click the symbol selector to search U.S. stocks.
-2. Select a timeframe and choose candles, Heikin Ashi, line, or area, then use **Indicators** to add or configure studies.
-3. Use **Templates** to apply a built-in setup or save, rename, and delete your own indicator setup.
+2. Use the timeframe dropdown beside the chart symbol selector, then choose candles, Heikin Ashi, line, or area from the adjacent chart-type menu.
+3. Use **Add indicator** on the chart or the right-sidebar **Indicators** panel to add or configure studies.
 4. Use `+` in the watchlist to add a symbol. Direct-listing prices and the optional `{symbol}USDT.P` reference prices stream while the tab is visible; snapshot polling takes over if either stream is unavailable. A USDT.P tick older than five minutes is cleared instead of being shown as current. Actual availability depends on TradingView access and exchange entitlements. Right-click a row to remove it.
 5. Open the watchlist selector and use each list's `…` menu to rename or delete it. The final list is protected from deletion.
 6. Drag the right-panel edge or the divider between the watchlist and symbol overview to resize the workspace. Both separators also support arrow keys.
-7. Select **Details** in the symbol overview to open financials, analysts, and technicals.
-8. Open **Strategies** to inspect samples or create a custom strategy. In a strategy detail screen, use `…` to duplicate, edit, or delete it.
-9. Use **Settings** in the top bar to change the candle count or switch between English and Japanese.
+7. Select **Details** in the top navigation to open financials, analysts, company research, and technicals. Financials include annual history and fiscal-period forecasts; research includes dated quarterly statements, ownership and short-interest statistics, and dividend/split history when supplied by the selected provider.
+8. Open **Strategies** to inspect packaged strategies or create a custom strategy. In a strategy detail screen, use `…` to duplicate, edit, or delete it.
+9. Open **Institutions**, **Ideas**, **Data sources**, or **X analysis** to browse the connected Midas research catalogs in read-only mode.
+10. Use **Settings** in the workspace bar to change the candle count or switch between English and Japanese.
 
 ## Desktop app (Apple Silicon macOS)
+
+Download the experimental Apple Silicon build from [GitHub Releases](https://github.com/ryokobachan/Trader/releases/tag/v0.1.0-preview.1). The ZIP contains `Trader.app`; this preview is ad-hoc signed and not notarized, so macOS Gatekeeper may block it.
 
 The desktop build targets Apple Silicon Macs running macOS 14 or newer. The
 installed `Trader.app` is self-contained: it bundles the application runtime
@@ -100,7 +102,7 @@ transactions; `trader-desktop.log` contains startup/runtime diagnostics. Quit
 Trader before copying this directory as a backup. To reset the SQLite-backed
 state, quit the app and move `trader.sqlite3` plus any matching `-wal` and
 `-shm` files out of the directory; the next launch creates a fresh database.
-Chart templates and other interface preferences use WebView storage and are
+Chart and other interface preferences use WebView storage and are
 not reset by replacing only the SQLite file.
 
 ## Run locally
@@ -126,27 +128,55 @@ npm run dev:yahoo
 
 Open <http://localhost:3001>.
 
-`dev:yahoo` uses the local TradingView websocket sidecar for direct USD-listing current quotes and chart bars. Yahoo-compatible endpoints provide U.S. stock search, company data, fundamentals, earnings, and news; the same authenticated sidecar can use pinned `yfinance` as a profile/earnings fallback when Yahoo's anonymous cookie/crumb path is unavailable. The Midas-compatible Benzinga adapter supplies analyst ratings. These are unofficial or provider-controlled data paths. Review the applicable access, display, and redistribution terms before enabling them outside personal development.
+`dev:yahoo` uses the local TradingView websocket sidecar for direct USD-listing current quotes and chart bars. Yahoo-compatible endpoints provide U.S. stock search, company data, fundamentals, earnings, research, and news; the same authenticated sidecar can use pinned `yfinance` as a profile/earnings fallback when Yahoo's anonymous cookie/crumb path is unavailable. Its analyst role selects `google-finance-benzinga`, which calls both the direct Benzinga adapter and the Google Finance Analysis-page `AF_initDataCallback` parser, then OR-merges their event sets. Separately licensed TipRanks Enterprise access remains optional. These are unofficial or provider-controlled data paths. Review the applicable access, display, and redistribution terms before enabling them outside personal development.
 
 The browser connects only to Trader's same-origin routes; it never receives the sidecar bearer token or chooses raw TradingView symbols. A hosted Sites deployment cannot reach a developer machine's loopback sidecar. Without an external sidecar it therefore keeps ordinary HTTPS requests open while the Worker waits on the same TradingView guest websocket used locally, returning each direct-USD quote or ordered `{EXCHANGE}:{symbol}USDT.P` change as completed JSON. The scanner snapshot remains a 15-second safety fallback. An optional external sidecar must use **HTTPS** and a server-side token. Transport-level streaming or polling does not itself guarantee exchange real-time entitlements.
 
-To reuse only the allow-listed FMP/Benzinga values from a local Midas environment file:
+To use TradingView financials and the independent shared data reader with Trader's own configuration:
 
 ```bash
-MIDAS_ENV_FILE=/absolute/path/to/Midas/.env npm run dev:midas
+npm run dev:tradingview
 ```
 
 Secrets stay server-side. The repository contains no provider credentials or downloaded third-party datasets.
 
-`dev:midas` is a credential/profile bridge, not a connection to the Midas database or `/data-sources` API. It reuses only allow-listed FMP/Benzinga settings and still calls the configured upstream providers directly. In this profile, FMP supplies company profiles, fundamentals, and earnings; this includes float/share structure and FMP-calculated Altman Z and Piotroski scores. Trader currently normalizes prices, company/fundamental/earnings data, analyst ratings, and news. Options, SEC ownership and insider filings, FINRA short data, corporate actions, government awards, and source scores still require dedicated provider contracts and UI extensions. TipRanks and Investing.com event feeds are intentionally out of scope.
+The **Data**, **Institutions** and **X analysis** screens use the same independent data catalog and API as `trader data get`. The Python helper reads `develop/.data/finance/13f` and `develop/.data/finance/x` directly without Midas or database copies. `dev:tradingview` reads Trader's own `.env.local`; the older `dev:midas` launcher name is a standalone compatibility alias. Only the excluded legacy Ideas screen retains its Midas integration. See [data access](docs/data-cli.md) for the complete catalog, HTTP/OpenAPI contract and dependency-free Python/JavaScript clients.
+
+The standalone profile selects TradingView for financial indicators, annual/quarterly statements and dated earnings; Yahoo supplies profiles, ownership, dividends and splits. PER/PEG can be calculated from TradingView values with explicit input/basis metadata. Financial history is the currently available revision, not a complete publication-time archive. SEC financial facts and FRED publication vintages are separate inputs when historical information availability matters.
+
+FMP has been retired: its adapter is unregistered and its credentials are excluded from environment forwarding. Company logos now use Trader's local symbol-logo route, which resolves a validated TradingView logo. To configure the same role mix in a standalone environment, use the example in [`api/README.md`](api/README.md). The website-internal APIs are not stable public API contracts: no API key is needed for the implemented TradingView financial scanner and history transport, but fields, access, and availability can change. The adapters validate response shape, listing identity, currency, and units and keep bounded transient caches.
+
+Nasdaq current option chains and ChartExchange individual-contract history are implemented, with Yahoo as an explicit alternative for historical option OHLCV. Direct-source routes cover recent SEC filings, financial facts and Form 4 transactions, FINRA off-exchange short-sale volume, USAspending contracts, FRED and CNN Fear & Greed. Coverage is bounded by each source; a complete historical option chain and all exchange-level FINRA data are not provided. Yahoo ownership aggregates are not substitutes for filing-level data. TipRanks analyst ratings remain available only with separately licensed credentials.
+
+## Data CLI
+
+株価・財務・オプション・13F・X・戦略結果を同じデータIDで取得できます。`data sources` / `describe` はサーバー不要のカタログ、`data get` は稼働中の Trader API を使います。データの自動保存は行いません。
+
+```bash
+./bin/trader data sources
+./bin/trader data describe options-history
+./bin/trader data get options-history --symbol NBIS --contract NBIS270115C00200000 --from 2026-01-01 --to 2026-03-31
+npm run --silent trader -- data get financials --symbol NBIS
+```
+
+グローバルインストールは不要です。満期切れ契約の指定、出典・対象期間・欠損の確認、終了コード、既存戦略 CLI の呼び出しは [データ CLI の使い方](docs/data-cli.md) を参照してください。
+
+## Local MCP servers
+
+Codex向けの読み取り専用MCPを、`mcp/`配下のMarket・13F・X Finance・Strategyの4フォルダに分けています。
+MarketはTrader不要で、フォルダを別のMacへ渡して使えます。Node.js・Pythonと同梱requirements.txtのライブラリが必要です。
+13F・X Finance・Strategyは、このMac内の起動済みTraderを読む専用MCPです。
+配布物はすべてテキストです。Codexへの登録と初回セットアップはCodexに依頼でき、利用者自身のターミナル操作は不要です。
+構成、登録手順、`get_status`の意味は[Trader MCP](docs/mcp.md)を参照してください。
 
 ## Strategy CLI and AI agents
 
-The browser, CLI, and AI skill use the same owner-scoped API. Runtime strategy changes and transactions are stored in D1; none of these commands edit the built-in source catalog.
+The browser, CLI, and AI skill use the same owner-scoped API. Deployment-owned strategies are generated from validated directories under `strategies/`; owner-created strategies and their editable transactions are stored in D1. These API commands do not rewrite package source files.
 
 ```bash
 npm run strategy -- list
-npm run strategy -- list --family rule --provenance illustrative_catalog --sort sharpe --order desc --limit 10
+npm run strategy -- list --family portfolio2 --provenance unavailable
+npm run strategy -- list --provenance backtest_artifact --sort sharpe --order desc --limit 10
 npm run strategy -- compare <strategy-id-a> <strategy-id-b> --sort netReturn
 npm run strategy -- get <strategy-id> --include transactions,performance
 npm run strategy -- create --file /tmp/strategy.json
@@ -159,11 +189,34 @@ npm run strategy -- transactions edit <strategy-id> <transaction-id> --file /tmp
 npm run strategy -- transactions delete <strategy-id> <transaction-id> --yes
 ```
 
-Commands emit JSON and return nonzero on API or validation errors. Custom strategy edits use optimistic versions, and transaction edits require the latest `updatedAt` token, so an agent cannot silently overwrite a newer browser change. Performance is tagged as `illustrative_catalog`, `user_supplied`, `transaction_snapshot`, or `unavailable`; `transaction_snapshot` currently derives only exact trade and distinct-symbol counts from persisted transactions, not returns or risk metrics.
+Execute one checked-in package with the shared Python/VectorBT runner:
 
-Discovery filters and sorting run locally after one owner-scoped API read; `compare` returns the selected records, provenance groups, and an explicit `execution: "not_run"` disclosure. These commands explore strategies already registered in Trader. They do not generate candidates, execute rules, search parameters, download market data, or run a backtest.
+```bash
+python3 -m venv venv
+venv/bin/python -m pip install -r requirements-strategy.txt
+npm run strategy:backtest -- portfolio-golden-cross \
+  --symbols AAPL,MSFT,AMZN,GOOGL,JPM,XOM,JNJ,WMT,CAT,NEE \
+  --start 2016-01-01 --end 2026-01-01 --write
+```
 
-For an `illustrative_catalog` record, the `trades` and `symbols` fields are sample metadata, not saved D1 row counts. The aggregate response's `transactions` array is the durable trade history, and `cash` is a percentage allocation.
+The runner resolves the package's declared data profile, executes its target
+weights with the costs and risk rules in `config.json`, then writes read-only
+transaction history, performance, end positions, daily strategy/benchmark
+values, and reproducibility metadata. Technical packages use adjusted Yahoo
+daily data; the bundled fundamental example combines Yahoo prices/actions with
+annual SEC Company Facts. Omit `--write` for a calculation-only run.
+
+Strategy selection logic stays in Python rather than a fixed JSON rule schema.
+It may rank, include, exclude, and size any of the supplied symbols and returns
+one target-weight panel for the whole portfolio. Point-in-time fundamentals and
+other datasets are supplied through runner-side snapshot adapters, while the
+strategy output and VectorBT execution contract stay the same.
+
+Commands emit JSON and return nonzero on API or validation errors. Custom strategy edits use optimistic versions, and transaction edits require the latest `updatedAt` token, so an agent cannot silently overwrite a newer browser change. Performance is tagged as `backtest_artifact`, `user_supplied`, `transaction_snapshot`, `unavailable`, or the legacy `illustrative_catalog`; `transaction_snapshot` currently derives only exact trade and distinct-symbol counts from persisted transactions, not returns or risk metrics.
+
+Discovery filters and sorting run locally after one owner-scoped API read; `compare` returns the selected records, provenance groups, and an explicit `execution: "not_run"` disclosure. The `npm run strategy -- ...` API commands explore strategies already registered in Trader. They do not generate candidates, execute rules, search parameters, download market data, or run a backtest; execution is the separate `strategy:backtest` command above.
+
+For `backtest_artifact`, the metrics and transactions come from one validated package run. Package transactions are read-only. For a custom strategy, the aggregate response's `transactions` array is the owner-scoped D1 ledger. `cash` is a percentage allocation, not a currency amount.
 
 The repository includes [`$manage-trader-strategies`](skills/manage-trader-strategies/SKILL.md), a Codex-compatible skill that requires inspect-before-mutate, explicit confirmation for deletion, and post-mutation verification.
 
@@ -171,16 +224,20 @@ The repository includes [`$manage-trader-strategies`](skills/manage-trader-strat
 
 | Data | Default source | Storage |
 |---|---|---|
-| Search | Mock; Yahoo/FMP optional | Provider response only |
+| Search | Mock; Yahoo optional | Provider response only |
 | Direct-listing USD current quotes | Mock; local `tradingview-websocket` optional | Provider response only |
-| Company profile, fundamentals, earnings, news | Disabled by default; Yahoo/FMP optional | Provider response only |
+| Company profiles and news | Disabled by default; Yahoo optional | Transient provider response only |
+| Financial metrics, annual history, fiscal consensus | Disabled by default; TradingView or Yahoo optional | Transient provider response only |
+| Dated EPS/revenue actuals and estimates | Disabled by default; Google Finance or Yahoo optional | Transient provider response only |
+| Quarterly statements, ownership/short interest, dividends and splits | Disabled by default; Yahoo research optional | Transient provider response only |
 | Chart OHLCV | Mock; local `tradingview-websocket` optional | Not stored in D1 |
 | Optional `{symbol}USDT.P` reference price (local sidecar SSE or hosted Worker websocket-over-HTTPS long poll, with scanner snapshot fallback) | `tradingview-websocket` | Provider response only |
-| Analyst ratings and targets | Disabled by default; Benzinga-compatible adapter optional | Provider response only |
+| Analyst ratings and targets | Disabled by default; Google Finance callback parsing, Benzinga, their firm-level merge, or TipRanks Enterprise optional | Transient provider response only |
 | Watchlists and ordered items | User actions | D1 `DB` binding |
 | Built-in strategy overrides, custom strategies, and tombstones | User actions | D1 `DB` binding |
-| Strategy portfolio transactions | User actions | D1 `DB` binding |
-| Language, chart type, indicators, templates, and panel sizes | User actions | Browser storage |
+| Packaged strategy result snapshot | Checked-in `performance.json`, `transactions.json`, optional daily `equity.json`, and successful-run `run.json` | Bundled at build time; read-only at runtime |
+| Custom strategy portfolio transactions | User actions | D1 `DB` binding |
+| Language, chart type, indicators, and panel sizes | User actions | Browser storage |
 
 Persistent APIs use the Sites-provided `oai-authenticated-user-id` when present. Anonymous persistence is allowed only on a loopback local-development origin; hosted anonymous requests fail closed.
 
@@ -190,7 +247,7 @@ For existing data and strategy customization, developers use three root folders:
 
 - [`api/`](api/README.md) contains `config.json` and external data-source implementations. A value such as `"bars": "yahoo"` maps through the reviewed registry to `api/yahoo/`.
 - [`extensions/`](extensions/README.md) contains trusted frontend module registrations. It is separate from API adapters so server credentials cannot leak into the browser bundle.
-- [`strategies/`](strategies/README.md) contains the built-in strategy catalog, performance-card definitions, sample holdings, and an explicit demo transaction fixture.
+- [`strategies/`](docs/strategy-packages.md) contains only self-contained strategy directories. Shared application TypeScript stays under `src/`.
 
 Everything that normally should not be customized is grouped under `src/`.
 
@@ -218,7 +275,7 @@ The master file controls symbol-summary modules, symbol-detail tabs and scalar m
 | Financial groups and metrics | `ui.symbolDetail.fundamentalGroups` |
 | Analyst, market, and technical metrics | `ui.symbolDetail.*Metrics` |
 | Strategy detail performance cards | `ui.strategyDetail.summaryMetrics` |
-| Search / current quote / chart / company-data API defaults | `providers.instrument`, `market`, `bars`, `profile`, `fundamentals`, `earnings`, `analyst`, `news` |
+| Search / current quote / chart / company-data API defaults | `providers.instrument`, `market`, `bars`, `profile`, `fundamentals`, `earnings`, `research`, `analyst`, `news` |
 
 Trader keeps product Core separate from deployment-owned extensions. JSON selects from reviewed registries; adding genuinely new behavior still uses a small code entry point.
 
@@ -228,17 +285,17 @@ Trader keeps product Core separate from deployment-owned extensions. JSON select
 | Select existing provider APIs | `api/config.json` |
 | Yahoo chart/search/fundamental fields | `api/yahoo/` |
 | Add a provider implementation | `api/<provider-id>/`, `api/index.server.ts`, `api/provider-roles.ts` |
-| Sample strategy definitions | `strategies/catalog.ts` |
-| Strategy performance cards | `strategies/metrics.ts` |
-| Sample holdings / optional demo transactions | `strategies/sample-portfolio.ts`, `strategies/sample-transactions.ts` |
+| Add or edit a packaged strategy | `strategies/<strategy-id>/` |
+| Package catalog generation and validation | `npm run strategies:generate`, `src/tooling/strategy-package-loader.ts` |
+| Strategy performance cards | `src/app/features/strategy/metrics.ts` |
 | Canonical provider DTOs | `src/app/platform/provider-contracts.ts` |
 | Add a new symbol-summary module | `extensions/`, then select its ID in `api/config.json` |
 | Symbol-detail metric IDs and calculations | `api/stock-detail/ids.ts`, `api/stock-detail/metrics.ts` |
 | Indicator definitions and calculations | `src/app/features/chart-indicators/indicator-calculations.ts`, `src/app/features/indicators/` |
 | Chart types and Heikin Ashi | `src/app/features/chart-types/` |
-| Saved chart templates | `src/app/features/chart-templates/` |
+| Legacy chart-template storage helpers | `src/app/features/chart-templates/` |
 | Resizable workspace layout | `src/app/features/workspace-layout/` |
-| English/Japanese copy | `src/app/platform/i18n.tsx`, feature `*-i18n.ts` files, `strategies/i18n.ts` |
+| English/Japanese copy | `src/app/platform/i18n.tsx`, feature `*-i18n.ts` files, package `config.json` display copy |
 | Transactional schema | `src/db/schema.ts`, `src/db/migrations/` |
 
 Provider credentials remain server-side in `.env.local` or hosted secrets. Providers return canonical data with provenance instead of exposing vendor response shapes to UI components. UI modules are trusted build-time registrations; configuration cannot load arbitrary remote JavaScript.
@@ -268,7 +325,7 @@ Technical contracts:
 ```text
 api/                 public config and external data-provider adapters
 extensions/          trusted developer-installed frontend modules
-strategies/          sample strategy definitions, metrics, holdings, seed trades
+strategies/          portable strategy directories and their latest result snapshots
 src/app/             UI, internal HTTP routes, and Core contracts
 src/db/              D1 schema, migrations, and Drizzle configuration
 src/desktop/         desktop frontend, runtime, native shell, icons, and build config
@@ -310,4 +367,4 @@ The production dependency audit is expected to report zero known vulnerabilities
 
 Apache License 2.0. See [LICENSE](LICENSE).
 
-Company names, logos, TradingView, Yahoo, Benzinga, FMP, and Midas remain the property of their respective owners. Their mention does not imply affiliation or endorsement.
+Company names, logos, TradingView, Yahoo, Google Finance, Benzinga, and Midas remain the property of their respective owners. Their mention does not imply affiliation or endorsement.

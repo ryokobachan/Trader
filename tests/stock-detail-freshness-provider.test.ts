@@ -471,7 +471,7 @@ test("fresh workspace sections are wired through one no-cache coordinator", asyn
   ]);
   assert.match(page, /activeStockDetailSection/);
   assert.match(page, /section=\$\{encodeURIComponent\(refreshSection\)\}&fresh=1/);
-  assert.match(page, /requestWorkspace\(selectedTicker, activeStockDetailSection\)/);
+  assert.match(page, /requestWorkspace\(selectedTicker, refreshSection\)/);
   assert.match(page, /requestWorkspace\(selectedTicker, "news"\)/);
   assert.match(page, /setWorkspaceSectionRefreshNonce\(\(current\) => current \+ 1\)/);
   assert.match(page, /workspaceSectionRefreshNonce\]\);/);

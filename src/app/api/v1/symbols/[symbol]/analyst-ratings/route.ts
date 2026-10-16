@@ -15,6 +15,20 @@ const DEFAULT_PAGE_SIZE = 1_000;
 const MAX_PAGE_SIZE = 1_000;
 const DEFAULT_LOOKBACK_DAYS = 900;
 const MAX_LOOKBACK_DAYS = 3_650;
+const NEW_YORK_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function newYorkCalendarDate(date: Date) {
+  const parts: Record<string, string> = {};
+  for (const part of NEW_YORK_DATE_FORMATTER.formatToParts(date)) {
+    if (part.type !== "literal") parts[part.type] = part.value;
+  }
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 
 function errorResponse(status: number, code: string, message: string, requestId: string) {
   return Response.json(
@@ -65,12 +79,9 @@ export async function GET(request: Request, context: RouteContext) {
     return errorResponse(400, "invalid_fresh", "fresh must be 1 when provided.", requestId);
   }
   const today = new Date();
-  const defaultDateTo = dateString(today);
-  const defaultStart = new Date(Date.UTC(
-    today.getUTCFullYear(),
-    today.getUTCMonth(),
-    today.getUTCDate() - DEFAULT_LOOKBACK_DAYS,
-  ));
+  const defaultDateTo = newYorkCalendarDate(today);
+  const defaultStart = new Date(`${defaultDateTo}T00:00:00.000Z`);
+  defaultStart.setUTCDate(defaultStart.getUTCDate() - DEFAULT_LOOKBACK_DAYS);
   const dateFrom = queryValue(url, "date_from", "parameters[date_from]")
     || dateString(defaultStart);
   const dateTo = queryValue(url, "date_to", "parameters[date_to]")
@@ -101,7 +112,11 @@ export async function GET(request: Request, context: RouteContext) {
 
   try {
     const runtime = createProviderRuntime(providerEnvironment());
-    const providerContext = { requestId } as const;
+    const providerContext = {
+      requestId,
+      signal: request.signal,
+      ...(fresh === "1" ? { fresh: true } : {}),
+    } as const;
     const instrument = await runtime.instrument.getUSStockBySymbol(symbol, providerContext);
     if (!instrument) {
       return errorResponse(404, "symbol_not_found", "対象の米国株が見つかりません。", requestId);

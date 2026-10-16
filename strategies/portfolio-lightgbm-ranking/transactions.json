@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "trader.strategy-transactions.v1",
+  "strategyId": "portfolio-lightgbm-ranking",
+  "strategyVersion": "1.0.0",
+  "runId": null,
+  "generatedAt": null,
+  "transactions": []
+}

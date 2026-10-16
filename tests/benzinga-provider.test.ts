@@ -136,7 +136,17 @@ test("preserves the Midas request contract and adds the working public filter al
     captured.searchParams.get("fields"),
     "*,ratings_accuracy.smart_score,ratings_accuracy.overall_success_rate,ratings_accuracy.total_ratings",
   );
+  assert.deepEqual([...captured.searchParams.keys()], [
+    "pagesize",
+    "parameters[date_from]",
+    "parameters[date_to]",
+    "parameters[tickers]",
+    "symbols",
+    "pageSize",
+    "fields",
+  ]);
   assert.equal(captured.searchParams.has("token"), false);
+  assert.equal(capturedInit?.redirect, "manual");
   assert.equal(new Headers(capturedInit?.headers).get("Accept"), "application/json");
   assert.equal(
     new Headers(capturedInit?.headers).get("User-Agent"),
@@ -341,6 +351,7 @@ test("supports the Midas token aliases without leaking a credential into provena
   const result = await provider.analyst?.getConsensus(INSTRUMENT, CONTEXT);
   assert.equal(requested[0].searchParams.get("token"), SECRET);
   assert.equal(requested[0].searchParams.get("pageSize"), "25");
+  assert.equal(requested[0].searchParams.get("symbols"), "AAPL");
   assert.equal(requested[0].searchParams.get("pagesize"), "25");
   assert.equal(result?.provenance.sourceUrl?.includes(SECRET), false);
 
@@ -496,6 +507,17 @@ test("sanitizes upstream, network, invalid-response, and configuration errors", 
     await assert.rejects(
       provider.analyst!.getConsensus(INSTRUMENT, CONTEXT),
       expectSafeError([SECRET, ENDPOINT], "invalid_response"),
+    );
+  });
+
+  await t.test("unknown success envelope", async () => {
+    const provider = createBenzingaProvider({}, {
+      fetch: async () => json({ message: "plan denied", error: { details: [] } }),
+      now: () => new Date(NOW),
+    });
+    await assert.rejects(
+      provider.analyst!.getConsensus(INSTRUMENT, CONTEXT),
+      expectSafeError(["plan denied", ENDPOINT], "invalid_response"),
     );
   });
 

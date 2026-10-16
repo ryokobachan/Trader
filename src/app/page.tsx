@@ -1,5 +1,9 @@
 "use client";
 
+import { FundamentalHighlights } from "./features/stock-detail/FundamentalHighlights";
+import { FinancialHistoryPanel, FiscalForecastPanel, OwnershipOptionsPanel, DividendsPanel, CompanyNewsPanel } from "./features/stock-detail/FinancialResearchPanels";
+import type { FundamentalsSnapshot, CompanyResearch, CompanyNewsItem } from "./platform/provider-contracts";
+
 import Image from "next/image";
 import {
   useCallback,
@@ -7,7 +11,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
 } from "react";
 import {
   AreaSeries,
@@ -48,7 +54,6 @@ import {
   Newspaper,
   PencilLine,
   Plus,
-  Rows,
   SidebarSimple,
   Star,
   Trash,
@@ -79,6 +84,8 @@ import {
 import { SymbolSummaryHost } from "./features/symbol-summary/SymbolSummaryHost";
 import { buildSummaryDailyMarketMetrics } from "./features/symbol-summary/daily-market-metrics";
 import { useDismissibleLayer } from "./hooks/useDismissibleLayer";
+import { VolumeProfilePrimitive } from "./features/volume-profile/volume-profile-primitive";
+import { DEFAULT_ACTIVE_CHART_INDICATORS, restoreActiveChartIndicators } from "./features/indicators/chart-indicator-preferences";
 import { translate, useI18n, type Locale } from "./platform/i18n";
 import {
   createStrategyTranslator,
@@ -88,22 +95,30 @@ import {
   portfolioTransactionTabLabel,
   strategyDurationLabel,
   strategyTechnicalRatingLabel,
-} from "@strategies/i18n";
+} from "./features/strategy/i18n";
 import {
-  DEFAULT_SAMPLE_STRATEGY_ID,
-  sampleStrategiesForLocale,
-  type SampleStrategyRecord,
-} from "@strategies/catalog";
-import { buildStrategySummaryMetricRegistry } from "@strategies/metrics";
+  DEFAULT_STRATEGY_PACKAGE_ID,
+  STRATEGY_PACKAGE_DEFINITIONS,
+  strategyPackageById,
+  strategyPackagesForLocale,
+  type StrategyPackageRecord,
+} from "./features/strategy/catalog";
+import { buildStrategySummaryMetricRegistry } from "./features/strategy/metrics";
+import {
+  strategyListMetricsForDuration,
+  strategyPeriodStart,
+  type StrategyDuration,
+} from "./features/strategy/period-performance";
+import { derivePortfolioHoldingLots } from "./features/strategy/transaction-holdings";
 import {
   SAMPLE_PORTFOLIO_HOLDINGS,
   samplePortfolioHoldingsForStrategy,
-} from "@strategies/sample-portfolio";
+} from "./features/strategy/sample-portfolio";
 import {
   markSamplePortfolio,
   strategyMarketMark,
   type StrategyMarketMark,
-} from "@strategies/market-valuation";
+} from "./features/strategy/market-valuation";
 import {
   resolveInstrumentSearchView,
   type InstrumentSearchStatus,
@@ -121,10 +136,13 @@ import {
 import {
   AnalystTargetHistoryChart,
   EarningsActualEstimateChart,
+  analystHistoryDataStartDate,
   analystRatingChangeTone,
   analystTargetChangeTone,
+  buildCurrentAnalystTargets,
 } from "./features/stock-detail/StockDetailCharts";
 import { TechnicalRatingsPanel } from "./features/stock-detail/TechnicalRatingsPanel";
+import { TalibWorkbench } from "./features/indicators/TalibWorkbench";
 import {
   createLatestRequestCoordinator,
   mergeFreshWorkspaceSection,
@@ -182,18 +200,7 @@ import {
   planChartDataUpdate,
   type ChartDataLifecycleState,
 } from "./features/chart-sync/chart-data-lifecycle";
-import {
-  CHART_TEMPLATE_STORAGE_KEY,
-  MAX_CHART_TEMPLATE_NAME_LENGTH,
-  createChartTemplate,
-  normalizeChartTemplateName,
-  parseChartTemplates,
-  serializeChartTemplates,
-  validateChartTemplateName,
-  type ChartIndicatorId,
-  type ChartTemplate,
-  type ChartTemplateNameError,
-} from "./features/chart-templates/chart-templates";
+import type { ChartIndicatorId } from "./features/chart-templates/chart-templates";
 import {
   DEFAULT_RIGHT_PANEL_WIDTH,
   DEFAULT_WATCHLIST_SPLIT_PERCENT,
@@ -310,13 +317,16 @@ type IndicatorDefinition = {
   placement: "チャート上" | "サブパネル";
 };
 
-type PrimaryView = "chart" | "stock-detail" | "strategy";
+import {
+  parseWorkspaceRoute,
+  workspaceRouteUrl,
+  type PrimaryView,
+  type PortfolioTab,
+} from "./features/navigation/workspace-route";
 type UtilityPanelId = "watchlist" | "indicators" | "news";
-type PortfolioTab = "概要" | "保有銘柄" | "取引";
-type StrategyDuration = "1M" | "3M" | "6M" | "1Y" | "3Y" | "全期間";
 type StrategySortKey = "candidateAt" | "profit" | "maxDrawdown" | "recoveryFactor" | "sharpe" | "winRate";
 type AppDialogId = "settings" | "snapshot" | "watchlist-create" | "watchlist-rename" | "watchlist-delete" | null;
-type ToolbarMenuId = "chart-type" | "templates" | null;
+type ToolbarMenuId = "chart-type" | null;
 type InstrumentSearchIntent = "select" | "watchlist-add";
 type IndicatorSettingsTab = "パラメーター" | "スタイル" | "表示";
 type IndicatorLineStyle = "solid" | "dashed" | "dotted";
@@ -329,6 +339,20 @@ const WATCHLIST_AFTER_HOURS_LIVENESS_TIMEOUT_MS = 45_000;
 const WATCHLIST_SESSION_STATE_REFRESH_MS = 15_000;
 const MARKET_SESSION_CLOCK_REFRESH_MS = 30_000;
 const ANALYST_HISTORY_REFRESH_MS = 5 * 60_000;
+const NEW_YORK_CALENDAR_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function newYorkCalendarDate(date: Date) {
+  const parts: Record<string, string> = {};
+  for (const part of NEW_YORK_CALENDAR_DATE_FORMATTER.formatToParts(date)) {
+    if (part.type !== "literal") parts[part.type] = part.value;
+  }
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 
 const ENGLISH_INTERVAL_LABELS: Readonly<Record<MarketBarInterval, string>> = {
   "1m": "1m",
@@ -357,6 +381,7 @@ type IndicatorSettings = {
   anchor: "セッション" | "週" | "月" | "四半期" | "年";
   color: string;
   lineWidth: LineWidth;
+  downColor?: string;
   lineStyle: IndicatorLineStyle;
   visibility: {
     minutes: boolean;
@@ -369,6 +394,7 @@ type IndicatorSettings = {
 
 type PortfolioTransaction = {
   id: string;
+  createdAt: string;
   date: string;
   ticker: string;
   side: "買付" | "売却" | "配当";
@@ -377,7 +403,7 @@ type PortfolioTransaction = {
   fee: number;
 };
 
-type StrategyRecord = SampleStrategyRecord & {
+type StrategyRecord = StrategyPackageRecord & {
   origin: StrategyApiRecord["origin"];
   version: number;
   performance: StrategyPerformance;
@@ -545,12 +571,14 @@ const INDICATORS: IndicatorDefinition[] = [
   { id: "ema50", shortName: "EMA 50", name: "指数平滑移動平均", category: "トレンド", description: "直近価格を重視する50期間平均", color: "#8b7cff", placement: "チャート上" },
   { id: "bollinger", shortName: "BB 20", name: "ボリンジャーバンド", category: "ボラティリティ", description: "20期間・標準偏差2σ", color: "#4d9fff", placement: "チャート上" },
   { id: "vwap", shortName: "VWAP", name: "出来高加重平均価格", category: "出来高", description: "価格を出来高で加重した平均", color: "#d26cff", placement: "チャート上" },
-  { id: "rsi14", shortName: "RSI 14", name: "相対力指数", category: "モメンタム", description: "買われ過ぎ・売られ過ぎを判定", color: "#39c5bb", placement: "サブパネル" },
+  { id: "rsi14", shortName: "RSI 14", name: "相対力指数", category: "モメンタム", description: "買われ過ぎ・売られ過ぎを判定", color: "#a78bfa", placement: "サブパネル" },
   { id: "macd", shortName: "MACD", name: "MACD 12, 26, 9", category: "モメンタム", description: "2本のEMAからトレンド転換を確認", color: "#ff8b55", placement: "サブパネル" },
   { id: "stochastic", shortName: "STOCH", name: "ストキャスティクス", category: "モメンタム", description: "レンジ内の終値位置を測定", color: "#e36faf", placement: "サブパネル" },
   { id: "atr14", shortName: "ATR 14", name: "Average True Range", category: "ボラティリティ", description: "14期間の実現値幅", color: "#7bc96f", placement: "サブパネル" },
   { id: "adx14", shortName: "ADX 14", name: "平均方向性指数", category: "トレンド", description: "トレンドの強さを測定", color: "#e8a95b", placement: "サブパネル" },
   { id: "obv", shortName: "OBV", name: "On Balance Volume", category: "出来高", description: "出来高から資金流入出を推定", color: "#62b0ff", placement: "サブパネル" },
+  { id: "volume", shortName: "Volume", name: "出来高", category: "出来高", description: "各ローソク足の出来高をチャート下部に表示", color: "#00d492", placement: "チャート上" },
+  { id: "volumeProfile", shortName: "Volume Profile", name: "価格帯別出来高", category: "出来高", description: "表示範囲の出来高を安値〜高値に配分した推定値。金色は最大出来高の価格帯（POC）", color: "#6495ed", placement: "チャート上" },
 ];
 
 const createIndicatorSettings = (
@@ -584,12 +612,14 @@ const DEFAULT_INDICATOR_SETTINGS: Record<IndicatorId, IndicatorSettings> = {
   ema50: createIndicatorSettings("#8b7cff", { length: 50 }),
   bollinger: createIndicatorSettings("#4d9fff", { length: 20, multiplier: 2, lineWidth: 1 }),
   vwap: createIndicatorSettings("#d26cff", { source: "HLC3" }),
-  rsi14: createIndicatorSettings("#39c5bb", { length: 14 }),
+  rsi14: createIndicatorSettings("#a78bfa", { length: 14 }),
   macd: createIndicatorSettings("#ff8b55", { fast: 12, slow: 26, signal: 9 }),
   stochastic: createIndicatorSettings("#e36faf", { length: 14, smoothing: 3, signal: 3 }),
   atr14: createIndicatorSettings("#7bc96f", { length: 14 }),
   adx14: createIndicatorSettings("#e8a95b", { length: 14 }),
   obv: createIndicatorSettings("#62b0ff"),
+  volume: createIndicatorSettings("#00d492", { downColor: "#ff6467" }),
+  volumeProfile: createIndicatorSettings("#6495ed", { length: 40 }),
 };
 
 const INDICATOR_ID_SET = new Set<IndicatorId>(INDICATORS.map((indicator) => indicator.id));
@@ -601,13 +631,17 @@ function isIndicatorId(value: unknown): value is IndicatorId {
 
 const PORTFOLIO_HOLDINGS = SAMPLE_PORTFOLIO_HOLDINGS;
 const STRATEGY_MARKET_SYMBOLS = Object.freeze(
-  Array.from(new Set(PORTFOLIO_HOLDINGS.map((holding) => holding.ticker))),
+  Array.from(new Set([
+    ...PORTFOLIO_HOLDINGS.map((holding) => holding.ticker),
+    ...STRATEGY_PACKAGE_DEFINITIONS.flatMap((strategy) => strategy.run?.data.symbols ?? []),
+  ])),
 );
 
 const portfolioTransactionFromApi = (
   transaction: StrategyPortfolioTransaction,
 ): PortfolioTransaction => ({
   id: transaction.transactionId,
+  createdAt: transaction.createdAt,
   date: transaction.date,
   ticker: transaction.symbol,
   side: transaction.side === "buy" ? "買付" : transaction.side === "sell" ? "売却" : "配当",
@@ -766,7 +800,7 @@ function workspaceStock(workspace: SymbolWorkspace): Stock {
     target,
     targetLow: consensus?.targetLow ?? 0,
     targetHigh: consensus?.targetHigh ?? 0,
-    analysts: consensus?.analystCount ?? buy + neutral + sell,
+    analysts: consensus?.ratingCount ?? consensus?.analystCount ?? buy + neutral + sell,
     buy,
     neutral,
     sell,
@@ -957,7 +991,7 @@ function getStockIntelligence(
 }
 
 function indicatorCalculationSpec(
-  id: IndicatorId,
+  id: Exclude<IndicatorId, "volume" | "volumeProfile">,
   settings: IndicatorSettings,
 ): IndicatorCalculationSpec {
   return {
@@ -979,6 +1013,11 @@ function getIndicatorReading(
   bars: readonly MarketBar[],
   settings: IndicatorSettings,
 ) {
+  if (id === "volume") {
+    const volume = finiteMarketBars(bars).at(-1)?.volume;
+    return volume === undefined ? "—" : compactNumber(volume);
+  }
+  if (id === "volumeProfile") return "";
   const computed = computeIndicatorSeries(bars, indicatorCalculationSpec(id, settings));
   const primaryValue = latestIndicatorValue(computed);
   if (primaryValue === undefined) return "—";
@@ -998,7 +1037,9 @@ function getIndicatorReading(
 function getIndicatorDisplayName(
   indicator: IndicatorDefinition,
   settings: IndicatorSettings,
+  locale: Locale,
 ) {
+  if (indicator.id === "volume" || indicator.id === "volumeProfile") return localizeIndicator(locale, indicator).name;
   if (["sma20", "ema50", "rsi14", "atr14", "adx14"].includes(indicator.id)) {
     return `${indicator.shortName.split(" ")[0]} ${settings.length}`;
   }
@@ -1107,12 +1148,14 @@ function PriceChart({
 }) {
   const { locale, t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
+  const volumeProfileVisible = activeIndicators.includes("volumeProfile");
   const chartRuntimeRef = useRef<{
     chart: IChartApi;
     candleSeries: ISeriesApi<"Candlestick">;
     priceLineSeries: ISeriesApi<"Line">;
     priceAreaSeries: ISeriesApi<"Area">;
     volumeSeries: ISeriesApi<"Histogram">;
+    volumeProfile: VolumeProfilePrimitive;
     smaSeries: ISeriesApi<"Line">;
     emaSeries: ISeriesApi<"Line">;
     bollingerUpperSeries: ISeriesApi<"Line">;
@@ -1131,18 +1174,16 @@ function PriceChart({
     [chartType, fullData.candles],
   );
   const displayVolumes = useMemo(
-    () => chartType === "heikin-ashi"
-      ? fullData.volumes.map((point, index) => {
+    () => fullData.volumes.map((point, index) => {
         const candle = displayCandles[index];
         return {
           ...point,
           color: candle && candle.close >= candle.open
-            ? "rgba(0, 212, 146, .38)"
-            : "rgba(255, 100, 103, .36)",
+            ? `${indicatorSettings.volume.color}61`
+            : `${indicatorSettings.volume.downColor ?? "#ff6467"}5c`,
         };
-      })
-      : fullData.volumes,
-    [chartType, displayCandles, fullData.volumes],
+      }),
+    [displayCandles, fullData.volumes, indicatorSettings.volume.color, indicatorSettings.volume.downColor],
   );
   const latestCandle = displayCandles.at(-1);
   const priceLineColor = latestCandle && latestCandle.close < latestCandle.open
@@ -1278,6 +1319,7 @@ function PriceChart({
       priceLineSeries,
       priceAreaSeries,
       volumeSeries,
+      volumeProfile: new VolumeProfilePrimitive(),
       smaSeries,
       emaSeries,
       bollingerUpperSeries,
@@ -1300,7 +1342,10 @@ function PriceChart({
     runtime.chart.applyOptions({
       localization: { locale: chartLocaleTag(locale) },
       timeScale: { timeVisible: marketBars.some((item) => item.time.includes("T")) },
+      rightPriceScale: { scaleMargins: { top: 0.08, bottom: activeIndicators.includes("volume") ? 0.22 : 0.08 } },
     });
+    runtime.volumeSeries.applyOptions({ visible: activeIndicators.includes("volume") });
+    runtime.volumeProfile.setOptions({ rowCount: indicatorSettings.volumeProfile.length, color: indicatorSettings.volumeProfile.color });
     runtime.candleSeries.applyOptions({
       upColor: "#00d492",
       downColor: "#ff6467",
@@ -1357,6 +1402,12 @@ function PriceChart({
     runtime.priceLineSeries.setData(closeData);
     runtime.priceAreaSeries.setData(closeData);
     runtime.volumeSeries.setData(displayVolumes);
+    // Always use actual OHLCV, including when the display uses Heikin Ashi.
+    runtime.volumeProfile.setData(fullData.candles.map((bar, index) => ({
+      low: bar.low,
+      high: bar.high,
+      volume: fullData.volumes[index].value,
+    })));
     runtime.smaSeries.setData(fullData.sma20);
     runtime.emaSeries.setData(fullData.ema50);
     runtime.bollingerUpperSeries.setData(fullData.bollingerUpper);
@@ -1371,6 +1422,18 @@ function PriceChart({
 
   useEffect(() => {
     const runtime = chartRuntimeRef.current;
+    if (!runtime || !volumeProfileVisible) return;
+    const series = chartType === "line" ? runtime.priceLineSeries
+      : chartType === "area" ? runtime.priceAreaSeries : runtime.candleSeries;
+    series.attachPrimitive(runtime.volumeProfile);
+    return () => {
+      // The mount effect may already have disposed the entire chart.
+      if (chartRuntimeRef.current === runtime) series.detachPrimitive(runtime.volumeProfile);
+    };
+  }, [chartType, volumeProfileVisible]);
+
+  useEffect(() => {
+    const runtime = chartRuntimeRef.current;
     if (!runtime || !timeScaleSync) return;
     const timeScale = runtime.chart.timeScale();
     const publishVisibleRange = (logicalRange: Parameters<ChartTimeScaleSync["publish"]>[0]) => {
@@ -1381,7 +1444,8 @@ function PriceChart({
     return () => timeScale.unsubscribeVisibleLogicalRangeChange(publishVisibleRange);
   }, [timeScaleSync]);
 
-  return <div className="chart-canvas" ref={containerRef} aria-label={t("chart.priceAria", { symbol: stock.ticker })} />;
+  return <div className="chart-canvas" ref={containerRef} aria-label={t("chart.priceAria", { symbol: stock.ticker })}
+    aria-description={volumeProfileVisible ? t("chart.volumeProfileHelp") : undefined} />;
 }
 
 const illustrativePseudoRandom = (seed: number) => {
@@ -1389,15 +1453,25 @@ const illustrativePseudoRandom = (seed: number) => {
   return value - Math.floor(value);
 };
 
+type StrategyEquityPoint = Readonly<{
+  date: string;
+  portfolioValue: number;
+  benchmarkValue: number | null;
+}>;
+
 function PortfolioValueChart({
   mode,
   period,
   seed,
+  points,
+  initialValue,
   ariaLabel,
 }: {
   mode: "資産額" | "パフォーマンス";
   period: "1M" | "3M" | "6M" | "YTD" | "1Y" | "ALL";
   seed: number;
+  points?: readonly StrategyEquityPoint[];
+  initialValue?: number;
   ariaLabel: string;
 }) {
   const { locale } = useI18n();
@@ -1406,24 +1480,48 @@ function PortfolioValueChart({
   useEffect(() => {
     if (!containerRef.current) return;
     const host = containerRef.current;
-    const countMap = { "1M": 24, "3M": 54, "6M": 88, YTD: 122, "1Y": 168, ALL: 220 };
-    const count = countMap[period];
-    const start = new Date(Date.UTC(2025, 8, 1));
-    const values: LineData<Time>[] = [];
-    const benchmark: LineData<Time>[] = [];
-    let portfolioValue = 208400 + seed * 780;
-    let benchmarkValue = portfolioValue;
-    for (let index = 0; index < 220; index += 1) {
-      const date = new Date(start);
-      date.setUTCDate(start.getUTCDate() + index * 2);
-      const time = date.toISOString().slice(0, 10) as Time;
-      const drift = 0.00078 + Math.sin(index / 13 + seed) * 0.0011 + (illustrativePseudoRandom(seed * 13 + index) - 0.48) * 0.012;
-      const benchmarkDrift = 0.00048 + Math.sin(index / 17) * 0.0007 + (illustrativePseudoRandom(seed * 7 + index) - 0.49) * 0.007;
-      portfolioValue *= 1 + drift;
-      benchmarkValue *= 1 + benchmarkDrift;
-      values.push({ time, value: mode === "資産額" ? portfolioValue : ((portfolioValue / (208400 + seed * 780)) - 1) * 100 });
-      benchmark.push({ time, value: mode === "資産額" ? benchmarkValue : ((benchmarkValue / (208400 + seed * 780)) - 1) * 100 });
+    let sourcePoints: readonly StrategyEquityPoint[];
+    if (points && points.length > 0) {
+      const periodStart = strategyPeriodStart(points[points.length - 1].date, period);
+      sourcePoints = periodStart === null
+        ? points
+        : points.filter((point) => point.date >= periodStart);
+    } else {
+      const start = new Date(Date.UTC(2025, 8, 1));
+      let portfolioValue = 208400 + seed * 780;
+      let benchmarkValue = portfolioValue;
+      const illustrative = Array.from({ length: 220 }, (_, index): StrategyEquityPoint => {
+        const pointDate = new Date(start);
+        pointDate.setUTCDate(start.getUTCDate() + index * 2);
+        const drift = 0.00078 + Math.sin(index / 13 + seed) * 0.0011 + (illustrativePseudoRandom(seed * 13 + index) - 0.48) * 0.012;
+        const benchmarkDrift = 0.00048 + Math.sin(index / 17) * 0.0007 + (illustrativePseudoRandom(seed * 7 + index) - 0.49) * 0.007;
+        portfolioValue *= 1 + drift;
+        benchmarkValue *= 1 + benchmarkDrift;
+        return { date: pointDate.toISOString().slice(0, 10), portfolioValue, benchmarkValue };
+      });
+      const countMap = { "1M": 24, "3M": 54, "6M": 88, YTD: 122, "1Y": 168, ALL: 220 };
+      sourcePoints = illustrative.slice(-countMap[period]);
     }
+    if (sourcePoints.length === 0) return;
+    const useRunInitialValue = Boolean(points && period === "ALL" && initialValue);
+    const initialPortfolio = useRunInitialValue ? initialValue! : sourcePoints[0].portfolioValue;
+    const initialBenchmark = useRunInitialValue ? initialValue! : sourcePoints[0].benchmarkValue;
+    const values: LineData<Time>[] = sourcePoints.map((point) => ({
+      time: point.date as Time,
+      value: mode === "資産額"
+        ? point.portfolioValue
+        : (point.portfolioValue / initialPortfolio - 1) * 100,
+    }));
+    const benchmark: LineData<Time>[] = sourcePoints.flatMap((point) => (
+      point.benchmarkValue === null || initialBenchmark === null
+        ? []
+        : [{
+            time: point.date as Time,
+            value: mode === "資産額"
+              ? point.benchmarkValue
+              : (point.benchmarkValue / initialBenchmark - 1) * 100,
+          }]
+    ));
 
     const chart = createChart(host, {
       width: host.clientWidth,
@@ -1456,32 +1554,63 @@ function PortfolioValueChart({
       priceLineVisible: false,
       lastValueVisible: false,
     });
-    area.setData(values.slice(-count));
-    benchmarkSeries.setData(benchmark.slice(-count));
+    area.setData(values);
+    benchmarkSeries.setData(benchmark);
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [locale, mode, period, seed]);
+  }, [initialValue, locale, mode, period, points, seed]);
 
   return <div className="portfolio-chart-canvas" ref={containerRef} aria-label={ariaLabel} />;
 }
 
-function PortfolioProfitChart({ seed, ariaLabel }: { seed: number; ariaLabel: string }) {
+function PortfolioProfitChart({
+  seed,
+  points,
+  initialValue,
+  period = "TTM",
+  ariaLabel,
+}: {
+  seed: number;
+  points?: readonly StrategyEquityPoint[];
+  initialValue?: number;
+  period?: "TTM" | "ALL";
+  ariaLabel: string;
+}) {
   const { locale } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!containerRef.current) return;
     const host = containerRef.current;
-    const start = new Date(Date.UTC(2025, 8, 1));
-    const data: HistogramData<Time>[] = Array.from({ length: 12 }, (_, index) => {
-      const date = new Date(start);
-      date.setUTCMonth(start.getUTCMonth() + index);
-      const raw = (illustrativePseudoRandom(seed * 11 + index) - 0.38) * 9.5;
-      return {
-        time: date.toISOString().slice(0, 10) as Time,
-        value: Number(raw.toFixed(2)),
-        color: raw >= 0 ? "#00d492" : "#ff6467",
-      };
-    });
+    let data: HistogramData<Time>[];
+    if (points && points.length > 0) {
+      const monthEnds = new Map<string, StrategyEquityPoint>();
+      for (const point of points) monthEnds.set(point.date.slice(0, 7), point);
+      const ordered = [...monthEnds.values()].sort((left, right) => left.date.localeCompare(right.date));
+      data = ordered.map((point, index) => {
+        const previousValue = index === 0
+          ? (initialValue ?? point.portfolioValue)
+          : ordered[index - 1].portfolioValue;
+        const value = (point.portfolioValue / previousValue - 1) * 100;
+        return {
+          time: point.date as Time,
+          value,
+          color: value >= 0 ? "#00d492" : "#ff6467",
+        };
+      });
+      if (period === "TTM") data = data.slice(-12);
+    } else {
+      const start = new Date(Date.UTC(2025, 8, 1));
+      data = Array.from({ length: 12 }, (_, index) => {
+        const pointDate = new Date(start);
+        pointDate.setUTCMonth(start.getUTCMonth() + index);
+        const raw = (illustrativePseudoRandom(seed * 11 + index) - 0.38) * 9.5;
+        return {
+          time: pointDate.toISOString().slice(0, 10) as Time,
+          value: Number(raw.toFixed(2)),
+          color: raw >= 0 ? "#00d492" : "#ff6467",
+        };
+      });
+    }
     const chart = createChart(host, {
       width: host.clientWidth,
       height: host.clientHeight,
@@ -1502,7 +1631,7 @@ function PortfolioProfitChart({ seed, ariaLabel }: { seed: number; ariaLabel: st
     series.setData(data);
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [locale, seed]);
+  }, [initialValue, locale, period, points, seed]);
   return <div className="portfolio-analysis-chart" ref={containerRef} aria-label={ariaLabel} />;
 }
 
@@ -1639,6 +1768,12 @@ const STOCK_DETAIL_METRIC_LABEL_KEYS: Readonly<Record<string, string>> = {
   "現金比率": "metric.cashRatio",
   "営業CF": "metric.operatingCashFlow",
   "設備投資": "metric.capex",
+  "研究開発費": "metric.researchAndDevelopment",
+  "販売費・一般管理費": "metric.sellingGeneralAndAdministrative",
+  "負債合計": "metric.totalLiabilities",
+  "投資CF": "metric.investingCashFlow",
+  "財務CF": "metric.financingCashFlow",
+
   "フリーCF": "metric.freeCashFlow",
   "FCF利回り": "metric.fcfYield",
   "配当利回り": "metric.dividendYield",
@@ -1783,6 +1918,75 @@ function formatAnalystTarget(value: number | undefined, locale: Locale) {
   }).format(value);
 }
 
+function analystAccuracy(event: AnalystRatingHistory["items"][number]) {
+  const success = typeof event.overallSuccessRate === "number"
+    ? `${(Math.abs(event.overallSuccessRate) <= 1 ? event.overallSuccessRate * 100 : event.overallSuccessRate).toFixed(1)}%`
+    : "—";
+  return {
+    score: event.analystStarRating !== undefined
+      ? `${event.analystStarRating.toFixed(1)} ★`
+      : event.smartScore !== undefined
+        ? `Smart ${event.smartScore.toFixed(1)}`
+        : "—",
+    success,
+  };
+}
+
+function AnalystCurrentTargets({
+  history,
+  status,
+}: {
+  history: AnalystRatingHistory | null;
+  status: AnalystHistoryStatus;
+}) {
+  const { locale, t } = useI18n();
+  const rows = useMemo(
+    () => history ? buildCurrentAnalystTargets(
+      history.consensusItems ?? history.items,
+      history.dateTo,
+      undefined,
+      history.consensusLookbackMonths,
+    ) : [],
+    [history],
+  );
+  const meta = history
+    ? t("detail.analyst.current.meta", { count: rows.length, date: history.dateTo })
+    : "";
+  return (
+    <section className="stock-detail-analyst-history stock-detail-current-targets" aria-label={t("detail.section.currentTargets")}>
+      <header><div><span className="eyebrow">CURRENT PRICE TARGETS</span><h2>{t("detail.section.currentTargets")}</h2></div><small>{meta}</small></header>
+      {status === "loading" ? (
+        <div className="analyst-history-state" role="status"><LoadingIndicator label={t("detail.analyst.loading")} /></div>
+      ) : status === "error" ? (
+        <div className="analyst-history-state is-error" role="alert">{t("detail.analyst.error")}</div>
+      ) : rows.length === 0 ? (
+        <div className="analyst-history-state">{t("detail.analyst.current.empty")}</div>
+      ) : (
+        <div className="analyst-history-table-shell analyst-current-targets-table-shell">
+          <table className="analyst-rating-history-table analyst-current-targets-table">
+            <thead><tr><th>{t("detail.analyst.table.firm")}</th><th>{t("detail.analyst.current.table.rating")}</th><th>{t("detail.analyst.current.table.target")}</th><th>{t("detail.analyst.current.table.date")}</th><th>{t("detail.analyst.table.accuracy")}</th></tr></thead>
+            <tbody>
+              {rows.map(({ event, priceTarget }) => {
+                const ratingCurrent = event.ratingCurrent ?? event.rating;
+                const accuracy = analystAccuracy(event);
+                return (
+                  <tr key={event.eventId}>
+                    <td><strong>{event.analystFirm ?? "—"}</strong><small>{event.analystName ?? "—"}</small></td>
+                    <td className="analyst-rating-cell">{ratingCurrent ?? "—"}</td>
+                    <td className="analyst-target-cell analyst-current-target-value"><strong>{formatAnalystTarget(priceTarget, locale)}</strong></td>
+                    <td><strong>{event.sourceEventDate}</strong></td>
+                    <td><strong>{accuracy.score}</strong><small>{accuracy.success}</small></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function AnalystRatingHistoryTable({
   history,
   status,
@@ -1804,9 +2008,7 @@ function AnalystRatingHistoryTable({
             const previousTarget = event.adjustedPreviousPriceTarget ?? event.previousPriceTarget;
             const ratingCurrent = event.ratingCurrent ?? event.rating;
             const targetChangeTone = analystTargetChangeTone(event);
-            const success = typeof event.overallSuccessRate === "number"
-              ? `${(Math.abs(event.overallSuccessRate) <= 1 ? event.overallSuccessRate * 100 : event.overallSuccessRate).toFixed(1)}%`
-              : "—";
+            const accuracy = analystAccuracy(event);
             return (
               <tr key={event.eventId}>
                 <td><strong>{event.sourceEventDate}</strong><small>{event.actionPriceTarget ?? event.action ?? t("detail.analyst.updated")}</small></td>
@@ -1815,7 +2017,7 @@ function AnalystRatingHistoryTable({
                 <td className={`analyst-rating-cell analyst-change-${analystRatingChangeTone(event)}`}>{ratingCurrent ?? "—"}</td>
                 <td className="analyst-target-cell analyst-target-previous">{formatAnalystTarget(previousTarget, locale)}</td>
                 <td className={`analyst-target-cell analyst-change-${targetChangeTone}`}>{formatAnalystTarget(event.effectivePriceTarget, locale)}</td>
-                <td><strong>{event.smartScore !== undefined ? event.smartScore.toFixed(1) : "—"}</strong><small>{success}</small></td>
+                <td><strong>{accuracy.score}</strong><small>{accuracy.success}</small></td>
               </tr>
             );
           })}
@@ -1959,6 +2161,7 @@ function CompanyProfileSection({
       </header>
       {description ? (
         <>
+          {locale === "ja" && profile.descriptionLanguage === "en" && <small className="financial-research-caption">日本語の企業説明を取得できなかったため、原文を表示しています。</small>}
           <p className={descriptionIsExpandable && !expanded ? "clamped" : "expanded"}>{description}</p>
           {descriptionIsExpandable && (
             <button
@@ -1986,7 +2189,7 @@ function CompanyProfileSection({
           ))}
         </dl>
       ) : !description ? <StockDetailEmptyState message={emptyMessage} /> : null}
-      <div className="stock-detail-profile-source"><DetailSourceChip source={profile.source} /></div>
+      <div className="stock-detail-profile-source"><DetailSourceChip source={profile.source} />{description && profile.descriptionSource?.label !== profile.source.label && profile.descriptionSource && <DetailSourceChip source={profile.descriptionSource} />}</div>
     </section>
   );
 }
@@ -2002,8 +2205,8 @@ function FundamentalMetricSections({
   context?: string;
   emptyMessage: ReactNode;
 }) {
-  const { t } = useI18n();
-  const configuredGroups = FUNDAMENTAL_METRIC_GROUPS.flatMap((group) => {
+  const { locale, t } = useI18n();
+  const configuredGroups = FUNDAMENTAL_METRIC_GROUPS.filter((group) => group.id !== "valuation").flatMap((group) => {
     const groupMetrics = configuredStockDetailMetrics(metrics, group.metrics);
     return groupMetrics.length === 0 ? [] : [{ ...group, groupMetrics }];
   });
@@ -2014,7 +2217,11 @@ function FundamentalMetricSections({
   return (
     <div className="stock-detail-fundamental-groups">
       {configuredGroups.map((group, index) => {
-        return <MetricSection key={group.id} eyebrow={group.eyebrow} title={t(group.titleKey)} source={source} context={index === 0 ? context : undefined} metrics={group.groupMetrics} emptyMessage={emptyMessage} />;
+        return <details className="financial-metric-details" key={group.id}>
+          <summary>{t(group.titleKey)} <small>{group.groupMetrics.length}{locale === "ja" ? " 指標" : " metrics"}</small></summary>
+          {index === 0 && <p className="financial-research-caption">{context} · <DetailSourceChip source={source} /></p>}
+          <table><thead><tr><th>{locale === "ja" ? "指標" : "Metric"}</th><th>{locale === "ja" ? "実績" : "Value"}</th></tr></thead><tbody>{group.groupMetrics.map(metric => <tr key={metric.id}><th>{stockDetailMetricLabel(metric.label, t)}</th><td>{stockDetailMetricValue(metric, locale, t)}</td></tr>)}</tbody></table>
+        </details>;
       })}
     </div>
   );
@@ -2099,8 +2306,9 @@ function EarningsSection({
         <div className="earnings-comparison-grid">
           {recentEarnings.map((event) => (
             <article className="earnings-comparison-period" key={`${event.reportDate}-${event.fiscalDateEnding ?? "reported"}`}>
-              <header><strong>{event.reportDate}</strong>{event.fiscalDateEnding && <small>FY {event.fiscalDateEnding}</small>}</header>
+              <header><strong>{event.reportDate}</strong>{event.fiscalDateEnding && <small>{event.fiscalPeriod ?? event.fiscalDateEnding}</small>}</header>
               <EarningsComparisonMetric label="EPS" kind="eps" actual={event.epsActual} estimate={event.epsEstimate} />
+              {event.epsBasis === "earnings_display" && typeof event.statementEPS === "number" && <small className="financial-research-caption">{t("detail.earnings.statementEps")}: {event.statementEPS.toFixed(2)} USD</small>}
               <EarningsComparisonMetric label={t("detail.earnings.revenue")} kind="revenue" actual={event.revenueActual} estimate={event.revenueEstimate} />
             </article>
           ))}
@@ -2111,6 +2319,10 @@ function EarningsSection({
 }
 
 const STOCK_DETAIL_TAB_LABEL_KEYS: Readonly<Record<SymbolDetailTabId, string>> = {
+  overview: "detail.tab.overview",
+  ownership: "detail.tab.ownership",
+  dividends: "detail.tab.dividends",
+  news: "detail.tab.news",
   financials: "detail.tab.financials",
   analyst: "detail.tab.analyst",
   technicals: "detail.tab.technicals",
@@ -2124,6 +2336,9 @@ type StockDetailTabId = SymbolDetailTabId;
 
 function StockDetailPage({
   stock,
+  financialData,
+  research,
+  researchNews,
   targetPriceMarketBars,
   earnings,
   analystHistory,
@@ -2139,6 +2354,9 @@ function StockDetailPage({
   onToggleWatched,
 }: {
   stock: Stock;
+  financialData?: FundamentalsSnapshot | null;
+  research?: CompanyResearch | null;
+  researchNews?: readonly CompanyNewsItem[];
   targetPriceMarketBars: readonly MarketBar[];
   earnings: readonly EarningsEvent[];
   analystHistory: AnalystRatingHistory | null;
@@ -2165,6 +2383,10 @@ function StockDetailPage({
       : detail.warnings.length > 0
         ? t("detail.status.partialMissing")
         : t("detail.status.ready");
+  const analystHistoryDateFrom = analystHistoryDataStartDate(analystHistory?.items ?? []);
+  const analystHistoryDateRange = analystHistoryDateFrom
+    ? `${analystHistoryDateFrom}${analystHistory?.dateTo ? ` — ${analystHistory.dateTo}` : ""}`
+    : "";
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -2188,29 +2410,51 @@ function StockDetailPage({
           onActiveSectionChange(id);
         }}>{t(labelKey)}</button>)}
       </nav>
-      <div className="stock-detail-body">
+      <div className="stock-detail-body" key={`${stock.ticker}:${activeSection}`}>
         <div className="stock-detail-content stock-detail-content-one-column">
-          {activeSection === "financials" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-financials" role="tabpanel" aria-labelledby="stock-detail-tab-financials">
-            <header className="stock-detail-section-heading"><div><span className="eyebrow">FUNDAMENTALS & EARNINGS</span><h2>{t("detail.section.financials")}</h2></div></header>
+          {activeSection === "overview" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-overview" role="tabpanel" aria-labelledby="stock-detail-tab-overview">
             <CompanyProfileSection key={stock.ticker} profile={detail.profile} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.profile", t)} />
-            <FundamentalMetricSections source={detail.fundamentals.source} context={detail.fundamentals.context} metrics={detail.fundamentals.metrics} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.fundamentals", t)} />
+            <FundamentalHighlights metrics={detail.fundamentals.metrics} source={detail.fundamentals.source} period={financialData?.period} valuationSources={financialData?.valuationSources} />
+          </section>}
+
+          {activeSection === "financials" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-financials" role="tabpanel" aria-labelledby="stock-detail-tab-financials">
+            <FinancialHistoryPanel annual={financialData?.annualFinancials} annualCashFlows={research?.annualCashFlows} quarterly={research?.quarterlyFinancials?.length ? research.quarterlyFinancials : financialData?.quarterlyFinancials} />
+            {financialData?.reportingBasis === "annual" && <p className="financial-research-caption">{t("detail.financials.annualBasis", { period: financialData.period ?? "—" })}</p>}
+            <FiscalForecastPanel forecasts={financialData?.fiscalForecasts} />
             <EarningsActualEstimateChart earnings={earnings} />
             <EarningsSection earnings={earnings} source={detail.earnings.source} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.earnings", t)} />
+            <FundamentalMetricSections source={detail.fundamentals.source} context={detail.fundamentals.context} metrics={detail.fundamentals.metrics.filter(metric => !["fundamentals.dividendYield", "fundamentals.dividendPerShare", "fundamentals.payoutRatio", "fundamentals.freeFloatRatio", "fundamentals.floatShares", "fundamentals.outstandingShares"].includes(metric.id))} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.fundamentals", t)} />
           </section>}
 
           {activeSection === "analyst" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-analyst" role="tabpanel" aria-labelledby="stock-detail-tab-analyst">
             <header className="stock-detail-section-heading"><div><span className="eyebrow">ANALYST CONSENSUS</span><h2>{t("detail.section.analyst")}</h2></div></header>
             <AnalystTargetHistoryChart history={analystHistory} marketBars={targetPriceMarketBars} />
             <MetricSection eyebrow="TARGETS & RATINGS" title={t("detail.section.targetRatings")} source={detail.analyst.source} metrics={configuredStockDetailMetrics(detail.analyst.metrics, traderConfig.ui.symbolDetail.analystMetrics)} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.analyst", t)} />
+            <AnalystCurrentTargets history={analystHistory} status={analystHistoryStatus} />
             <section className="stock-detail-analyst-history" aria-label={t("detail.section.targetHistory")}>
-              <header><div><span className="eyebrow">BENZINGA RATINGS</span><h2>{t("detail.section.targetHistory")}</h2></div><small>{analystHistory?.dateFrom ?? ""}{analystHistory?.dateTo ? ` — ${analystHistory.dateTo}` : ""}</small></header>
+              <header><div><span className="eyebrow">{analystHistory?.provenance.providerId === "google-finance-benzinga" ? "DATA BY GOOGLE FINANCE + BENZINGA" : analystHistory?.provenance.providerId === "google-finance" ? "DATA BY GOOGLE FINANCE" : analystHistory?.provenance.providerId === "tipranks" ? "DATA BY TIPRANKS" : "ANALYST RATINGS"}</span><h2>{t("detail.section.targetHistory")}</h2></div><small>{analystHistoryDateRange}</small></header>
               <AnalystRatingHistoryTable history={analystHistory} status={analystHistoryStatus} />
             </section>
+          </section>}
+
+          {activeSection === "ownership" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-ownership" role="tabpanel" aria-labelledby="stock-detail-tab-ownership">
+            <OwnershipOptionsPanel research={research} symbol={stock.ticker} exchange={identity?.exchange ?? stock.market} />
+            <MetricSection eyebrow="SHARE STRUCTURE" title={t("detail.section.financialHealth")} source={detail.fundamentals.source} metrics={configuredStockDetailMetrics(detail.fundamentals.metrics, ["fundamentals.outstandingShares", "fundamentals.floatShares", "fundamentals.freeFloatRatio"])} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.fundamentals", t)} />
+          </section>}
+
+          {activeSection === "dividends" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-dividends" role="tabpanel" aria-labelledby="stock-detail-tab-dividends">
+            <MetricSection eyebrow="DIVIDENDS" title={t("detail.tab.dividends")} source={detail.fundamentals.source} metrics={configuredStockDetailMetrics(detail.fundamentals.metrics, ["fundamentals.dividendYield", "fundamentals.dividendPerShare", "fundamentals.payoutRatio"])} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.fundamentals", t)} />
+            <DividendsPanel research={research} />
+          </section>}
+
+          {activeSection === "news" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-news" role="tabpanel" aria-labelledby="stock-detail-tab-news">
+            <CompanyNewsPanel news={researchNews} />
           </section>}
 
           {activeSection === "technicals" && <section className="stock-detail-tab-panel stock-detail-section" id="stock-detail-panel-technicals" role="tabpanel" aria-labelledby="stock-detail-tab-technicals">
             <header className="stock-detail-section-heading"><div><span className="eyebrow">MARKET & TECHNICALS</span><h2>{t("detail.section.technicals")}</h2></div></header>
             <TechnicalRatingsPanel summary={detail.technicalRatings} />
+            <TalibWorkbench key={stock.ticker} symbol={stock.ticker} bars={targetPriceMarketBars} />
             <div className="stock-detail-card-grid two-columns">
               <MetricSection eyebrow="QUOTE" title={t("detail.section.marketSnapshot")} source={detail.market.source} context={detail.market.context} metrics={configuredStockDetailMetrics(detail.market.metrics, traderConfig.ui.symbolDetail.marketMetrics)} emptyMessage={detailEmptyMessage(workspaceStatus, "detail.subject.market", t)} />
               <MetricSection eyebrow="CALCULATED FROM OHLCV" title={t("detail.section.technicalMetrics")} source={detail.technicals.source} context={detail.technicals.context} metrics={configuredStockDetailMetrics(detail.technicals.metrics, traderConfig.ui.symbolDetail.technicalMetrics)} emptyMessage={detailEmptyMessage(barsStatus, "detail.subject.technicals", t)} />
@@ -2261,13 +2505,13 @@ function IndicatorsPanel({
             <div className={`active-indicator-manager-row ${hidden ? "is-hidden" : ""}`} key={indicator.id}>
               <span className="indicator-color-dot" style={{ background: indicatorSettings[indicator.id].color }} />
               <span className="active-indicator-copy">
-                <strong>{getIndicatorDisplayName(indicator, indicatorSettings[indicator.id])}</strong>
+                <strong>{getIndicatorDisplayName(indicator, indicatorSettings[indicator.id], locale)}</strong>
                 <small>{copy.name} · {copy.placement}</small>
               </span>
               <div className="indicator-manager-actions">
-                <IconButton label={indicatorText(locale, hidden ? "show" : "hide", { name: indicator.shortName })} active={!hidden} onClick={() => onToggleVisibility(indicator.id)}><Eye size={15} /></IconButton>
-                <IconButton label={indicatorText(locale, "settings", { name: indicator.shortName })} onClick={() => onOpenSettings(indicator.id)}><Gear size={15} /></IconButton>
-                <IconButton label={indicatorText(locale, "remove", { name: indicator.shortName })} onClick={() => onRemove(indicator.id)}><X size={15} /></IconButton>
+                <IconButton label={indicatorText(locale, hidden ? "show" : "hide", { name: indicator.id === "volume" || indicator.id === "volumeProfile" ? localizeIndicator(locale, indicator).name : indicator.shortName })} active={!hidden} onClick={() => onToggleVisibility(indicator.id)}><Eye size={15} /></IconButton>
+                <IconButton label={indicatorText(locale, "settings", { name: indicator.id === "volume" || indicator.id === "volumeProfile" ? localizeIndicator(locale, indicator).name : indicator.shortName })} onClick={() => onOpenSettings(indicator.id)}><Gear size={15} /></IconButton>
+                <IconButton label={indicatorText(locale, "remove", { name: indicator.id === "volume" || indicator.id === "volumeProfile" ? localizeIndicator(locale, indicator).name : indicator.shortName })} onClick={() => onRemove(indicator.id)}><X size={15} /></IconButton>
               </div>
             </div>
           );
@@ -2349,7 +2593,7 @@ function IndicatorLibraryDialog({
               const copy = localizeIndicator(locale, indicator);
               return (
                 <div className={`indicator-result-row ${active ? "is-added" : ""}`} key={indicator.id}>
-                  <button type="button" className={`favorite-button ${favorite ? "active" : ""}`} aria-label={indicatorText(locale, favorite ? "removeFavorite" : "addFavorite", { name: indicator.shortName })} onClick={() => onToggleFavorite(indicator.id)}><Star size={16} weight={favorite ? "fill" : "regular"} /></button>
+                  <button type="button" className={`favorite-button ${favorite ? "active" : ""}`} aria-label={indicatorText(locale, favorite ? "removeFavorite" : "addFavorite", { name: indicator.id === "volume" || indicator.id === "volumeProfile" ? localizeIndicator(locale, indicator).name : indicator.shortName })} onClick={() => onToggleFavorite(indicator.id)}><Star size={16} weight={favorite ? "fill" : "regular"} /></button>
                   <button type="button" className="indicator-result-main" onClick={() => onAdd(indicator.id)}>
                     <span className="indicator-result-mark" style={{ background: indicator.color }} />
                     <span><strong>{copy.name}</strong><small>{indicator.shortName} · {copy.category} · {copy.placement}</small></span>
@@ -2399,8 +2643,9 @@ function IndicatorSettingsDialog({
   const updateNumber = (key: "length" | "offset" | "multiplier" | "fast" | "slow" | "signal" | "smoothing", value: string) => {
     setDraft((current) => ({ ...current, [key]: Number(value) }));
   };
-  const usesLength = !["vwap", "macd", "obv"].includes(indicator.id);
-  const usesPriceSource = !["atr14", "adx14"].includes(indicator.id);
+  const isVolumeIndicator = indicator.id === "volume" || indicator.id === "volumeProfile";
+  const usesLength = !["vwap", "macd", "obv", "volume", "volumeProfile"].includes(indicator.id);
+  const usesPriceSource = !["atr14", "adx14", "volume", "volumeProfile"].includes(indicator.id);
   const unsupportedSettingsMessage = locale === "ja"
     ? "オフセットと時間足別表示は現在の描画エンジンでは未対応です。"
     : "Offset and interval-specific visibility are not supported by the current renderer.";
@@ -2409,7 +2654,7 @@ function IndicatorSettingsDialog({
     <div className="modal-backdrop settings-backdrop" onMouseDown={onClose}>
       <section className="indicator-settings-dialog" role="dialog" aria-modal="true" aria-label={indicatorText(locale, "dialogSettings", { name: copy.name })} onMouseDown={(event) => event.stopPropagation()}>
         <header>
-          <div><span className="indicator-settings-color" style={{ background: draft.color }} /><div><strong>{copy.name}</strong><small>{getIndicatorDisplayName(indicator, draft)}</small></div></div>
+          <div><span className="indicator-settings-color" style={{ background: draft.color }} /><div><strong>{copy.name}</strong><small>{getIndicatorDisplayName(indicator, draft, locale)}</small></div></div>
           <button type="button" onClick={onClose} aria-label={indicatorText(locale, "close")}><X size={18} /></button>
         </header>
         <nav className="settings-tabs" role="tablist">
@@ -2420,6 +2665,8 @@ function IndicatorSettingsDialog({
         <div className="settings-content">
           {tab === "パラメーター" && (
             <div className="settings-form-grid">
+              {isVolumeIndicator && <p>{indicatorText(locale, indicator.id === "volume" ? "volumeHelp" : "volumeProfileHelp")}</p>}
+              {indicator.id === "volumeProfile" && <label><span>{indicatorText(locale, "priceRows")}</span><input type="number" min="4" max="120" value={draft.length} onChange={(event) => updateNumber("length", event.target.value)} /></label>}
               {usesLength && <label><span>{indicatorText(locale, "length")}</span><input type="number" min="2" max="500" value={draft.length} onChange={(event) => updateNumber("length", event.target.value)} /></label>}
               {indicator.id === "bollinger" && <label><span>{indicatorText(locale, "standardDeviation")}</span><input type="number" min="0.1" max="10" step="0.1" value={draft.multiplier} onChange={(event) => updateNumber("multiplier", event.target.value)} /></label>}
               {indicator.id === "macd" && <>
@@ -2433,16 +2680,17 @@ function IndicatorSettingsDialog({
               </>}
               {usesPriceSource && <label><span>{indicatorText(locale, "source")}</span><select value={draft.source} onChange={(event) => setDraft((current) => ({ ...current, source: event.target.value as IndicatorSettings["source"] }))}>{["終値", "始値", "高値", "安値", "HL2", "HLC3"].map((item) => <option value={item} key={item}>{localizeIndicatorSource(locale, item)}</option>)}</select></label>}
               {indicator.id === "vwap" && <label><span>{indicatorText(locale, "anchorPeriod")}</span><select value={draft.anchor} onChange={(event) => setDraft((current) => ({ ...current, anchor: event.target.value as IndicatorSettings["anchor"] }))}>{["セッション", "週", "月", "四半期", "年"].map((item) => <option value={item} key={item}>{localizeIndicatorAnchor(locale, item)}</option>)}</select></label>}
-              <label><span>{indicatorText(locale, "offset")}</span><input type="number" min="-100" max="100" value={draft.offset} disabled /></label>
-              <p role="note">{unsupportedSettingsMessage}</p>
+              {!isVolumeIndicator && <><label><span>{indicatorText(locale, "offset")}</span><input type="number" min="-100" max="100" value={draft.offset} disabled /></label>
+              <p role="note">{unsupportedSettingsMessage}</p></>}
             </div>
           )}
           {tab === "スタイル" && (
             <div className="settings-form-grid">
-              <label className="color-setting"><span>{indicatorText(locale, "lineColor")}</span><span><input type="color" value={draft.color} onChange={(event) => setDraft((current) => ({ ...current, color: event.target.value }))} /><b>{draft.color.toUpperCase()}</b></span></label>
-              <label><span>{indicatorText(locale, "width")}</span><select value={draft.lineWidth} onChange={(event) => setDraft((current) => ({ ...current, lineWidth: Number(event.target.value) as LineWidth }))}>{[1, 2, 3, 4].map((item) => <option value={item} key={item}>{item}px</option>)}</select></label>
+              <label className="color-setting"><span>{indicatorText(locale, indicator.id === "volume" ? "upVolumeColor" : indicator.id === "volumeProfile" ? "barColor" : "lineColor")}</span><span><input type="color" value={draft.color} onChange={(event) => setDraft((current) => ({ ...current, color: event.target.value }))} /><b>{draft.color.toUpperCase()}</b></span></label>
+              {indicator.id === "volume" && <label className="color-setting"><span>{indicatorText(locale, "downVolumeColor")}</span><span><input type="color" value={draft.downColor ?? "#ff6467"} onChange={(event) => setDraft((current) => ({ ...current, downColor: event.target.value }))} /><b>{(draft.downColor ?? "#ff6467").toUpperCase()}</b></span></label>}
+              {!isVolumeIndicator && <><label><span>{indicatorText(locale, "width")}</span><select value={draft.lineWidth} onChange={(event) => setDraft((current) => ({ ...current, lineWidth: Number(event.target.value) as LineWidth }))}>{[1, 2, 3, 4].map((item) => <option value={item} key={item}>{item}px</option>)}</select></label>
               <label><span>{indicatorText(locale, "line")}</span><select value={draft.lineStyle} onChange={(event) => setDraft((current) => ({ ...current, lineStyle: event.target.value as IndicatorLineStyle }))}><option value="solid">{indicatorText(locale, "solid")}</option><option value="dashed">{indicatorText(locale, "dashed")}</option><option value="dotted">{indicatorText(locale, "dotted")}</option></select></label>
-              <div className="line-preview"><span style={{ borderColor: draft.color, borderWidth: `${draft.lineWidth}px`, borderStyle: draft.lineStyle === "solid" ? "solid" : draft.lineStyle === "dashed" ? "dashed" : "dotted" }} /></div>
+              <div className="line-preview"><span style={{ borderColor: draft.color, borderWidth: `${draft.lineWidth}px`, borderStyle: draft.lineStyle === "solid" ? "solid" : draft.lineStyle === "dashed" ? "dashed" : "dotted" }} /></div></>}
             </div>
           )}
           {tab === "表示" && (
@@ -2459,7 +2707,7 @@ function IndicatorSettingsDialog({
           <button type="button" className="settings-default" onClick={() => setDraft({ ...DEFAULT_INDICATOR_SETTINGS[indicator.id], visibility: { ...DEFAULT_INDICATOR_SETTINGS[indicator.id].visibility } })}>{indicatorText(locale, "default")}</button>
           <span />
           <button type="button" onClick={onClose}>{indicatorText(locale, "cancel")}</button>
-          <button type="button" className="primary-action" onClick={() => onApply(draft)}>{indicatorText(locale, "apply")}</button>
+          <button type="button" className="primary-action" onClick={() => onApply(indicator.id === "volumeProfile" ? { ...draft, length: Number.isFinite(draft.length) ? Math.max(4, Math.min(120, Math.round(draft.length))) : 40 } : draft)}>{indicatorText(locale, "apply")}</button>
         </footer>
       </section>
     </div>
@@ -2467,39 +2715,35 @@ function IndicatorSettingsDialog({
 }
 
 function StrategyHome({
+  screen, setScreen, selectedId, setSelectedId, tab, setTab,
   onOpenChart,
   onAction,
 }: {
+  screen: "index" | "detail";
+  setScreen: Dispatch<SetStateAction<"index" | "detail">>;
+  selectedId: string;
+  setSelectedId: Dispatch<SetStateAction<string>>;
+  tab: PortfolioTab;
+  setTab: Dispatch<SetStateAction<PortfolioTab>>;
   onOpenChart: (ticker: string) => void;
   onAction: (message: string) => void;
 }) {
   const { locale } = useI18n();
   const st = useMemo(() => createStrategyTranslator(locale), [locale]);
-  const baseStrategies = useMemo(() => sampleStrategiesForLocale(locale), [locale]);
+  const baseStrategies = useMemo(() => strategyPackagesForLocale(locale), [locale]);
   const fallbackStrategy = useMemo<StrategyRecord>(() => {
     const strategy = baseStrategies[0];
     return {
       ...strategy,
       origin: "built_in",
       version: 1,
-      performance: {
-        provenance: "illustrative_catalog",
-        netReturn: strategy.netReturn,
-        maxDrawdown: strategy.maxDrawdown,
-        recoveryFactor: strategy.recoveryFactor,
-        sharpe: strategy.sharpe,
-        forwardReturn: strategy.forwardReturn,
-        winRate: strategy.winRate,
-        trades: strategy.trades,
-        symbols: strategy.symbols,
-        cash: strategy.cash,
-      },
+      performance: { ...strategy.performance },
       createdAt: null,
       updatedAt: null,
     };
   }, [baseStrategies]);
   const [strategyRecords, setStrategyRecords] = useState<StrategyRecord[] | null>(null);
-  const strategies = strategyRecords ?? [];
+  const strategies = useMemo(() => strategyRecords ?? [], [strategyRecords]);
   const [strategyCatalogStatus, setStrategyCatalogStatus] = useState<"loading" | "ready" | "error">("loading");
   const [strategyMutationStatus, setStrategyMutationStatus] = useState<"idle" | "creating" | "duplicating" | "saving" | "deleting">("idle");
   const [strategyMutationError, setStrategyMutationError] = useState<"request" | "conflict" | null>(null);
@@ -2510,19 +2754,17 @@ function StrategyHome({
   const [strategyStockModels, setStrategyStockModels] = useState<Readonly<Record<string, Stock>>>(() => (
     Object.fromEntries(STOCKS.map((item) => [item.ticker, stockIdentityPlaceholder(item)]))
   ));
+  const [strategyMarketStatus, setStrategyMarketStatus] = useState<"loading" | "ready" | "partial" | "error">("loading");
   const [settingsName, setSettingsName] = useState("");
   const [settingsHeadline, setSettingsHeadline] = useState("");
   const [createName, setCreateName] = useState("");
   const [createHeadline, setCreateHeadline] = useState("");
   const [createCategory, setCreateCategory] = useState("");
-  const [screen, setScreen] = useState<"index" | "detail">("index");
-  const [selectedId, setSelectedId] = useState<string>(DEFAULT_SAMPLE_STRATEGY_ID);
-  const [tab, setTab] = useState<PortfolioTab>("概要");
   const [chartMode, setChartMode] = useState<"資産額" | "パフォーマンス">("資産額");
   const [period, setPeriod] = useState<"1M" | "3M" | "6M" | "YTD" | "1Y" | "ALL">("YTD");
   const [showSold, setShowSold] = useState(false);
   const [transactionTab, setTransactionTab] = useState<"取引" | "現金">("取引");
-  const [analysisPeriod, setAnalysisPeriod] = useState<"TTM" | "2026">("TTM");
+  const [analysisPeriod, setAnalysisPeriod] = useState<"TTM" | "ALL">("TTM");
   const [transactionsByStrategy, setTransactionsByStrategy] = useState<Record<string, PortfolioTransaction[]>>({});
   const [transactionLoadStatus, setTransactionLoadStatus] = useState<"loading" | "ready" | "error">("loading");
   const [transactionMutationStatus, setTransactionMutationStatus] = useState<"idle" | "saving" | "error">("idle");
@@ -2531,7 +2773,7 @@ function StrategyHome({
   const transactionReadEpochRef = useRef(0);
   const transactionMutationEpochRef = useRef(0);
   const transactionSavingRef = useRef(false);
-  const selectedStrategyIdRef = useRef<string>(DEFAULT_SAMPLE_STRATEGY_ID);
+  const selectedStrategyIdRef = useRef<string>(DEFAULT_STRATEGY_PACKAGE_ID);
   const [dialog, setDialog] = useState<"transaction" | "import" | "settings" | "delete" | "create" | null>(null);
   const [portfolioMenuOpen, setPortfolioMenuOpen] = useState(false);
   const portfolioMenuHostRef = useRef<HTMLDivElement>(null);
@@ -2541,7 +2783,7 @@ function StrategyHome({
     boundaryRefs: portfolioMenuBoundaries,
     onDismiss: () => setPortfolioMenuOpen(false),
   });
-  const [strategyDuration, setStrategyDuration] = useState<StrategyDuration>("1Y");
+  const [strategyDuration, setStrategyDuration] = useState<StrategyDuration>("全期間");
   const [strategySortKey, setStrategySortKey] = useState<StrategySortKey>("profit");
   const [strategySortDirection, setStrategySortDirection] = useState<"asc" | "desc">("desc");
   const [strategyQuery, setStrategyQuery] = useState("");
@@ -2553,13 +2795,26 @@ function StrategyHome({
   const [transactionPrice, setTransactionPrice] = useState("");
   const activeStrategyDurationLabel = strategyDurationLabel(locale, strategyDuration);
   const selected = strategies.find((strategy) => strategy.id === selectedId) ?? strategies[0] ?? fallbackStrategy;
+  const selectedHasBacktest = selected.performance.provenance === "backtest_artifact";
+  const portfolioTabs: PortfolioTab[] = ["概要", "取引", "保有銘柄"];
   const strategyCatalogReady = strategyRecords !== null;
   const selectedStrategyIsVisible = strategies.some((strategy) => strategy.id === selected.id);
-  const transactions = transactionsByStrategy[selected.id] ?? [];
+  const transactions = useMemo(
+    () => transactionsByStrategy[selected.id] ?? [],
+    [selected.id, transactionsByStrategy],
+  );
   useEffect(() => {
     selectedStrategyIdRef.current = selected.id;
   }, [selected.id]);
   const selectedCatalogIndex = Math.max(0, baseStrategies.findIndex((strategy) => strategy.id === selected.id));
+  const selectedPackage = selected.origin === "built_in"
+    ? strategyPackageById(selected.id)
+    : null;
+  const selectedBacktestRun = selectedHasBacktest ? selectedPackage?.run ?? null : null;
+  const selectedBacktestEquity = selectedHasBacktest ? selectedPackage?.equity ?? null : null;
+  const selectedBacktestEquityPoints = selectedBacktestEquity?.points.length
+    ? selectedBacktestEquity.points
+    : null;
   const illustrativeStrategyChartsAvailable = selected.origin === "built_in"
     && selected.performance.provenance === "illustrative_catalog";
   const samplePortfolioHoldings = useMemo(
@@ -2568,73 +2823,93 @@ function StrategyHome({
       : Object.freeze([]),
     [selected.id, selected.origin],
   );
+  const transactionPortfolioHoldings = useMemo(() => derivePortfolioHoldingLots(
+    transactions.map((transaction) => ({
+      transactionId: transaction.id,
+      createdAt: transaction.createdAt,
+      date: transaction.date,
+      symbol: transaction.ticker,
+      side: transaction.side === "買付" ? "buy" as const
+        : transaction.side === "売却" ? "sell" as const
+          : "dividend" as const,
+      shares: transaction.shares,
+      price: transaction.price,
+      fee: transaction.fee,
+    })),
+    { includeClosed: !selectedHasBacktest && showSold },
+  ), [selectedHasBacktest, showSold, transactions]);
+  const sourcePortfolioHoldings = samplePortfolioHoldings.length > 0
+    ? samplePortfolioHoldings
+    : transactionPortfolioHoldings;
   const markedPortfolio = useMemo(
-    () => markSamplePortfolio(samplePortfolioHoldings, strategyMarketMarks, selected.cash),
-    [samplePortfolioHoldings, selected.cash, strategyMarketMarks],
+    () => markSamplePortfolio(sourcePortfolioHoldings, strategyMarketMarks, selected.cash ?? 0),
+    [selected.cash, sourcePortfolioHoldings, strategyMarketMarks],
   );
   const portfolioHoldings = markedPortfolio.holdings;
-  const unrealizedGain = markedPortfolio.unrealizedGain ?? 0;
+  const backtestPositionRows = selectedBacktestRun?.execution.finalPositions ?? [];
+  const recordedPortfolioValue = selectedBacktestRun?.execution.finalValue ?? undefined;
+  const recordedCashPercent = selectedBacktestRun?.execution.finalCashPercent ?? undefined;
+  const recordedHoldingsValue = selectedBacktestRun
+    ? backtestPositionRows.reduce((sum, holding) => sum + holding.marketValue, 0)
+    : undefined;
+  const recordedOpenCostBasis = selectedBacktestRun
+    ? backtestPositionRows.reduce((sum, holding) => sum + holding.shares * holding.averageCost, 0)
+    : 0;
+  const recordedUnrealizedGain = selectedBacktestRun
+    ? backtestPositionRows.reduce((sum, holding) => sum + holding.unrealizedPnl, 0)
+    : undefined;
+  const summaryHoldingsValue = selectedBacktestRun
+    ? recordedHoldingsValue
+    : markedPortfolio.holdingsValue ?? undefined;
+  const unrealizedGain = selectedBacktestRun
+    ? recordedUnrealizedGain
+    : markedPortfolio.unrealizedGain ?? undefined;
   const { cashValue, cards: strategySummaryCards } = buildStrategySummaryMetricRegistry({
     selected,
-    selectedCatalogIndex,
     unrealizedGain,
-    ...(markedPortfolio.holdingsValue === null
+    recordedPortfolioValue,
+    recordedCashPercent,
+    annualReturn: selectedBacktestRun?.execution.cagr ?? undefined,
+    benchmarkAnnualReturn: selectedBacktestRun?.benchmark?.metrics.cagr ?? undefined,
+    ...(summaryHoldingsValue === undefined
       ? {}
-      : { holdingsMarketValue: markedPortfolio.holdingsValue }),
+      : { holdingsMarketValue: summaryHoldingsValue }),
     translate: st,
   });
   const isStrategySummaryMetricAvailable = (id: string) => {
-    if (selected.origin === "built_in") {
-      if (id === "portfolio.value" || id === "portfolio.unrealizedGain") {
-        return markedPortfolio.complete;
-      }
-      return true;
-    }
-    if (id === "portfolio.totalGain" || id === "portfolio.annualReturn") {
-      return selected.performance.netReturn !== null;
-    }
+    if (id === "portfolio.value") return markedPortfolio.complete
+      || recordedPortfolioValue !== undefined;
+    if (id === "portfolio.unrealizedGain") return unrealizedGain !== undefined;
+    if (id === "portfolio.totalGain") return selected.performance.netReturn !== null;
+    if (id === "portfolio.annualReturn") return selectedBacktestRun?.execution.cagr !== null
+      && selectedBacktestRun?.execution.cagr !== undefined;
+    if (id === "risk.recoveryFactor") return selected.performance.recoveryFactor !== null;
+    if (id === "trades.winRate") return selected.performance.winRate !== null;
+    if (id === "risk.beta" || id === "risk.sortino") return false;
     if (id === "risk.sharpe") return selected.performance.sharpe !== null;
     if (id === "risk.maxDrawdown") return selected.performance.maxDrawdown !== null;
     return false;
   };
-  const holdingRows = showSold && selected.origin === "built_in"
-    ? [...portfolioHoldings, { ticker: "META", shares: 0, average: 478.2, currentPrice: null, value: 0, allocation: 0, daily: null, unrealized: 4832, beta: 1.22, rsi: 53.9, performance1M: 8.1, technicalRating: "買い" as const }]
-    : portfolioHoldings;
-  const durationFactor: Record<StrategyDuration, number> = { "1M": 0.12, "3M": 0.31, "6M": 0.58, "1Y": 1, "3Y": 1.68, "全期間": 2.14 };
+  const holdingRows = portfolioHoldings;
   const performanceProvenanceLabel = (strategy: StrategyRecord) => {
     if (strategy.performance.provenance === "illustrative_catalog") return st("sample.badge");
+    if (strategy.performance.provenance === "backtest_artifact") return st("sample.backtestArtifact");
     if (strategy.performance.provenance === "user_supplied") return st("sample.userSupplied");
     if (strategy.performance.provenance === "transaction_snapshot") return st("sample.transactionSnapshot");
     return st("sample.unavailable");
   };
-  const metricsFor = (strategy: StrategyRecord) => {
-    if (strategy.performance.provenance !== "illustrative_catalog") {
-      return {
-        profit: strategy.performance.netReturn,
-        maxDrawdown: strategy.performance.maxDrawdown,
-        recoveryFactor: strategy.performance.recoveryFactor,
-        sharpe: strategy.performance.sharpe,
-        winRate: strategy.performance.winRate,
-      };
-    }
-    const factor = durationFactor[strategyDuration];
-    const profit = strategy.performance.netReturn === null
-      ? null
-      : strategy.performance.netReturn * factor;
-    const maxDrawdown = strategy.performance.maxDrawdown === null
-      ? null
-      : strategy.performance.maxDrawdown * Math.min(1.22, 0.38 + factor * 0.62);
-    const recoveryFactor = profit === null || maxDrawdown === null
-      ? null
-      : Math.abs(maxDrawdown) > 0 ? profit / Math.abs(maxDrawdown) : 0;
-    const sharpe = strategy.performance.sharpe === null
-      ? null
-      : strategy.performance.sharpe * (0.84 + Math.min(factor, 1.4) * 0.16);
-    const winRate = strategy.performance.winRate === null
-      ? null
-      : 50 + (strategy.performance.winRate - 50) * (0.72 + Math.min(factor, 1.2) * 0.28);
-    return { profit, maxDrawdown, recoveryFactor, sharpe, winRate };
-  };
+  const strategyMetricsById = useMemo(() => new Map(strategies.map((strategy) => [
+    strategy.id,
+    strategyListMetricsForDuration(
+      strategy.performance,
+      strategyDuration,
+      strategy.performance.provenance === "backtest_artifact"
+        ? strategyPackageById(strategy.id)
+        : null,
+    ),
+  ])), [strategies, strategyDuration]);
+  const metricsFor = (strategy: StrategyRecord) => strategyMetricsById.get(strategy.id)
+    ?? strategyListMetricsForDuration(strategy.performance, strategyDuration);
   const strategyStockFor = (ticker: string) => strategyStockModels[ticker]
     ?? tickerIdentityPlaceholder(ticker);
   const portfolioMoney = (value: number | null) => value === null
@@ -2646,6 +2921,55 @@ function StrategyHome({
   const portfolioPercent = (value: number | null, signed = false) => value === null
     ? "—"
     : `${signed && value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+  const displayedHoldingsValue = markedPortfolio.complete
+    ? markedPortfolio.holdingsValue
+    : recordedHoldingsValue ?? null;
+  const backtestComparisonRows = selectedBacktestRun ? [
+    {
+      label: st("backtest.totalReturn"),
+      strategy: portfolioPercent(selected.performance.netReturn, true),
+      benchmark: portfolioPercent(selectedBacktestRun.benchmark?.metrics.netReturn ?? null, true),
+    },
+    {
+      label: st("backtest.cagr"),
+      strategy: portfolioPercent(selectedBacktestRun.execution.cagr, true),
+      benchmark: portfolioPercent(selectedBacktestRun.benchmark?.metrics.cagr ?? null, true),
+    },
+    {
+      label: st("backtest.sharpe"),
+      strategy: selected.performance.sharpe?.toFixed(2) ?? "—",
+      benchmark: selectedBacktestRun.benchmark?.metrics.sharpe?.toFixed(2) ?? "—",
+    },
+    {
+      label: st("backtest.maxDrawdown"),
+      strategy: portfolioPercent(selected.performance.maxDrawdown),
+      benchmark: portfolioPercent(selectedBacktestRun.benchmark?.metrics.maxDrawdown ?? null),
+    },
+  ] : [];
+  const backtestExecutionItems = selectedBacktestRun ? [
+    {
+      label: st("backtest.finalValue"),
+      value: selectedBacktestRun.execution.finalValue === null
+        ? "—"
+        : portfolioMoney(selectedBacktestRun.execution.finalValue),
+    },
+    {
+      label: st("backtest.excessReturn"),
+      value: portfolioPercent(selectedBacktestRun.benchmark?.metrics.excessReturn ?? null, true),
+    },
+    { label: st("backtest.closedTrades"), value: selectedBacktestRun.execution.closedTradeCount.toLocaleString("en-US") },
+    { label: st("backtest.openPositions"), value: selectedBacktestRun.execution.openTradeCount.toLocaleString("en-US") },
+    { label: st("backtest.totalFees"), value: `$${selectedBacktestRun.execution.totalFees.toLocaleString("en-US", { maximumFractionDigits: 2 })}` },
+    { label: st("backtest.dataSource"), value: `${selectedBacktestRun.data.provider} ${selectedBacktestRun.data.providerVersion}` },
+  ] : [];
+  const backtestPositionTable = (
+    <div className="portfolio-table-scroll backtest-position-table-scroll">
+      <table className="holdings-data-table backtest-holdings-table" aria-label={st("backtest.positionTitle")}>
+        <thead><tr><th>{st("holdings.symbol")}</th><th>{st("holdings.shares")}</th><th>{st("holdings.averageCost")}</th><th>{st("holdings.costBasis")}</th><th>{st("holdings.closePrice")}</th><th>{st("holdings.recordedValue")}</th><th>{st("holdings.allocation")}</th><th>{st("holdings.unrealized")}</th></tr></thead>
+        <tbody>{backtestPositionRows.map((holding) => { const stock = strategyStockFor(holding.symbol); return <tr key={holding.symbol}><td><button type="button" className="holding-symbol" onClick={() => onOpenChart(holding.symbol)}><CompanyLogo stock={stock} /><span><strong>{holding.symbol}</strong><small>{stock.name}</small></span></button></td><td>{holding.shares.toLocaleString("en-US")}</td><td>{formatPrice(stock, holding.averageCost)}</td><td>{portfolioMoney(holding.shares * holding.averageCost)}</td><td>{formatPrice(stock, holding.markPrice)}</td><td>{portfolioMoney(holding.marketValue)}</td><td>{holding.allocationPercent.toFixed(1)}%</td><td className={holding.unrealizedPnl >= 0 ? "positive" : "negative-text"}>{signedPortfolioMoney(holding.unrealizedPnl)}</td></tr>; })}</tbody>
+      </table>
+    </div>
+  );
   const strategyCategories = ["すべて", ...Array.from(new Set(strategies.map((strategy) => strategy.category)))];
   const activeStrategyCategory = strategyCategories.includes(strategyCategory) ? strategyCategory : "すべて";
   const listedStrategies = strategies
@@ -2687,14 +3011,19 @@ function StrategyHome({
   };
 
   const selectPortfolio = (id: string) => {
+    if (selectedStrategyIdRef.current !== id) {
+      setTransactionLoadStatus("loading");
+    }
     selectedStrategyIdRef.current = id;
-    setTransactionLoadStatus("loading");
     setSelectedId(id);
   };
 
   const openPortfolio = (id: string) => {
+    const target = strategies.find((strategy) => strategy.id === id);
+    const hasRecordedBacktest = target?.performance.provenance === "backtest_artifact";
     selectPortfolio(id);
-    setTab("概要");
+    setTab(hasRecordedBacktest ? "取引" : "概要");
+    setPeriod(hasRecordedBacktest ? "ALL" : "YTD");
     setScreen("detail");
   };
 
@@ -2730,6 +3059,13 @@ function StrategyHome({
     setStrategyCatalogStatus("loading");
     setStrategyMutationError(null);
     setStrategyRefreshVersion((current) => current + 1);
+  };
+
+  const refreshStrategyData = () => {
+    refreshStrategyCatalog();
+    setTransactionLoadStatus("loading");
+    setTransactionRefreshVersion((current) => current + 1);
+    onAction(st("toast.strategyRefreshed"));
   };
 
   const markStrategyMutationFailure = (status: number) => {
@@ -2768,7 +3104,7 @@ function StrategyHome({
         setStrategyRecords(visibleStrategies);
         setSelectedId((current) => visibleStrategies.some((strategy) => strategy.id === current)
           ? current
-          : visibleStrategies[0]?.id ?? DEFAULT_SAMPLE_STRATEGY_ID);
+          : visibleStrategies[0]?.id ?? DEFAULT_STRATEGY_PACKAGE_ID);
         setStrategyCatalogStatus("ready");
       })
       .catch((error: unknown) => {
@@ -2782,47 +3118,54 @@ function StrategyHome({
         strategyCatalogReadControllerRef.current = null;
       }
     };
-  }, [locale, strategyRefreshVersion]);
+  }, [locale, strategyRefreshVersion, setSelectedId]);
 
   useEffect(() => {
     if (screen !== "detail") return;
     const controller = new AbortController();
     const symbols = [...STRATEGY_MARKET_SYMBOLS];
-    const quoteRequest = fetch("/api/v1/watchlists/quotes", {
+    queueMicrotask(() => {
+      if (!controller.signal.aborted) setStrategyMarketStatus("loading");
+    });
+    const quoteRequest = fetch(`/api/v1/watchlists/quotes${strategyRefreshVersion > 0 ? "?fresh=1" : ""}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ symbols }),
       cache: "no-store",
       signal: controller.signal,
     })
-      .then(async (response) => response.ok
-        ? response.json() as Promise<WatchlistQuotesResponse>
-        : null)
-      .catch(() => null);
+      .then(async (response) => ({
+        ok: response.ok,
+        payload: response.ok
+          ? await response.json() as WatchlistQuotesResponse
+          : null,
+      }))
+      .catch(() => ({ ok: false, payload: null }));
     const barsRequest = Promise.all(symbols.map(async (symbol) => {
       try {
         const response = await fetch(
-          `/api/v1/symbols/${encodeURIComponent(symbol)}/bars?range=5d&interval=1d&count=3`,
+          `/api/v1/symbols/${encodeURIComponent(symbol)}/bars?range=5d&interval=1d&count=3${strategyRefreshVersion > 0 ? "&fresh=1" : ""}`,
           { cache: "no-store", signal: controller.signal },
         );
-        if (!response.ok) return [symbol, []] as const;
+        if (!response.ok) return [symbol, [], false] as const;
         const payload = await response.json() as MarketBarsResponse;
         return [
           symbol,
           payload.dataMode === "provider" ? payload.bars.items : [],
+          true,
         ] as const;
       } catch {
-        return [symbol, []] as const;
+        return [symbol, [], false] as const;
       }
     }));
 
-    void Promise.all([quoteRequest, barsRequest]).then(([quoteResponse, barEntries]) => {
+    void Promise.all([quoteRequest, barsRequest]).then(([quoteResult, barEntries]) => {
       if (controller.signal.aborted) return;
       const quoteItems = new Map(
-        (quoteResponse?.dataMode === "provider" ? quoteResponse.items : [])
+        (quoteResult.payload?.dataMode === "provider" ? quoteResult.payload.items : [])
           .map((item) => [item.symbol, item] as const),
       );
-      const barsBySymbol = new Map(barEntries);
+      const barsBySymbol = new Map(barEntries.map(([symbol, bars]) => [symbol, bars] as const));
       const nextMarks: Record<string, StrategyMarketMark> = {};
       const nextStocks: Record<string, Stock> = {};
       for (const symbol of symbols) {
@@ -2845,8 +3188,16 @@ function StrategyHome({
           changeValue,
         };
       }
-      setStrategyMarketMarks(Object.freeze(nextMarks));
+      const receivedMarkCount = Object.keys(nextMarks).length;
+      const everyRequestSucceeded = quoteResult.ok
+        && barEntries.every(([, , ok]) => ok);
+      setStrategyMarketMarks((current) => Object.freeze({ ...current, ...nextMarks }));
       setStrategyStockModels((current) => Object.freeze({ ...current, ...nextStocks }));
+      setStrategyMarketStatus(receivedMarkCount === 0
+        ? "error"
+        : everyRequestSucceeded && receivedMarkCount === symbols.length
+          ? "ready"
+          : "partial");
     });
 
     return () => controller.abort();
@@ -3167,13 +3518,15 @@ function StrategyHome({
       <LoadingIndicator label={st("notice.loading")} />
     </div>
   ) : null;
+  const strategyDataRefreshing = strategyCatalogStatus === "loading"
+    || (screen === "detail" && (transactionLoadStatus === "loading" || strategyMarketStatus === "loading"));
 
   if (screen === "index") {
     return (
       <section className="strategy-home-shell portfolio-index-shell strategy-report-shell" aria-label={st("index.aria")}>
         <header className="portfolio-index-header strategy-report-header">
           <div><h1>{st("index.title")}</h1></div>
-          <div><button type="button" onClick={() => { refreshStrategyCatalog(); onAction(st("toast.strategyRefreshed")); }}><ClockCounterClockwise size={15} /> {st("action.refresh")}</button><button type="button" className="primary-action" disabled={!strategyCatalogReady || strategyMutationStatus !== "idle"} onClick={openCreateStrategy}><Plus size={16} /> {st("action.addStrategy")}</button></div>
+          <div><button type="button" className={`strategy-refresh-action ${strategyDataRefreshing ? "is-loading" : ""}`} aria-busy={strategyDataRefreshing} title={st("action.refreshDescription")} disabled={strategyDataRefreshing} onClick={refreshStrategyData}>{!strategyDataRefreshing && <ClockCounterClockwise size={15} />} {strategyDataRefreshing ? <LoadingIndicator label={st("action.refreshing")} /> : st("action.refresh")}</button><button type="button" className="primary-action" disabled={!strategyCatalogReady || strategyMutationStatus !== "idle"} onClick={openCreateStrategy}><Plus size={16} /> {st("action.addStrategy")}</button></div>
         </header>
         <div className={`portfolio-index-content strategy-report-content ${strategyNotice ? "has-notice" : ""}`}>
           {strategyNotice}
@@ -3189,7 +3542,7 @@ function StrategyHome({
             <label><span>{st("filter.duration")}</span><select value={strategyDuration} onChange={(event) => setStrategyDuration(event.target.value as StrategyDuration)}>{(["1M", "3M", "6M", "1Y", "3Y", "全期間"] as StrategyDuration[]).map((item) => <option value={item} key={item}>{strategyDurationLabel(locale, item)}</option>)}</select></label>
             <label><span>{st("filter.category")}</span><select value={activeStrategyCategory} onChange={(event) => setStrategyCategory(event.target.value)}>{strategyCategories.map((item) => <option value={item} key={item}>{item === "すべて" ? st("filter.all") : item}</option>)}</select></label>
             <label><span>{st("filter.adoption")}</span><select value={strategyStatus} onChange={(event) => setStrategyStatus(event.target.value as typeof strategyStatus)}><option value="すべて">{st("filter.all")}</option><option value="採用済み">{st("filter.adopted")}</option><option value="未採用">{st("filter.notAdopted")}</option></select></label>
-            <button type="button" onClick={() => { setStrategyQuery(""); setStrategyCategory("すべて"); setStrategyStatus("すべて"); setStrategyDuration("1Y"); setStrategySortKey("profit"); setStrategySortDirection("desc"); }}>{st("filter.reset")}</button>
+            <button type="button" onClick={() => { setStrategyQuery(""); setStrategyCategory("すべて"); setStrategyStatus("すべて"); setStrategyDuration("全期間"); setStrategySortKey("profit"); setStrategySortDirection("desc"); }}>{st("filter.reset")}</button>
           </section>
 
           <div className="strategy-report-table-scroll">
@@ -3219,7 +3572,7 @@ function StrategyHome({
                     <td><strong>{metric.recoveryFactor?.toFixed(2) ?? "—"}</strong></td>
                     <td><strong>{metric.sharpe?.toFixed(2) ?? "—"}</strong></td>
                     <td><div className="strategy-audit-cell" title={strategy.audit.verdict}>{strategy.audit.overfit === null && strategy.audit.leakage === null ? <span>—</span> : <span>{strategy.audit.overfit === null ? <i>{st("audit.overfitNotEvaluated")}</i> : <i className={riskTone(strategy.audit.overfit)}>{st("audit.overfit", { score: strategy.audit.overfit })}</i>}{strategy.audit.leakage === null ? <i>{st("audit.leakageNotEvaluated")}</i> : <i className={riskTone(strategy.audit.leakage)}>{st("audit.leakage", { score: strategy.audit.leakage })}</i>}</span>}</div></td>
-                    {listedStrategies.some((item) => item.performance.forwardReturn !== null) && <td><div className="strategy-custom-cell"><strong className={strategy.performance.forwardReturn === null ? "" : strategy.forwardReturn >= 0 ? "positive" : "negative-text"}>{strategy.performance.forwardReturn === null ? "—" : `${strategy.forwardReturn >= 0 ? "+" : ""}${strategy.forwardReturn.toFixed(1)}%`}</strong><small>{strategy.performance.provenance === "illustrative_catalog" ? st("sample.illustrative") : performanceProvenanceLabel(strategy)}</small></div></td>}
+                    {listedStrategies.some((item) => item.performance.forwardReturn !== null) && <td><div className="strategy-custom-cell"><strong className={strategy.performance.forwardReturn === null ? "" : strategy.performance.forwardReturn >= 0 ? "positive" : "negative-text"}>{strategy.performance.forwardReturn === null ? "—" : `${strategy.performance.forwardReturn >= 0 ? "+" : ""}${strategy.performance.forwardReturn.toFixed(1)}%`}</strong><small>{strategy.performance.provenance === "illustrative_catalog" ? st("sample.illustrative") : performanceProvenanceLabel(strategy)}</small></div></td>}
                     <td><strong>{metric.winRate === null ? "—" : `${metric.winRate.toFixed(1)}%`}</strong></td>
                   </tr>;
                 })}
@@ -3248,56 +3601,98 @@ function StrategyHome({
     <section className="strategy-home-shell portfolio-detail-shell" aria-label={st("detail.aria")}>
       <header className="portfolio-detail-header">
         <button type="button" className="back-to-portfolios" onClick={() => setScreen("index")}><CaretRight size={15} /> {st("detail.back")}</button>
-        <div className="portfolio-title-block"><select aria-label={st("detail.selectPortfolio")} value={selected.id} onChange={(event) => selectPortfolio(event.target.value)}>{strategies.map((strategy) => <option value={strategy.id} key={strategy.id}>{strategy.name}</option>)}</select><span>{selected.headline}</span></div>
+        <div className="portfolio-title-block"><h1>{selected.name}</h1><span>{selected.headline}</span></div>
         <div className="portfolio-header-actions">
-          <button type="button" onClick={refreshStrategyCatalog}><ClockCounterClockwise size={16} /> {st("action.refresh")}</button>
-          <button type="button" className="primary-action" onClick={() => openTransaction()}><Plus size={16} /> {st("detail.addTransaction")}</button>
+          <button type="button" className={`strategy-refresh-action ${strategyDataRefreshing ? "is-loading" : ""}`} aria-busy={strategyDataRefreshing} title={st("action.refreshDescription")} disabled={strategyDataRefreshing} onClick={refreshStrategyData}>{!strategyDataRefreshing && <ClockCounterClockwise size={16} />} {strategyDataRefreshing ? <LoadingIndicator label={st("action.refreshing")} /> : st("action.refresh")}</button>
+          <button type="button" className="primary-action" disabled={selected.origin === "built_in"} onClick={() => openTransaction()}><Plus size={16} /> {st("detail.addTransaction")}</button>
           <div className="portfolio-menu-host" ref={portfolioMenuHostRef}><IconButton label={st("detail.portfolioMenu")} hasPopup="menu" expanded={portfolioMenuOpen} controls="portfolio-actions-menu" onClick={() => setPortfolioMenuOpen((value) => !value)}><DotsThree size={19} /></IconButton>{portfolioMenuOpen && <div id="portfolio-actions-menu" className="portfolio-menu" role="menu"><button type="button" disabled={strategyMutationStatus !== "idle"} onClick={() => { setPortfolioMenuOpen(false); openStrategySettings(); }}><Gear size={15} /> {st("detail.editStrategy")}</button><button type="button" disabled={strategyMutationStatus !== "idle"} onClick={() => { setPortfolioMenuOpen(false); void duplicateSelectedStrategy(); }}><Copy size={15} /> {strategyMutationStatus === "duplicating" ? st("duplicate.duplicating") : st("common.duplicate")}</button><button type="button" className="danger" disabled={strategies.length <= 1 || strategyMutationStatus !== "idle"} onClick={() => { setPortfolioMenuOpen(false); setStrategyMutationError(null); setDialog("delete"); }}><Trash size={15} /> {st("common.delete")}</button></div>}</div>
         </div>
       </header>
       <div className="portfolio-detail-scroll">
         {strategyNotice}
-        <section className="portfolio-summary-cards" aria-label={st("portfolio.summaryAria")}>
-          {traderConfig.ui.strategyDetail.summaryMetrics.map((id) => {
-            const metric = strategySummaryCards[id];
-            const available = isStrategySummaryMetricAvailable(id);
-            return <div key={id} data-metric-id={id}><span>{metric.label}</span><strong className={available ? metric.tone : undefined}>{available ? metric.value : "—"}</strong><small className={available ? metric.tone : undefined}>{available ? metric.note : st("sample.unavailable")}</small></div>;
-          })}
-        </section>
         <nav className="portfolio-primary-tabs" role="tablist" aria-label={st("portfolio.viewAria")}>
-          {(["概要", "保有銘柄", "取引"] as PortfolioTab[]).map((item) => <button type="button" role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} onClick={() => setTab(item)} key={item}>{portfolioTabLabel(locale, item)}</button>)}
+          {portfolioTabs.map((item) => <button type="button" role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} onClick={() => setTab(item)} key={item}>{portfolioTabLabel(locale, item)}</button>)}
         </nav>
 
         {tab === "概要" && <div className="portfolio-tab-panel overview-panel" role="tabpanel">
+          <section className="portfolio-summary-cards" aria-label={st("portfolio.summaryAria")}>
+            {traderConfig.ui.strategyDetail.summaryMetrics.map((id) => {
+              const metric = strategySummaryCards[id];
+              const available = isStrategySummaryMetricAvailable(id);
+              return <div key={id} data-metric-id={id}><span>{metric.label}</span><strong className={available ? metric.tone : undefined}>{available ? metric.value : "—"}</strong><small className={available ? metric.tone : undefined}>{available ? metric.note : st("sample.unavailable")}</small></div>;
+            })}
+          </section>
           <section className="portfolio-main-card portfolio-change-card">
-            <header><div><h2>{st("chart.portfolioTrend")}</h2>{illustrativeStrategyChartsAvailable ? <span><i className="legend-dot portfolio-dot" /> Portfolio <i className="legend-dot benchmark-dot" /> S&P 500</span> : <span>{st("sample.unavailable")}</span>}</div>{illustrativeStrategyChartsAvailable && <div className="portfolio-chart-controls"><div className="segmented-control">{(["資産額", "パフォーマンス"] as const).map((item) => <button type="button" className={chartMode === item ? "active" : ""} onClick={() => setChartMode(item)} key={item}>{portfolioChartModeLabel(locale, item)}</button>)}</div><div className="period-control">{(["1M", "3M", "6M", "YTD", "1Y", "ALL"] as const).map((item) => <button type="button" className={period === item ? "active" : ""} onClick={() => setPeriod(item)} key={item}>{item}</button>)}</div></div>}</header>
-            {illustrativeStrategyChartsAvailable ? <PortfolioValueChart
+            <header>
+              <div>
+                <h2>{st("chart.portfolioTrend")}</h2>
+                {selectedBacktestRun
+                  ? <span>{st("backtest.period", { start: selectedBacktestRun.data.evaluationStart, end: selectedBacktestRun.data.end })} · <i className="legend-dot portfolio-dot" /> {st("backtest.strategy")} <i className="legend-dot benchmark-dot" /> {selectedBacktestRun.benchmark?.symbol ?? st("backtest.benchmark")}</span>
+                  : illustrativeStrategyChartsAvailable
+                    ? <span><i className="legend-dot portfolio-dot" /> Portfolio <i className="legend-dot benchmark-dot" /> S&amp;P 500</span>
+                    : <span>{st("sample.unavailable")}</span>}
+              </div>
+              {(selectedBacktestEquityPoints || (!selectedBacktestRun && illustrativeStrategyChartsAvailable)) && <div className="portfolio-chart-controls">
+                <div className="segmented-control">{(["資産額", "パフォーマンス"] as const).map((item) => <button type="button" className={chartMode === item ? "active" : ""} onClick={() => setChartMode(item)} key={item}>{portfolioChartModeLabel(locale, item)}</button>)}</div>
+                <div className="period-control">{(["1M", "3M", "6M", "YTD", "1Y", "ALL"] as const).map((item) => <button type="button" className={period === item ? "active" : ""} onClick={() => setPeriod(item)} key={item}>{item}</button>)}</div>
+              </div>}
+            </header>
+            {selectedBacktestRun ? <>
+              {selectedBacktestEquityPoints ? <PortfolioValueChart
+                mode={chartMode}
+                period={period}
+                seed={selectedCatalogIndex + 2}
+                points={selectedBacktestEquityPoints}
+                initialValue={selectedBacktestEquity?.initialValue}
+                ariaLabel={`${st("chart.portfolioTrend")} · ${portfolioChartModeLabel(locale, chartMode)}`}
+              /> : <StrategyChartUnavailable className="portfolio-chart-canvas" title={st("chart.portfolioTrend")} message={st("chart.unavailable")} />}
+              <div className="backtest-comparison" role="table" aria-label={st("backtest.comparisonTitle")}><div className="backtest-comparison-row backtest-comparison-head" role="row"><span role="columnheader" /><strong role="columnheader">{st("backtest.strategy")}</strong><strong role="columnheader">{st("backtest.benchmark")}</strong></div>{backtestComparisonRows.map((row) => <div className="backtest-comparison-row" role="row" key={row.label}><span role="cell">{row.label}</span><strong role="cell">{row.strategy}</strong><strong role="cell">{row.benchmark}</strong></div>)}</div>
+            </> : illustrativeStrategyChartsAvailable ? <PortfolioValueChart
               mode={chartMode}
               period={period}
               seed={selectedCatalogIndex + 2}
               ariaLabel={`${st("chart.portfolioTrend")} · ${portfolioChartModeLabel(locale, chartMode)}`}
             /> : <StrategyChartUnavailable className="portfolio-chart-canvas" title={st("chart.portfolioTrend")} message={st("chart.unavailable")} />}
           </section>
-          <div className="portfolio-overview-grid">
+          {selectedBacktestRun ? <section className="portfolio-main-card backtest-position-card"><header><div><h2>{st("backtest.positionTitle")}</h2><span>{st("backtest.positionSummary", { count: backtestPositionRows.length, cost: portfolioMoney(recordedOpenCostBasis), value: portfolioMoney(recordedHoldingsValue ?? null) })}</span></div></header>{backtestPositionTable}</section> : <div className="portfolio-overview-grid">
             <section className="portfolio-main-card"><header><div><h2>{st("allocation.title")}</h2><span>{st("allocation.subtitle")}</span></div><ChartPieSlice size={18} /></header><div className="allocation-list">{portfolioHoldings.map((holding) => <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><span><i style={{ background: holding.daily !== null && holding.daily >= 0 ? "#2962ff" : "#8b7cff" }} />{holding.ticker}</span><span>{holding.allocation === null ? "—" : `${holding.allocation.toFixed(1)}%`}</span><strong>{portfolioMoney(holding.value)}</strong></button>)}</div></section>
             <section className="portfolio-main-card"><header><div><h2>{st("movers.title")}</h2><span>{st("movers.subtitle")}</span></div><ChartLineUp size={18} /></header><div className="movers-list">{[...portfolioHoldings].sort((a, b) => (b.daily ?? Number.NEGATIVE_INFINITY) - (a.daily ?? Number.NEGATIVE_INFINITY)).map((holding) => { const holdingStock = strategyStockFor(holding.ticker); return <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><CompanyLogo stock={holdingStock} /><span><strong>{holding.ticker}</strong><small>{holdingStock.name}</small></span><b className={holding.daily === null ? "" : holding.daily >= 0 ? "positive" : "negative-text"}>{portfolioPercent(holding.daily, true)}</b></button>; })}</div></section>
-          </div>
-          <section className="portfolio-main-card profitability-card" id="portfolio-profitability"><header><div><h2>{st("profitability.title")}</h2><span>{illustrativeStrategyChartsAvailable ? st("profitability.subtitle") : st("sample.unavailable")}</span></div>{illustrativeStrategyChartsAvailable && <div className="segmented-control">{(["TTM", "2026"] as const).map((item) => <button type="button" className={analysisPeriod === item ? "active" : ""} onClick={() => setAnalysisPeriod(item)} key={item}>{item}</button>)}</div>}</header>{illustrativeStrategyChartsAvailable ? <PortfolioProfitChart seed={selectedCatalogIndex + (analysisPeriod === "TTM" ? 4 : 8)} ariaLabel={st("profitability.title")} /> : <StrategyChartUnavailable className="portfolio-analysis-chart" title={st("profitability.title")} message={st("chart.unavailable")} />}</section>
-          <section className="portfolio-main-card contribution-card"><header><div><h2>{st("contribution.title")}</h2><span>{st("contribution.subtitle")}</span></div></header>{portfolioHoldings.map((holding) => <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><span><strong>{holding.ticker}</strong><small>{holding.allocation === null ? "—" : st("contribution.allocation", { value: holding.allocation.toFixed(1) })}</small></span><span className="contribution-track"><i style={{ width: `${holding.unrealized === null ? 0 : Math.min(100, Math.abs(holding.unrealized) / 140)}%` }} /></span><b className={holding.unrealized === null ? "" : holding.unrealized >= 0 ? "positive" : "negative-text"}>{signedPortfolioMoney(holding.unrealized)}</b></button>)}</section>
+          </div>}
+          <section className="portfolio-main-card profitability-card" id="portfolio-profitability">
+            <header>
+              <div><h2>{st("profitability.title")}</h2><span>{selectedBacktestRun ? `${selectedBacktestRun.runId} · ${selectedBacktestRun.generatedAt}` : illustrativeStrategyChartsAvailable ? st("profitability.subtitle") : st("sample.unavailable")}</span></div>
+              {(selectedBacktestEquityPoints || (!selectedBacktestRun && illustrativeStrategyChartsAvailable)) && <div className="segmented-control">{(["TTM", "ALL"] as const).map((item) => <button type="button" className={analysisPeriod === item ? "active" : ""} onClick={() => setAnalysisPeriod(item)} key={item}>{item}</button>)}</div>}
+            </header>
+            {selectedBacktestRun ? <>
+              {selectedBacktestEquityPoints ? <PortfolioProfitChart
+                seed={selectedCatalogIndex + (analysisPeriod === "TTM" ? 4 : 8)}
+                points={selectedBacktestEquityPoints}
+                initialValue={selectedBacktestEquity?.initialValue}
+                period={analysisPeriod}
+                ariaLabel={st("profitability.title")}
+              /> : <StrategyChartUnavailable className="portfolio-analysis-chart" title={st("profitability.title")} message={st("chart.unavailable")} />}
+              <div className="backtest-execution-grid">{backtestExecutionItems.map((item) => <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong></div>)}</div>
+            </> : illustrativeStrategyChartsAvailable ? <PortfolioProfitChart
+              seed={selectedCatalogIndex + (analysisPeriod === "TTM" ? 4 : 8)}
+              period={analysisPeriod}
+              ariaLabel={st("profitability.title")}
+            /> : <StrategyChartUnavailable className="portfolio-analysis-chart" title={st("profitability.title")} message={st("chart.unavailable")} />}
+          </section>
+          {!selectedBacktestRun && <section className="portfolio-main-card contribution-card"><header><div><h2>{st("contribution.title")}</h2><span>{st("contribution.subtitle")}</span></div></header>{portfolioHoldings.map((holding) => <button type="button" key={holding.ticker} onClick={() => onOpenChart(holding.ticker)}><span><strong>{holding.ticker}</strong><small>{holding.allocation === null ? "—" : st("contribution.allocation", { value: holding.allocation.toFixed(1) })}</small></span><span className="contribution-track"><i style={{ width: `${holding.unrealized === null ? 0 : Math.min(100, Math.abs(holding.unrealized) / 140)}%` }} /></span><b className={holding.unrealized === null ? "" : holding.unrealized >= 0 ? "positive" : "negative-text"}>{signedPortfolioMoney(holding.unrealized)}</b></button>)}</section>}
         </div>}
 
         {tab === "保有銘柄" && <div className="portfolio-tab-panel holdings-panel" role="tabpanel">
-          <div className="portfolio-table-title"><div><h2>{st("holdings.title")}</h2><span>{st("holdings.summary", { count: holdingRows.length, value: portfolioMoney(markedPortfolio.holdingsValue) })}</span></div><div><label className="toggle-label"><input type="checkbox" checked={showSold} onChange={(event) => setShowSold(event.target.checked)} />{st("holdings.showSold")}</label></div></div>
-          <div className="portfolio-table-scroll holdings-table-scroll"><table className="holdings-data-table" aria-label={st("holdings.aria")}><thead><tr><th>{st("holdings.symbol")}</th><th>{st("holdings.shares")}</th><th>{st("holdings.averageCost")}</th><th>{st("holdings.currentPrice")}</th><th>{st("holdings.currentValue")}</th><th>{st("holdings.allocation")}</th><th>{st("holdings.unrealized")}</th><th>{st("holdings.daily")}</th><th>{st("holdings.marketCap")}</th><th>PER</th><th>{st("holdings.oneMonth")}</th><th>Beta</th><th>RSI 14</th><th>{st("holdings.technical")}</th><th aria-label={st("holdings.actions")} /></tr></thead><tbody>{holdingRows.map((holding) => { const stock = strategyStockFor(holding.ticker); const technicalTone = holding.technicalRating.includes("買い") ? "positive" : holding.technicalRating.includes("売り") ? "negative-text" : ""; return <tr key={holding.ticker}><td><button type="button" className="holding-symbol" onClick={() => onOpenChart(holding.ticker)}><CompanyLogo stock={stock} /><span><strong>{holding.ticker}</strong><small>{stock.name}</small></span></button></td><td>{holding.shares.toLocaleString("en-US")}</td><td>{formatPrice(stock, holding.average)}</td><td>{holding.currentPrice === null ? "—" : formatPrice(stock, holding.currentPrice)}</td><td>{portfolioMoney(holding.value)}</td><td>{holding.allocation === null ? "—" : `${holding.allocation.toFixed(1)}%`}</td><td className={holding.unrealized === null ? "" : holding.unrealized >= 0 ? "positive" : "negative-text"}>{signedPortfolioMoney(holding.unrealized)}</td><td className={holding.daily === null ? "" : holding.daily >= 0 ? "positive" : "negative-text"}>{portfolioPercent(holding.daily, true)}</td><td>{stock.marketCap}</td><td>{stock.pe}</td><td className={holding.performance1M >= 0 ? "positive" : "negative-text"}>{holding.performance1M >= 0 ? "+" : ""}{holding.performance1M.toFixed(1)}%</td><td>{holding.beta.toFixed(2)}</td><td>{holding.rsi.toFixed(1)}</td><td><span className={`technical-rating ${technicalTone}`}>{strategyTechnicalRatingLabel(locale, holding.technicalRating)}</span></td><td><IconButton label={st("holdings.transactionMenu", { symbol: holding.ticker })} onClick={() => openTransaction(holding.ticker)}><DotsThree size={17} /></IconButton></td></tr>; })}</tbody></table></div>
+          <div className="portfolio-table-title"><div><h2>{st("holdings.title")}</h2><span>{selectedBacktestRun ? st("holdings.backtestSummary", { date: selectedBacktestRun.data.end, count: backtestPositionRows.length, value: portfolioMoney(recordedHoldingsValue ?? null) }) : st("holdings.summary", { count: holdingRows.length, value: portfolioMoney(displayedHoldingsValue) })}</span></div>{!selectedBacktestRun && <div><label className="toggle-label"><input type="checkbox" checked={showSold} onChange={(event) => setShowSold(event.target.checked)} />{st("holdings.showSold")}</label></div>}</div>
+          {selectedBacktestRun ? backtestPositionTable : <div className="portfolio-table-scroll holdings-table-scroll"><table className="holdings-data-table" aria-label={st("holdings.aria")}><thead><tr><th>{st("holdings.symbol")}</th><th>{st("holdings.shares")}</th><th>{st("holdings.averageCost")}</th><th>{st("holdings.currentPrice")}</th><th>{st("holdings.currentValue")}</th><th>{st("holdings.allocation")}</th><th>{st("holdings.unrealized")}</th><th>{st("holdings.daily")}</th><th>{st("holdings.marketCap")}</th><th>PER</th><th>{st("holdings.oneMonth")}</th><th>Beta</th><th>RSI 14</th><th>{st("holdings.technical")}</th><th aria-label={st("holdings.actions")} /></tr></thead><tbody>{holdingRows.map((holding) => { const stock = strategyStockFor(holding.ticker); const technicalTone = holding.technicalRating?.includes("買い") ? "positive" : holding.technicalRating?.includes("売り") ? "negative-text" : ""; return <tr key={holding.ticker}><td><button type="button" className="holding-symbol" onClick={() => onOpenChart(holding.ticker)}><CompanyLogo stock={stock} /><span><strong>{holding.ticker}</strong><small>{stock.name}</small></span></button></td><td>{holding.shares.toLocaleString("en-US")}</td><td>{holding.average > 0 ? formatPrice(stock, holding.average) : "—"}</td><td>{holding.currentPrice === null ? "—" : formatPrice(stock, holding.currentPrice)}</td><td>{portfolioMoney(holding.value)}</td><td>{holding.allocation === null ? "—" : `${holding.allocation.toFixed(1)}%`}</td><td className={holding.unrealized === null ? "" : holding.unrealized >= 0 ? "positive" : "negative-text"}>{signedPortfolioMoney(holding.unrealized)}</td><td className={holding.daily === null ? "" : holding.daily >= 0 ? "positive" : "negative-text"}>{portfolioPercent(holding.daily, true)}</td><td>{stock.marketCap}</td><td>{stock.pe}</td><td className={holding.performance1M === null ? "" : holding.performance1M >= 0 ? "positive" : "negative-text"}>{holding.performance1M === null ? "—" : `${holding.performance1M >= 0 ? "+" : ""}${holding.performance1M.toFixed(1)}%`}</td><td>{holding.beta === null ? "—" : holding.beta.toFixed(2)}</td><td>{holding.rsi === null ? "—" : holding.rsi.toFixed(1)}</td><td><span className={`technical-rating ${technicalTone}`}>{holding.technicalRating === null ? "—" : strategyTechnicalRatingLabel(locale, holding.technicalRating)}</span></td><td><IconButton label={st("holdings.transactionMenu", { symbol: holding.ticker })} onClick={() => openTransaction(holding.ticker)}><DotsThree size={17} /></IconButton></td></tr>; })}</tbody></table></div>}
         </div>}
 
         {tab === "取引" && <div className="portfolio-tab-panel transactions-panel" role="tabpanel">
-          <div className="portfolio-table-title"><div><h2>{st("transactions.title")}</h2><span>{transactionLoadStatus === "loading" ? <LoadingIndicator label={st("transactions.loading")} /> : st("common.count", { count: transactions.length })} · {transactionMutationStatus === "saving" ? st("transactions.saving") : transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("transactions.saveError") : st("transactions.savedToD1")}</span></div><div className="transaction-actions"><div className="segmented-control">{(["取引", "現金"] as const).map((item) => <button type="button" className={transactionTab === item ? "active" : ""} onClick={() => setTransactionTab(item)} key={item}>{portfolioTransactionTabLabel(locale, item)}</button>)}</div><button type="button" onClick={() => setDialog("import")}><DownloadSimple size={15} /> {st("transactions.import")}</button><button type="button" onClick={() => onAction(st("toast.transactionsExported"))}><UploadSimple size={15} /> {st("transactions.export")}</button><button type="button" className="primary-action" onClick={() => openTransaction()}><Plus size={15} /> {st("detail.addTransaction")}</button></div></div>
-          {transactionTab === "取引" ? <div className="portfolio-table-scroll"><div className="transactions-table" role="table" aria-label={st("transactions.aria")}><div className="transactions-row transactions-head"><span>{st("transactions.date")}</span><span>{st("transactions.symbol")}</span><span>{st("transactions.type")}</span><span>{st("transactions.quantity")}</span><span>{st("transactions.price")}</span><span>{st("transactions.fee")}</span><span>{st("transactions.total")}</span><span /></div>{transactions.map((transaction) => <button type="button" className="transactions-row" key={transaction.id} onClick={() => openTransaction(transaction.ticker)}><span>{transaction.date}</span><span><b>{transaction.ticker}</b></span><span><i className={`transaction-side ${transaction.side}`}>{portfolioTransactionSideLabel(locale, transaction.side)}</i></span><span>{transaction.shares.toLocaleString("en-US")}</span><span>${transaction.price.toLocaleString("en-US")}</span><span>${transaction.fee.toFixed(2)}</span><span>${(transaction.shares * transaction.price).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span><CaretRight size={14} /></button>)}</div></div> : <div className="cash-ledger"><Wallet size={26} /><h3>{st("transactions.cashBalance", { value: `$${cashValue.toLocaleString("en-US")}` })}</h3><p>{st("transactions.cashDescription")}</p><button type="button" onClick={() => { setTransactionSide("配当"); openTransaction(); }}>{st("transactions.addCash")}</button></div>}
+          <div className="portfolio-table-title"><div><h2>{st("transactions.title")}</h2><span>{transactionLoadStatus === "loading" ? <LoadingIndicator label={st("transactions.loading")} /> : st("common.count", { count: transactions.length })} · {transactionMutationStatus === "saving" ? st("transactions.saving") : transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("transactions.saveError") : st(selected.origin === "built_in" ? "transactions.packageSnapshot" : "transactions.savedToD1")}</span></div><div className="transaction-actions"><div className="segmented-control">{(["取引", "現金"] as const).map((item) => <button type="button" className={transactionTab === item ? "active" : ""} onClick={() => setTransactionTab(item)} key={item}>{portfolioTransactionTabLabel(locale, item)}</button>)}</div><button type="button" disabled={selected.origin === "built_in"} onClick={() => setDialog("import")}><DownloadSimple size={15} /> {st("transactions.import")}</button><button type="button" onClick={() => onAction(st("toast.transactionsExported"))}><UploadSimple size={15} /> {st("transactions.export")}</button><button type="button" className="primary-action" disabled={selected.origin === "built_in"} onClick={() => openTransaction()}><Plus size={15} /> {st("detail.addTransaction")}</button></div></div>
+          {transactionTab === "取引" ? <div className="portfolio-table-scroll"><div className="transactions-table" role="table" aria-label={st("transactions.aria")}><div className="transactions-row transactions-head"><span>{st("transactions.date")}</span><span>{st("transactions.symbol")}</span><span>{st("transactions.type")}</span><span>{st("transactions.quantity")}</span><span>{st("transactions.price")}</span><span>{st("transactions.fee")}</span><span>{st("transactions.total")}</span><span /></div>{transactions.map((transaction) => <button type="button" className="transactions-row" key={transaction.id} disabled={selected.origin === "built_in"} onClick={() => openTransaction(transaction.ticker)}><span>{transaction.date}</span><span><b>{transaction.ticker}</b></span><span><i className={`transaction-side ${transaction.side}`}>{portfolioTransactionSideLabel(locale, transaction.side)}</i></span><span>{transaction.shares.toLocaleString("en-US")}</span><span>${transaction.price.toLocaleString("en-US")}</span><span>${transaction.fee.toFixed(2)}</span><span>${(transaction.shares * transaction.price).toLocaleString("en-US", { maximumFractionDigits: 0 })}</span><CaretRight size={14} /></button>)}</div></div> : <div className="cash-ledger"><Wallet size={26} /><h3>{st("transactions.cashBalance", { value: `$${cashValue.toLocaleString("en-US")}` })}</h3><p>{st("transactions.cashDescription")}</p><button type="button" disabled={selected.origin === "built_in"} onClick={() => { setTransactionSide("配当"); openTransaction(); }}>{st("transactions.addCash")}</button></div>}
         </div>}
 
       </div>
-      <footer className="strategy-status-bar"><span><span /> {transactionLoadStatus === "loading" ? <LoadingIndicator /> : st("status.transactions", { status: transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("common.error") : st("common.connected") })}</span><span>{st("status.strategyDisclaimer")}</span></footer>
+      <footer className="strategy-status-bar"><span><span /> {transactionLoadStatus === "loading" ? <LoadingIndicator /> : st("status.transactions", { status: transactionLoadStatus === "error" || transactionMutationStatus === "error" ? st("common.error") : st("common.connected") })}</span><span>{strategyMarketStatus === "loading" ? <LoadingIndicator /> : st("status.market", { status: st(strategyMarketStatus === "ready" ? "common.connected" : strategyMarketStatus === "partial" ? "common.partial" : strategyMarketStatus === "error" ? "common.error" : "common.loading") })}</span><span>{st("status.strategyDisclaimer")}</span></footer>
 
       {dialog === "transaction" && <DialogShell title={st("transaction.dialogTitle")} eyebrow={selected.name} onClose={() => setDialog(null)}><form className="dialog-body dialog-form-grid" onSubmit={submitTransaction}><label><span>{st("transaction.symbol")}</span><select value={transactionTicker} onChange={(event) => { const ticker = event.target.value; setTransactionTicker(ticker); const next = strategyMarketMarks[ticker]?.price ?? strategyStockModels[ticker]?.price; setTransactionPrice(Number.isFinite(next) && (next ?? 0) > 0 ? String(next) : ""); }}>{STOCKS.map((item) => <option value={item.ticker} key={item.ticker}>{item.ticker} · {item.name}</option>)}</select></label><label><span>{st("transaction.type")}</span><select value={transactionSide} onChange={(event) => setTransactionSide(event.target.value as PortfolioTransaction["side"])}><option value="買付">{st("transaction.buy")}</option><option value="売却">{st("transaction.sell")}</option><option value="配当">{st("transaction.dividend")}</option></select></label><label><span>{st("transaction.quantity")}</span><input type="number" min="0.01" step="0.01" value={transactionShares} onChange={(event) => setTransactionShares(event.target.value)} /></label><label><span>{st("transaction.price")}</span><input type="number" min="0" step="0.01" value={transactionPrice} onChange={(event) => setTransactionPrice(event.target.value)} /></label><footer className="dialog-actions form-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="submit" className="primary-action" disabled={transactionMutationStatus === "saving"}>{transactionMutationStatus === "saving" ? st("transaction.saving") : st("transaction.save")}</button></footer></form></DialogShell>}
       {dialog === "import" && <DialogShell title={st("import.title")} eyebrow="CSV IMPORT" onClose={() => setDialog(null)}><div className="dialog-body"><label className="file-drop"><UploadSimple size={24} /><strong>{st("import.dropCsv")}</strong><span>{st("import.description")}</span><input type="file" accept=".csv" /></label></div><footer className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>{st("common.cancel")}</button><button type="button" className="primary-action" onClick={() => { setDialog(null); onAction(st("toast.transactionsImported", { count: 5 })); }}>{st("import.action")}</button></footer></DialogShell>}
@@ -3637,7 +4032,7 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<readonly Instrument[]>([]);
   const [searchStatus, setSearchStatus] = useState<InstrumentSearchStatus>("idle");
   const [searchRetryNonce, setSearchRetryNonce] = useState(0);
-  const [activeIndicators, setActiveIndicators] = useState<IndicatorId[]>(["sma20", "rsi14"]);
+  const [activeIndicators, setActiveIndicators] = useState<IndicatorId[]>([...DEFAULT_ACTIVE_CHART_INDICATORS]);
   const [hiddenIndicators, setHiddenIndicators] = useState<IndicatorId[]>([]);
   const [favoriteIndicators, setFavoriteIndicators] = useState<IndicatorId[]>(["sma20", "rsi14"]);
   const [indicatorSettings, setIndicatorSettings] = useState<Record<IndicatorId, IndicatorSettings>>(() =>
@@ -3656,6 +4051,46 @@ export default function Home() {
     traderConfig.ui.symbolDetail.tabs,
     DEFAULT_STOCK_DETAIL_TAB,
   );
+  const [strategyScreen, setStrategyScreen] = useState<"index" | "detail">("index");
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string>(DEFAULT_STRATEGY_PACKAGE_ID);
+  const [portfolioTab, setPortfolioTab] = useState<PortfolioTab>("概要");
+  const [navigationReady, setNavigationReady] = useState(false);
+  const lastNavigationUrl = useRef<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const restoreLocation = () => {
+      const route = parseWorkspaceRoute(window.location.pathname, window.location.search, {
+        stockTabs: traderConfig.ui.symbolDetail.tabs,
+        strategyId: DEFAULT_STRATEGY_PACKAGE_ID,
+      });
+      lastNavigationUrl.current = workspaceRouteUrl(route);
+      setSelectedTicker(route.ticker);
+      setPrimaryView(route.primaryView === "strategy" || route.primaryView === "stock-detail" ? route.primaryView : "chart");
+      setStockDetailTabSelection({ ticker: route.ticker, tab: route.stockTab });
+      setStrategyScreen(route.strategyScreen);
+      setSelectedStrategyId(route.strategyId);
+      setPortfolioTab(route.portfolioTab);
+      setNavigationReady(true);
+    };
+    queueMicrotask(() => { if (!cancelled) restoreLocation(); });
+    window.addEventListener("popstate", restoreLocation);
+    return () => { cancelled = true; window.removeEventListener("popstate", restoreLocation); };
+  }, []);
+
+  useEffect(() => {
+    if (!navigationReady) return;
+    const url = workspaceRouteUrl({
+      primaryView, ticker: selectedTicker, stockTab: activeStockDetailSection,
+      strategyScreen, strategyId: selectedStrategyId, portfolioTab,
+    });
+    if (lastNavigationUrl.current !== url) {
+      window.history.pushState(window.history.state, "", url);
+    } else if (window.location.pathname + window.location.search !== url) {
+      window.history.replaceState(window.history.state, "", url);
+    }
+    lastNavigationUrl.current = url;
+  }, [navigationReady, primaryView, selectedTicker, activeStockDetailSection, strategyScreen, selectedStrategyId, portfolioTab]);
   const [workspaceSectionRefreshNonce, setWorkspaceSectionRefreshNonce] = useState(0);
   const [utilityPanel, setUtilityPanel] = useState<UtilityPanelId | null>("watchlist");
   const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_RIGHT_PANEL_WIDTH);
@@ -3681,33 +4116,15 @@ export default function Home() {
   const [chartCandleCountDraft, setChartCandleCountDraft] = useState(String(DEFAULT_CHART_CANDLE_COUNT));
   const [localeDraft, setLocaleDraft] = useState<Locale>(locale);
   const [chartType, setChartType] = useState<ChartTypeId>("candles");
-  const [userChartTemplates, setUserChartTemplates] = useState<ChartTemplate<IndicatorSettings>[]>([]);
-  const [chartTemplatesReady, setChartTemplatesReady] = useState(false);
-  const [templateEditor, setTemplateEditor] = useState<{ mode: "create" | "rename"; templateId?: string } | null>(null);
-  const [templateNameDraft, setTemplateNameDraft] = useState("");
-  const [templateNameError, setTemplateNameError] = useState<ChartTemplateNameError | null>(null);
   const [toolbarMenu, setToolbarMenu] = useState<ToolbarMenuId>(null);
   const chartTypeMenuHostRef = useRef<HTMLDivElement>(null);
   const chartTypeMenuTriggerRef = useRef<HTMLButtonElement>(null);
-  const templateMenuHostRef = useRef<HTMLDivElement>(null);
-  const templateMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const chartTypeMenuBoundaries = useMemo(() => [chartTypeMenuHostRef] as const, []);
-  const templateMenuBoundaries = useMemo(() => [templateMenuHostRef] as const, []);
   useDismissibleLayer({
     open: toolbarMenu === "chart-type",
     boundaryRefs: chartTypeMenuBoundaries,
     onDismiss: () => setToolbarMenu(null),
     restoreFocusRef: chartTypeMenuTriggerRef,
-  });
-  useDismissibleLayer({
-    open: toolbarMenu === "templates",
-    boundaryRefs: templateMenuBoundaries,
-    onDismiss: () => {
-      setToolbarMenu(null);
-      setTemplateEditor(null);
-      setTemplateNameError(null);
-    },
-    restoreFocusRef: templateMenuTriggerRef,
   });
   const [appDialog, setAppDialog] = useState<AppDialogId>(null);
   const [focusMode, setFocusMode] = useState(false);
@@ -3831,7 +4248,7 @@ export default function Home() {
     WATCHLIST_QUOTES_MAX_SYMBOLS,
   )
     .join("\u0000");
-  const marketDataSurfaceVisible = primaryView !== "strategy";
+  const marketDataSurfaceVisible = primaryView === "chart" || primaryView === "stock-detail";
   const afterHoursTickers = Array.from(new Set([...watchedTickers, selectedTicker]))
     .slice(0, WATCHLIST_AFTER_HOURS_MAX_SYMBOLS);
   const afterHoursEnabled = shouldUseAfterHoursPrices(
@@ -3870,8 +4287,8 @@ export default function Home() {
     ? dailyMarketBarsProvenance
     : undefined;
   const stockDetailViewModel = useMemo(
-    () => buildStockDetailViewModel(detailWorkspace, detailDailyMarketBars, detailDailyBarsProvenance),
-    [detailDailyBarsProvenance, detailDailyMarketBars, detailWorkspace],
+    () => buildStockDetailViewModel(detailWorkspace, detailDailyMarketBars, detailDailyBarsProvenance, locale),
+    [detailDailyBarsProvenance, detailDailyMarketBars, detailWorkspace, locale],
   );
   const stockIntelligence = useMemo(
     () => {
@@ -3940,7 +4357,7 @@ export default function Home() {
         const settings = indicatorSettings[indicator.id];
         return {
           id: indicator.id as SubIndicatorId,
-          label: getIndicatorDisplayName(indicator, settings),
+          label: getIndicatorDisplayName(indicator, settings, locale),
           color: settings.color,
           length: settings.length,
           fast: settings.fast,
@@ -3952,7 +4369,7 @@ export default function Home() {
           lineStyle: settings.lineStyle,
         };
       }),
-    [indicatorSettings, visibleIndicatorDefinitions],
+    [indicatorSettings, locale, visibleIndicatorDefinitions],
   );
   const indicatorReadings = useMemo<Partial<Record<IndicatorId, string>>>(
     () => Object.fromEntries(activeIndicatorDefinitions.map((indicator) => [
@@ -3978,99 +4395,6 @@ export default function Home() {
       toastTimerRef.current = null;
     }, 2200);
   }, []);
-
-  const applyChartTemplate = useCallback((template: ChartTemplate<IndicatorSettings>) => {
-    setActiveIndicators([...template.activeIndicators]);
-    setHiddenIndicators([...template.hiddenIndicators]);
-    setIndicatorSettings((current) => {
-      const next = { ...current };
-      template.activeIndicators.forEach((indicatorId) => {
-        const saved = template.indicatorSettings[indicatorId];
-        if (!saved || typeof saved !== "object") return;
-        next[indicatorId] = {
-          ...current[indicatorId],
-          ...saved,
-          visibility: {
-            ...current[indicatorId].visibility,
-            ...(saved.visibility ?? {}),
-          },
-        };
-      });
-      return next;
-    });
-    setToolbarMenu(null);
-    setTemplateEditor(null);
-    setTemplateNameError(null);
-    showToast(t("toolbar.templateApplied", { name: template.name }));
-  }, [showToast, t]);
-
-  const applyBuiltInChartTemplate = useCallback((
-    id: string,
-    name: string,
-    indicatorIds: readonly IndicatorId[],
-  ) => {
-    applyChartTemplate(createChartTemplate({
-      id,
-      name,
-      activeIndicators: [...indicatorIds],
-      hiddenIndicators: [],
-      indicatorSettings: Object.fromEntries(indicatorIds.map((indicatorId) => [
-        indicatorId,
-        DEFAULT_INDICATOR_SETTINGS[indicatorId],
-      ])),
-    }));
-  }, [applyChartTemplate]);
-
-  const openTemplateEditor = useCallback((mode: "create" | "rename", template?: ChartTemplate<IndicatorSettings>) => {
-    setTemplateEditor({ mode, templateId: template?.id });
-    setTemplateNameDraft(template?.name ?? "");
-    setTemplateNameError(null);
-  }, []);
-
-  const saveTemplateEditor = useCallback(() => {
-    if (!templateEditor) return;
-    const builtInNames = [
-      { id: "builtin-trend", name: t("toolbar.trendTemplate") },
-      { id: "builtin-volatility", name: t("toolbar.volatilityTemplate") },
-      { id: "builtin-clean", name: t("toolbar.noIndicators") },
-    ];
-    const error = validateChartTemplateName(
-      templateNameDraft,
-      [...builtInNames, ...userChartTemplates],
-      templateEditor.templateId,
-    );
-    if (error) {
-      setTemplateNameError(error);
-      return;
-    }
-    const name = normalizeChartTemplateName(templateNameDraft);
-    if (templateEditor.mode === "create") {
-      const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const template = createChartTemplate({
-        id,
-        name,
-        activeIndicators,
-        hiddenIndicators,
-        indicatorSettings,
-      });
-      setUserChartTemplates((current) => [...current, template]);
-      showToast(t("toolbar.templateCreated", { name }));
-    } else {
-      setUserChartTemplates((current) => current.map((template) => (
-        template.id === templateEditor.templateId ? { ...template, name } : template
-      )));
-      showToast(t("toolbar.templateRenamed", { name }));
-    }
-    setTemplateEditor(null);
-    setTemplateNameDraft("");
-    setTemplateNameError(null);
-  }, [activeIndicators, hiddenIndicators, indicatorSettings, showToast, t, templateEditor, templateNameDraft, userChartTemplates]);
-
-  const deleteChartTemplate = useCallback((template: ChartTemplate<IndicatorSettings>) => {
-    setUserChartTemplates((current) => current.filter((item) => item.id !== template.id));
-    if (templateEditor?.templateId === template.id) setTemplateEditor(null);
-    showToast(t("toolbar.templateDeleted", { name: template.name }));
-  }, [showToast, t, templateEditor?.templateId]);
 
   useEffect(() => () => {
     if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
@@ -4265,9 +4589,10 @@ export default function Home() {
   }, [activeWatchlist, addInstrumentToWatchlist, removeWatchlistItem, showToast, stockModels, t, workspace]);
 
   const openChartFromStrategy = useCallback((ticker: string) => {
-    if (stockModels[ticker]) setSelectedTicker(ticker);
+    const normalizedTicker = ticker.trim().toUpperCase();
+    if (normalizedTicker) setSelectedTicker(normalizedTicker);
     setPrimaryView("chart");
-  }, [stockModels]);
+  }, []);
 
   const openStockDetails = useCallback(() => {
     setStockDetailTabSelection({ ticker: selectedTicker, tab: DEFAULT_STOCK_DETAIL_TAB });
@@ -4277,7 +4602,7 @@ export default function Home() {
 
   const selectStockDetailSection = useCallback((section: StockDetailTabId) => {
     setStockDetailTabSelection({ ticker: selectedTicker, tab: section });
-    if (section === "financials" || section === "analyst") {
+    if (section !== "technicals") {
       setWorkspaceSectionRefreshNonce((current) => current + 1);
     }
     if (section === "analyst") {
@@ -4319,7 +4644,8 @@ export default function Home() {
     setActiveIndicators((current) => current.includes(id) ? current : [...current, id]);
     setHiddenIndicators((current) => current.filter((indicatorId) => indicatorId !== id));
     const indicator = INDICATORS.find((item) => item.id === id);
-    showToast(locale === "ja" ? `${indicator?.shortName ?? id}をチャートに追加しました` : `Added ${indicator?.shortName ?? id} to the chart.`);
+    const name = indicator ? localizeIndicator(locale, indicator).name : id;
+    showToast(locale === "ja" ? `${name}をチャートに追加しました` : `Added ${name} to the chart.`);
   }, [locale, showToast]);
 
   const removeIndicator = useCallback((id: IndicatorId) => {
@@ -5489,7 +5815,7 @@ export default function Home() {
           if (savedCandleCount !== null) setChartCandleCount(savedCandleCount);
           const savedChartType = resolveChartTypeId(saved.chartType);
           if (savedChartType) setChartType(savedChartType);
-          if (Array.isArray(saved.activeIndicators)) setActiveIndicators(saved.activeIndicators.filter(isIndicatorId));
+          setActiveIndicators(restoreActiveChartIndicators(saved.activeIndicators, saved.volumeIndicatorsVersion));
           if (Array.isArray(saved.hiddenIndicators)) setHiddenIndicators(saved.hiddenIndicators.filter(isIndicatorId));
           if (Array.isArray(saved.favoriteIndicators)) setFavoriteIndicators(saved.favoriteIndicators.filter(isIndicatorId));
           if (saved.utilityPanel === null || ["watchlist", "indicators", "news"].includes(String(saved.utilityPanel))) {
@@ -5503,6 +5829,8 @@ export default function Home() {
               return [id, {
                 ...current[id],
                 ...candidate,
+                color: id === "volume" && ["#2add7f", "#26a69a", "#00ffa1", "#00e5a8"].includes(candidate.color?.toLowerCase() ?? "") ? "#00d492" : candidate.color ?? current[id].color,
+                downColor: id === "volume" && ["#fc3f42", "#ef5350", "#ff627a"].includes(candidate.downColor?.toLowerCase() ?? "") ? "#ff6467" : candidate.downColor ?? current[id].downColor,
                 visibility: { ...current[id].visibility, ...(candidate.visibility ?? {}) },
               }];
             })) as Record<IndicatorId, IndicatorSettings>);
@@ -5521,6 +5849,7 @@ export default function Home() {
     if (!chartPreferencesReady) return;
     window.localStorage.setItem("trader.chart-preferences.v1", JSON.stringify({
       schemaVersion: "trader.chart-preferences.v1",
+      volumeIndicatorsVersion: 1,
       interval,
       candleCount: chartCandleCount,
       chartType,
@@ -5531,22 +5860,6 @@ export default function Home() {
       utilityPanel,
     }));
   }, [activeIndicators, chartCandleCount, chartPreferencesReady, chartType, favoriteIndicators, hiddenIndicators, indicatorSettings, interval, utilityPanel]);
-
-  useEffect(() => {
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      const templates = parseChartTemplates(window.localStorage.getItem(CHART_TEMPLATE_STORAGE_KEY));
-      setUserChartTemplates(templates as ChartTemplate<IndicatorSettings>[]);
-      setChartTemplatesReady(true);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    if (!chartTemplatesReady) return;
-    window.localStorage.setItem(CHART_TEMPLATE_STORAGE_KEY, serializeChartTemplates(userChartTemplates));
-  }, [chartTemplatesReady, userChartTemplates]);
 
   useEffect(() => {
     let cancelled = false;
@@ -5592,6 +5905,7 @@ export default function Home() {
   }, [requestWorkspace, selectedTicker]);
 
   useEffect(() => {
+    if (!navigationReady) return;
     let cancelled = false;
     queueMicrotask(() => {
       if (!cancelled) {
@@ -5604,14 +5918,17 @@ export default function Home() {
       }
     });
     return () => { cancelled = true; };
-  }, [selectedTicker]);
+  }, [navigationReady, selectedTicker]);
 
   useEffect(() => {
     if (
       primaryView !== "stock-detail"
-      || (activeStockDetailSection !== "financials" && activeStockDetailSection !== "analyst")
+      || activeStockDetailSection === "technicals"
     ) return;
-    void requestWorkspace(selectedTicker, activeStockDetailSection);
+    const refreshSection: WorkspaceRefreshSection = activeStockDetailSection === "overview" ? "financials"
+      : activeStockDetailSection === "ownership" || activeStockDetailSection === "dividends" ? "research"
+      : activeStockDetailSection;
+    void requestWorkspace(selectedTicker, refreshSection);
   }, [activeStockDetailSection, primaryView, requestWorkspace, selectedTicker, workspaceSectionRefreshNonce]);
 
   useEffect(() => {
@@ -5785,25 +6102,25 @@ export default function Home() {
       if (disposed || document.hidden || refreshTimer !== undefined) return;
       refreshTimer = window.setTimeout(() => {
         refreshTimer = undefined;
-        void refresh();
+        void refresh(false);
       }, ANALYST_HISTORY_REFRESH_MS);
     };
-    async function refresh() {
+    async function refresh(force = false) {
       if (disposed || document.hidden) return;
       clearRefreshTimer();
       activeController?.abort();
       const controller = new AbortController();
       activeController = controller;
       const today = new Date();
-      const dateTo = today.toISOString().slice(0, 10);
-      const dateFrom = `${today.getUTCFullYear() - 2}-01-01`;
+      const dateTo = newYorkCalendarDate(today);
+      const dateFrom = `${Number(dateTo.slice(0, 4)) - 2}-01-01`;
       const params = new URLSearchParams({
         pagesize: "1000",
-        fresh: "1",
         "parameters[date_from]": dateFrom,
         "parameters[date_to]": dateTo,
         "parameters[tickers]": selectedTicker,
       });
+      if (force) params.set("fresh", "1");
       try {
         const response = await fetch(
           `/api/v1/symbols/${encodeURIComponent(selectedTicker)}/analyst-ratings?${params}`,
@@ -5841,16 +6158,17 @@ export default function Home() {
         activeController?.abort();
         return;
       }
-      void refresh();
+      void refresh(false);
     };
-    void refresh();
-    window.addEventListener("online", refresh);
+    const refreshFromNetwork = () => void refresh(false);
+    void refresh(true);
+    window.addEventListener("online", refreshFromNetwork);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       disposed = true;
       clearRefreshTimer();
       activeController?.abort();
-      window.removeEventListener("online", refresh);
+      window.removeEventListener("online", refreshFromNetwork);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [analystHistoryRefreshNonce, selectedTicker, shouldLoadAnalystHistory]);
@@ -6054,35 +6372,47 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleShortcut);
   }, [openInstrumentSearch, primaryView]);
 
+  const navigationView = primaryView;
+
   return (
     <main className="market-app">
-      <nav className="workspace-view-tabs" role="tablist" aria-label={t("shell.workspace")}>
+      <nav className="workspace-view-tabs" aria-label={t("shell.workspace")}>
         <div className="brand-lockup workspace-brand-lockup" aria-label={TRADER_BRAND.name}>
           <Image className="brand-logo" src={TRADER_BRAND.logoPath} alt="" width={28} height={28} unoptimized aria-hidden="true" />
           <strong>{TRADER_BRAND.wordmark}</strong>
         </div>
-        <button type="button" role="tab" aria-selected={primaryView !== "strategy"} className={primaryView !== "strategy" ? "active" : ""} onClick={() => setPrimaryView("chart")}><ChartBar size={15} /> {t("nav.chart")}</button>
-        <button type="button" role="tab" aria-label={t("nav.strategies")} aria-selected={primaryView === "strategy"} className={primaryView === "strategy" ? "active" : ""} onClick={() => setPrimaryView("strategy")}><Lightning size={15} /> {t("nav.strategies")}</button>
-        <span />
+        <button type="button" aria-label={t("nav.chart")} title={t("nav.chart")} aria-current={navigationView === "chart" ? "page" : undefined} className={navigationView === "chart" ? "active" : ""} onClick={() => setPrimaryView("chart")}><ChartBar size={15} /><span>{t("nav.chart")}</span></button>
+        <button type="button" aria-label={t("nav.details")} title={t("nav.details")} aria-current={navigationView === "stock-detail" ? "page" : undefined} className={navigationView === "stock-detail" ? "active" : ""} onClick={openStockDetails}><ListBullets size={15} /><span>{t("nav.details")}</span></button>
+        <button type="button" aria-label={t("nav.strategies")} title={t("nav.strategies")} aria-current={navigationView === "strategy" ? "page" : undefined} className={navigationView === "strategy" ? "active" : ""} onClick={() => setPrimaryView("strategy")}><Lightning size={15} /><span>{t("nav.strategies")}</span></button>
         <span className="workspace-nav-spacer" />
         <IconButton className="workspace-settings-button" label={t("nav.settings")} onClick={openWorkspaceSettings}><Gear size={18} /></IconButton>
       </nav>
 
-      <header className="global-toolbar">
-        {primaryView === "chart" ? <>
-          <button type="button" className="symbol-search-trigger" onClick={openInstrumentSearch}>
-            <MagnifyingGlass size={17} />
-            <span><b>{stock.ticker}</b><small>{stock.name}</small></span>
-            <span className="shortcut-key">⌘ F</span>
-          </button>
-          <div className="toolbar-divider" />
-          <div className="interval-group" aria-label={t("toolbar.timeframe")}>
-            {CHART_INTERVAL_OPTIONS.map((item) => (
-              <button key={item.interval} type="button" className={item.interval === interval ? "active" : ""} onClick={() => selectChartInterval(item.interval)}>{localizedIntervalLabel(item.interval, locale)}</button>
-            ))}
-          </div>
-          <div className="toolbar-divider hide-narrow" />
-          <div className="toolbar-popover-host hide-narrow" ref={chartTypeMenuHostRef}>
+      {primaryView === "chart" ? <div
+        className={`workspace-grid ${utilityPanel && !focusMode ? "" : "utility-closed"} ${focusMode ? "focus-mode" : ""}`}
+        style={{
+          "--right-panel-width": `${rightPanelWidth}px`,
+          "--watchlist-split-percent": `${watchlistSplitPercent}%`,
+        } as React.CSSProperties}
+      >
+        <section className="chart-area">
+          <div className="chart-commandbar">
+            <button type="button" className="chart-symbol-button" title="⌘ F" onClick={openInstrumentSearch}>
+              <CompanyLogo stock={stock} eager />
+              <span><b>{stock.ticker}</b><small>{stock.market}</small></span>
+              <CaretDown size={12} />
+            </button>
+            <select
+              className="chart-interval-select"
+              aria-label={t("toolbar.timeframe")}
+              value={interval}
+              onChange={(event) => selectChartInterval(event.target.value as MarketBarInterval)}
+            >
+              {CHART_INTERVAL_OPTIONS.map((item) => (
+                <option key={item.interval} value={item.interval}>{localizedIntervalLabel(item.interval, locale)}</option>
+              ))}
+            </select>
+          <div className="toolbar-popover-host chart-type-control" ref={chartTypeMenuHostRef}>
             <button ref={chartTypeMenuTriggerRef} type="button" className="toolbar-button" aria-haspopup="menu" aria-expanded={toolbarMenu === "chart-type"} aria-controls="chart-type-menu" onClick={() => setToolbarMenu((current) => current === "chart-type" ? null : "chart-type")}>
               <ChartBar size={17} />
               {t(chartType === "candles" ? "toolbar.candlestick" : chartType === "heikin-ashi" ? "toolbar.heikinAshi" : chartType === "line" ? "toolbar.line" : "toolbar.area")}
@@ -6103,75 +6433,6 @@ export default function Home() {
               </div>
             )}
           </div>
-          <button type="button" className={`toolbar-button hide-narrow ${indicatorLibraryOpen ? "selected" : ""}`} onClick={() => setIndicatorLibraryOpen(true)}><FunctionIcon size={17} /> {t("toolbar.indicators")}</button>
-          <div className="toolbar-popover-host hide-mid" ref={templateMenuHostRef}>
-            <button ref={templateMenuTriggerRef} type="button" className="toolbar-button" aria-haspopup="menu" aria-expanded={toolbarMenu === "templates"} aria-controls="indicator-template-menu" onClick={() => {
-              setToolbarMenu((current) => {
-                const next = current === "templates" ? null : "templates";
-                if (next === null) {
-                  setTemplateEditor(null);
-                  setTemplateNameError(null);
-                }
-                return next;
-              });
-            }}><Rows size={17} /> {t("toolbar.templates")}</button>
-            {toolbarMenu === "templates" && (
-              <div id="indicator-template-menu" className="toolbar-popover template-menu" role="menu">
-                <span>{t("toolbar.builtInTemplates")}</span>
-                <button className="template-option" type="button" onClick={() => applyBuiltInChartTemplate("builtin-trend", t("toolbar.trendTemplate"), ["sma20", "ema50", "rsi14"])}>{t("toolbar.trendTemplate")}<small>{t("toolbar.trendTemplateHelp")}</small></button>
-                <button className="template-option" type="button" onClick={() => applyBuiltInChartTemplate("builtin-volatility", t("toolbar.volatilityTemplate"), ["bollinger", "atr14", "macd"])}>{t("toolbar.volatilityTemplate")}<small>{t("toolbar.volatilityTemplateHelp")}</small></button>
-                <button className="template-option" type="button" onClick={() => applyBuiltInChartTemplate("builtin-clean", t("toolbar.noIndicators"), [])}>{t("toolbar.noIndicators")}<small>{t("toolbar.noIndicatorsHelp")}</small></button>
-                {userChartTemplates.length > 0 && <span>{t("toolbar.userTemplates")}</span>}
-                {userChartTemplates.map((template) => (
-                  <div className="template-row" key={template.id}>
-                    <button type="button" onClick={() => applyChartTemplate(template)}>{template.name}<small>{t("toolbar.indicatorCount", { count: template.activeIndicators.length })}</small></button>
-                    <span className="template-row-actions">
-                      <button type="button" aria-label={t("toolbar.renameTemplate", { name: template.name })} onClick={() => openTemplateEditor("rename", template)}><PencilLine size={14} /></button>
-                      <button type="button" aria-label={t("toolbar.deleteTemplate", { name: template.name })} onClick={() => deleteChartTemplate(template)}><Trash size={14} /></button>
-                    </span>
-                  </div>
-                ))}
-                {templateEditor ? (
-                  <form className="template-editor" onSubmit={(event) => { event.preventDefault(); saveTemplateEditor(); }}>
-                    <label htmlFor="template-name-input">{t(templateEditor.mode === "create" ? "toolbar.newTemplateName" : "toolbar.renameTemplateName")}</label>
-                    <input id="template-name-input" value={templateNameDraft} maxLength={MAX_CHART_TEMPLATE_NAME_LENGTH} aria-invalid={templateNameError !== null} onChange={(event) => { setTemplateNameDraft(event.target.value); setTemplateNameError(null); }} autoFocus />
-                    {templateNameError && <small role="alert">{t(templateNameError === "empty" ? "toolbar.templateNameEmpty" : templateNameError === "too-long" ? "toolbar.templateNameTooLong" : "toolbar.templateNameDuplicate", { max: MAX_CHART_TEMPLATE_NAME_LENGTH })}</small>}
-                    <div>
-                      <button type="button" onClick={() => { setTemplateEditor(null); setTemplateNameError(null); }}>{t("common.cancel")}</button>
-                      <button type="submit" className="template-save">{t("common.save")}</button>
-                    </div>
-                  </form>
-                ) : (
-                  <button className="template-create" type="button" onClick={() => openTemplateEditor("create")}><Plus size={14} /> {t("toolbar.saveCurrentTemplate")}</button>
-                )}
-              </div>
-            )}
-          </div>
-        </> : primaryView === "strategy" ? <>
-          <div className="strategy-toolbar-title"><Lightning size={18} weight="fill" /><span><strong>{t("toolbar.strategyReport")}</strong><small>{t("toolbar.strategySubtitle")}</small></span></div>
-        </> : <>
-          <button type="button" className="symbol-search-trigger" onClick={openInstrumentSearch}><MagnifyingGlass size={17} /><span><b>{stock.ticker}</b><small>{stock.name}</small></span><span className="shortcut-key">⌘ F</span></button>
-          <div className="toolbar-divider" />
-          <div className="strategy-toolbar-title stock-detail-toolbar-title"><ChartLineUp size={18} /><span><strong>{t("toolbar.symbolDetails")}</strong><small>{t("toolbar.symbolDetailsSubtitle")}</small></span></div>
-          <button type="button" className="toolbar-button hide-mid" onClick={() => setPrimaryView("chart")}><ChartBar size={17} /> {t("toolbar.openChart")}</button>
-        </>}
-        <div className="toolbar-spacer" />
-      </header>
-
-      {primaryView === "chart" ? <div
-        className={`workspace-grid ${utilityPanel && !focusMode ? "" : "utility-closed"} ${focusMode ? "focus-mode" : ""}`}
-        style={{
-          "--right-panel-width": `${rightPanelWidth}px`,
-          "--watchlist-split-percent": `${watchlistSplitPercent}%`,
-        } as React.CSSProperties}
-      >
-        <section className="chart-area">
-          <div className="chart-commandbar">
-            <button type="button" className="chart-symbol-button" onClick={openInstrumentSearch}>
-              <CompanyLogo stock={stock} eager />
-              <span><b>{stock.ticker}</b><small>{stock.market}</small></span>
-              <CaretDown size={12} />
-            </button>
             <div className="quote-summary">
               <strong>{formatPrice(stock)}</strong>
               {Number.isFinite(stock.price) && stock.price > 0
@@ -6206,12 +6467,12 @@ export default function Home() {
                   return (
                     <div className={`chart-indicator-row ${hidden ? "is-hidden" : ""}`} key={indicator.id}>
                       <span className="indicator-swatch" style={{ background: indicatorSettings[indicator.id].color }} />
-                      <button type="button" className="indicator-legend-name" onDoubleClick={() => setSettingsIndicatorId(indicator.id)}>{getIndicatorDisplayName(indicator, indicatorSettings[indicator.id])}</button>
-                      <b>{indicatorReadings[indicator.id] ?? "—"}</b>
+                      <button type="button" className="indicator-legend-name" onDoubleClick={() => setSettingsIndicatorId(indicator.id)}>{getIndicatorDisplayName(indicator, indicatorSettings[indicator.id], locale)}</button>
+                      <b title={indicator.id === "volumeProfile" ? t("chart.volumeProfileHelp") : undefined}>{indicator.id === "volumeProfile" ? t(detailMarketBars.some((bar) => bar.volume > 0) ? "chart.volumeProfileEstimate" : "chart.volumeProfileEmpty") : indicatorReadings[indicator.id] ?? "—"}</b>
                       <span className="indicator-legend-actions">
-                        <button type="button" aria-label={indicatorText(locale, hidden ? "show" : "hide", { name: indicator.shortName })} onClick={() => toggleIndicatorVisibility(indicator.id)}><Eye size={13} /></button>
-                        <button type="button" aria-label={indicatorText(locale, "settings", { name: indicator.shortName })} onClick={() => setSettingsIndicatorId(indicator.id)}><Gear size={13} /></button>
-                        <button type="button" aria-label={indicatorText(locale, "remove", { name: indicator.shortName })} onClick={() => removeIndicator(indicator.id)}><X size={13} /></button>
+                        <button type="button" aria-label={indicatorText(locale, hidden ? "show" : "hide", { name: indicator.id === "volume" || indicator.id === "volumeProfile" ? localizeIndicator(locale, indicator).name : indicator.shortName })} onClick={() => toggleIndicatorVisibility(indicator.id)}><Eye size={13} /></button>
+                        <button type="button" aria-label={indicatorText(locale, "settings", { name: indicator.id === "volume" || indicator.id === "volumeProfile" ? localizeIndicator(locale, indicator).name : indicator.shortName })} onClick={() => setSettingsIndicatorId(indicator.id)}><Gear size={13} /></button>
+                        <button type="button" aria-label={indicatorText(locale, "remove", { name: indicator.id === "volume" || indicator.id === "volumeProfile" ? localizeIndicator(locale, indicator).name : indicator.shortName })} onClick={() => removeIndicator(indicator.id)}><X size={13} /></button>
                       </span>
                     </div>
                   );
@@ -6273,7 +6534,6 @@ export default function Home() {
                   afterHours={afterHoursEnabled ? afterHoursBySymbol[stock.ticker] : undefined}
                   watched={watched}
                   onToggleWatched={() => toggleWatched(stock.ticker)}
-                  onOpenDetails={openStockDetails}
                   registrations={DEFAULT_SYMBOL_SUMMARY_MODULES}
                   density={DEFAULT_SYMBOL_SUMMARY_DENSITY}
                 />
@@ -6314,7 +6574,7 @@ export default function Home() {
           <IconButton label={t("sidebar.close")} onClick={() => setUtilityPanel(null)}><SidebarSimple size={18} /></IconButton>
         </aside>}
 
-      </div> : primaryView === "stock-detail" ? <StockDetailPage stock={stock} targetPriceMarketBars={detailDailyMarketBars} earnings={detailWorkspace?.earnings ?? []} analystHistory={selectedAnalystHistory} analystHistoryStatus={analystHistoryStatus} detail={stockDetailViewModel} dataStatus={researchDataStatus} workspaceStatus={workspaceStatus} barsStatus={dailyBarsStatus} watched={watched} activeSection={activeStockDetailSection} onBack={() => setPrimaryView("chart")} onActiveSectionChange={selectStockDetailSection} onToggleWatched={() => toggleWatched(stock.ticker)} /> : <StrategyHome onOpenChart={openChartFromStrategy} onAction={showToast} />}
+      </div> : primaryView === "stock-detail" ? <StockDetailPage stock={stock} financialData={detailWorkspace?.fundamentals} research={detailWorkspace?.research} researchNews={detailWorkspace?.news} targetPriceMarketBars={detailDailyMarketBars} earnings={detailWorkspace?.earnings ?? []} analystHistory={selectedAnalystHistory} analystHistoryStatus={analystHistoryStatus} detail={stockDetailViewModel} dataStatus={researchDataStatus} workspaceStatus={workspaceStatus} barsStatus={dailyBarsStatus} watched={watched} activeSection={activeStockDetailSection} onBack={() => setPrimaryView("chart")} onActiveSectionChange={selectStockDetailSection} onToggleWatched={() => toggleWatched(stock.ticker)} /> : primaryView === "strategy" ? <StrategyHome screen={strategyScreen} setScreen={setStrategyScreen} selectedId={selectedStrategyId} setSelectedId={setSelectedStrategyId} tab={portfolioTab} setTab={setPortfolioTab} onOpenChart={openChartFromStrategy} onAction={showToast} /> : null}
 
       {searchOpen && (
         <div className="search-backdrop" onMouseDown={() => setSearchOpen(false)}>
@@ -6379,7 +6639,7 @@ export default function Home() {
           onApply={(settings) => {
             setIndicatorSettings((current) => ({ ...current, [settingsIndicatorId]: settings }));
             setSettingsIndicatorId(null);
-            showToast(indicatorText(locale, "settingsApplied", { name: settingsIndicator.shortName }));
+            showToast(indicatorText(locale, "settingsApplied", { name: getIndicatorDisplayName(settingsIndicator, settings, locale) }));
           }}
         />
       )}

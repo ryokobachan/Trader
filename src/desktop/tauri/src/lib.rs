@@ -301,16 +301,20 @@ fn start_runtime(
         .args(["--database", &database_path.to_string_lossy()])
         .env("TRADER_USAGE_MODE", "personal")
         .env("TRADER_ENABLE_YAHOO_COMPAT", "true")
-        .env("TRADER_INSTRUMENT_PROVIDER", "yahoo")
-        .env("TRADER_PROFILE_PROVIDER", "yahoo")
-        .env("TRADER_FUNDAMENTALS_PROVIDER", "yahoo")
-        .env("TRADER_EARNINGS_PROVIDER", "yahoo")
-        .env("TRADER_ANALYST_PROVIDER", "benzinga")
-        .env("TRADER_NEWS_PROVIDER", "yahoo")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::from(log))
         .process_group(0);
+    let providers: serde_json::Map<String, Value> = serde_json::from_str(include_str!(
+        "../../../../api/local-provider-profile.json"
+    ))
+    .map_err(|error| format!("invalid bundled provider profile: {error}"))?;
+    for (role, provider) in providers {
+        let provider = provider
+            .as_str()
+            .ok_or_else(|| format!("invalid provider for {role}"))?;
+        command.env(format!("TRADER_{}_PROVIDER", role.to_uppercase()), provider);
+    }
     if cfg!(debug_assertions) {
         command.env("TRADER_DESKTOP_DEBUG", "1");
     }
@@ -329,7 +333,9 @@ fn start_runtime(
     } else {
         command
             .env("TRADER_MARKET_PROVIDER", "yahoo")
-            .env("TRADER_BARS_PROVIDER", "yahoo");
+            .env("TRADER_BARS_PROVIDER", "yahoo")
+            .env("TRADER_FUNDAMENTALS_PROVIDER", "yahoo")
+            .env("TRADER_EARNINGS_PROVIDER", "yahoo");
     }
 
     let mut child = command

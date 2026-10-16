@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { DELETE, PATCH } from "../src/app/api/v1/strategy-preferences/[strategyId]/route";
 import { GET } from "../src/app/api/v1/strategy-preferences/route";
-import { SAMPLE_STRATEGY_DEFINITIONS } from "../strategies/catalog";
+import { STRATEGY_PACKAGE_DEFINITIONS } from "../src/app/features/strategy/catalog";
 import {
   StrategyPreferenceInputError,
   normalizeStrategyPreferenceId,
@@ -159,7 +159,7 @@ test("persists owner-scoped overrides and tombstones while protecting the last s
       [],
     );
 
-    const strategyId = SAMPLE_STRATEGY_DEFINITIONS[0].id;
+    const strategyId = STRATEGY_PACKAGE_DEFINITIONS[0].id;
     const firstPatch = await PATCH(
       request("PATCH", strategyId, { name: "Technology Core" }),
       context(strategyId),
@@ -179,7 +179,7 @@ test("persists owner-scoped overrides and tombstones while protecting the last s
     assert.equal(edited.headline, "A customized sample strategy.");
     assert.equal(edited.isDeleted, false);
 
-    const otherOwnerStrategyId = SAMPLE_STRATEGY_DEFINITIONS[1].id;
+    const otherOwnerStrategyId = STRATEGY_PACKAGE_DEFINITIONS[1].id;
     await updateStrategyPreference(
       otherOwnerStrategyId,
       { name: "Another owner's strategy" },
@@ -243,7 +243,7 @@ test("persists owner-scoped overrides and tombstones while protecting the last s
       "strategy_deleted",
     );
 
-    for (const definition of SAMPLE_STRATEGY_DEFINITIONS.slice(1, -1)) {
+    for (const definition of STRATEGY_PACKAGE_DEFINITIONS.slice(1, -1)) {
       const response = await DELETE(
         request("DELETE", definition.id),
         context(definition.id),
@@ -251,7 +251,7 @@ test("persists owner-scoped overrides and tombstones while protecting the last s
       assert.equal(response.status, 200);
     }
 
-    const finalDefinition = SAMPLE_STRATEGY_DEFINITIONS.at(-1);
+    const finalDefinition = STRATEGY_PACKAGE_DEFINITIONS.at(-1);
     assert.ok(finalDefinition);
     const lastDelete = await DELETE(
       request("DELETE", finalDefinition.id),
@@ -268,7 +268,7 @@ test("persists owner-scoped overrides and tombstones while protecting the last s
     assert.equal(payload.ownerId, "local-workspace");
     assert.equal(
       payload.preferences.filter((preference) => preference.isDeleted).length,
-      SAMPLE_STRATEGY_DEFINITIONS.length - 1,
+      STRATEGY_PACKAGE_DEFINITIONS.length - 1,
     );
     assert.equal(
       payload.preferences.some((preference) => preference.strategyId === finalDefinition.id),
@@ -281,7 +281,7 @@ test("persists owner-scoped overrides and tombstones while protecting the last s
          WHERE owner_id = 'local-workspace' AND entity_type = 'strategy_preference'`,
       )
       .get() as { count: number };
-    assert.equal(auditCount.count, SAMPLE_STRATEGY_DEFINITIONS.length + 1);
+    assert.equal(auditCount.count, STRATEGY_PACKAGE_DEFINITIONS.length + 1);
   } finally {
     installD1Binding(undefined);
     sqlite.close();

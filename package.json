@@ -1,8 +1,11 @@
 {
   "name": "trader-stock-analysis",
   "version": "0.1.0",
-  "description": "A customizable open-source workspace for U.S. stock charts, research, watchlists, indicators, and sample strategies.",
+  "description": "A customizable open-source workspace for U.S. stock charts, research, watchlists, indicators, and portable strategy packages.",
   "private": true,
+  "bin": {
+    "trader": "bin/trader"
+  },
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -17,6 +20,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "predev": "npm run strategies:generate",
     "dev": "vinext dev",
     "dev:midas": "node src/tooling/scripts/dev-with-tradingview.mjs --profile=midas",
     "dev:yahoo": "node src/tooling/scripts/dev-with-tradingview.mjs --profile=yahoo",
@@ -28,13 +32,22 @@
     "desktop:dev": "npm run desktop:prepare && cd src/desktop/tauri && ../../../node_modules/.bin/tauri dev --no-dev-server --no-watch",
     "desktop:build": "node src/desktop/build.mjs",
     "config:check": "node --env-file-if-exists=.env.local --import tsx src/tooling/scripts/check-trader-config.ts",
+    "strategies:generate": "tsx src/tooling/scripts/generate-strategy-packages.ts",
+    "strategies:check": "tsx src/tooling/scripts/generate-strategy-packages.ts --check",
     "strategy": "tsx src/tooling/scripts/strategy-cli.ts",
+    "trader": "node bin/trader",
+    "strategy:backtest": "node src/tooling/scripts/strategy-backtest.mjs",
+    "prebuild": "npm run strategies:generate",
     "build": "npm run config:check && vinext build",
     "start": "vinext start",
     "test": "npm run build && npm run test:contracts && node --test tests/rendered-html.test.mjs",
+    "pretest:contracts": "npm run strategies:generate",
     "test:contracts": "tsx --test tests/*-registry.test.ts tests/*-provider.test.ts tests/dev-with-midas-env.test.mjs tests/dev-with-yahoo.test.mjs tests/dev-with-tradingview.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate --config=src/db/drizzle.config.ts"
+    "db:generate": "drizzle-kit generate --config=src/db/drizzle.config.ts",
+    "test:mcp": "tsx --test tests/mcp-provider.test.ts",
+    "mcp:build": "tsx src/tooling/scripts/build-mcp.ts",
+    "mcp:check": "tsx src/tooling/scripts/build-mcp.ts --check"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -47,15 +60,20 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.51.1",
     "@cloudflare/workers-types": "^5.20260809.1",
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "@tauri-apps/cli": "2.11.4",
+    "@types/js-yaml": "4.0.9",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
     "drizzle-kit": "0.31.10",
+    "esbuild": "0.28.2",
     "eslint": "9.39.4",
     "eslint-config-next": "^16.3.0",
+    "js-yaml": "4.3.1",
     "react-server-dom-webpack": "^19.2.8",
     "tsx": "4.22.1",
     "typescript": "5.9.3",

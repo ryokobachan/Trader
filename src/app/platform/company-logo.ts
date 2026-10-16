@@ -4,27 +4,27 @@
  * The market/fundamentals providers return canonical data and never decide
  * which arbitrary remote images the browser may load. Developers can replace
  * this resolver (and its allow-list) without changing CompanyLogo or page code.
- * The default resolver uses FMP's keyless symbol-logo endpoint; failed or
+ * The default resolver uses a local endpoint backed by TradingView; failed or
  * missing images remain a UI concern and fall back to the stock monogram.
  */
 export const COMPANY_LOGO_POLICY = Object.freeze({
-  remoteOrigins: Object.freeze(["https://financialmodelingprep.com"]),
-  remoteAssetPattern: /^\/image-stock\/[A-Z][A-Z0-9-]{0,14}\.png$/,
+  remoteOrigins: Object.freeze(["https://s3-symbol-logo.tradingview.com"]),
+  remoteAssetPattern: /^\/[a-z0-9-]+(?:\/[a-z0-9-]+)*\.svg$/,
 });
+const LOCAL_LOGO_PATTERN = /^\/api\/v1\/symbols\/[A-Z][A-Z0-9.-]{0,14}\/logo$/;
 
 function normalizedUSStockSymbol(value: string): string | null {
   const symbol = value
     .normalize("NFKC")
     .trim()
-    .toUpperCase()
-    .replace(/[./]/g, "-");
-  return /^[A-Z][A-Z0-9-]{0,14}$/.test(symbol) ? symbol : null;
+    .toUpperCase();
+  return /^[A-Z][A-Z0-9.-]{0,14}$/.test(symbol) && !symbol.includes("..") ? symbol : null;
 }
 
 export function companyLogoPathForUSStock(symbol: string): string | undefined {
   const normalized = normalizedUSStockSymbol(symbol);
   if (!normalized) return undefined;
-  return `${COMPANY_LOGO_POLICY.remoteOrigins[0]}/image-stock/${normalized}.png`;
+  return `/api/v1/symbols/${normalized}/logo`;
 }
 
 /**
@@ -34,6 +34,7 @@ export function companyLogoPathForUSStock(symbol: string): string | undefined {
 export function safeCompanyLogoSource(value: string | undefined): string | null {
   const candidate = value?.trim();
   if (!candidate) return null;
+  if (LOCAL_LOGO_PATTERN.test(candidate) && !candidate.includes("..")) return candidate;
   try {
     const url = new URL(candidate);
     if (

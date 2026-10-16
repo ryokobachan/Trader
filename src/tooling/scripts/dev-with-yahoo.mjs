@@ -10,7 +10,8 @@ export const YAHOO_DEVELOPMENT_PROFILE = Object.freeze({
   TRADER_PROFILE_PROVIDER: "yahoo",
   TRADER_FUNDAMENTALS_PROVIDER: "yahoo",
   TRADER_EARNINGS_PROVIDER: "yahoo",
-  TRADER_ANALYST_PROVIDER: "benzinga",
+  TRADER_RESEARCH_PROVIDER: "yahoo",
+  TRADER_ANALYST_PROVIDER: "google-finance-benzinga",
   TRADER_NEWS_PROVIDER: "yahoo",
 });
 

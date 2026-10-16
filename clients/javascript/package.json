@@ -1,0 +1,8 @@
+{
+  "name": "@trader/data-client",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": "./trader-data.mjs",
+  "engines": { "node": ">=22" },
+  "description": "Read-only Trader data discovery and retrieval with native provenance"
+}

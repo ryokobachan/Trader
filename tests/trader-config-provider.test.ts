@@ -14,9 +14,9 @@ import {
   listInstalledProviderManifests,
   resolveProviderSelections,
 } from "../api/index.server";
-import { sampleStrategiesForLocale } from "../strategies/catalog";
-import { createStrategyTranslator } from "../strategies/i18n";
-import { buildStrategySummaryMetricRegistry } from "../strategies/metrics";
+import { strategyPackagesForLocale } from "../src/app/features/strategy/catalog";
+import { createStrategyTranslator } from "../src/app/features/strategy/i18n";
+import { buildStrategySummaryMetricRegistry } from "../src/app/features/strategy/metrics";
 
 function editableConfig() {
   return structuredClone(traderConfig);
@@ -40,7 +40,8 @@ test("loads one validated non-secret master configuration", () => {
   assert.equal(traderConfig.providers.instrument, "mock");
   assert.equal(traderConfig.providers.market, "mock");
   assert.equal(traderConfig.ui.symbolSummary.modules[0], "core.identity_quote@1.0.0");
-  assert.deepEqual(traderConfig.ui.symbolDetail.tabs, ["financials", "analyst", "technicals"]);
+  assert.deepEqual(traderConfig.ui.symbolDetail.tabs, ["overview", "financials", "technicals", "ownership", "dividends", "analyst", "news"]);
+  assert.equal(traderConfig.providers.research, null);
   assert.ok(traderConfig.ui.symbolDetail.fundamentalGroups.some((group) => (
     group.id === "financial_health"
     && group.metrics.includes("fundamentals.piotroskiScore")
@@ -53,7 +54,7 @@ test("loads one validated non-secret master configuration", () => {
     "profile.industry",
     "profile.location",
     "profile.employees",
-    "profile.website",
+    "profile.marketCap",
     "profile.ipoDate",
     "profile.beta",
   ]);
@@ -62,9 +63,9 @@ test("loads one validated non-secret master configuration", () => {
     "portfolio.unrealizedGain",
     "portfolio.totalGain",
     "portfolio.annualReturn",
-    "risk.beta",
+    "risk.recoveryFactor",
     "risk.sharpe",
-    "risk.sortino",
+    "trades.winRate",
     "risk.maxDrawdown",
   ]);
   assert.equal(Object.isFrozen(traderConfig), true);
@@ -77,7 +78,7 @@ test("rejects unknown fields, unknown IDs, duplicates, and a missing fixed ident
     Object.assign(value.ui.symbolDetail, { remoteComponentUrl: "https://example.invalid/plugin.js" });
   }, "ui.symbolDetail.remoteComponentUrl");
   expectConfigError((value) => {
-    Object.assign(value.ui.symbolDetail.tabs, { 0: "overview" });
+    Object.assign(value.ui.symbolDetail.tabs, { 0: "unknown-tab" });
   }, "ui.symbolDetail.tabs[0]");
   expectConfigError((value) => {
     Object.assign(value.ui.symbolDetail.technicalMetrics, { 1: value.ui.symbolDetail.technicalMetrics[0] });
@@ -104,6 +105,12 @@ test("rejects secret-like values, endpoints, unknown policies, and role-incompat
   expectConfigError((value) => {
     Object.assign(value.providers, { analyst: "yahoo" });
   }, "providers.analyst");
+  expectConfigError((value) => {
+    Object.assign(value.providers, { research: "benzinga" });
+  }, "providers.research");
+  expectConfigError((value) => {
+    Object.assign(value.providers, { fundamentals: "fmp" });
+  }, "providers.fundamentals");
 });
 
 test("the UI consumes master arrays instead of duplicating display order", async () => {
@@ -124,6 +131,7 @@ test("the public provider allow-list matches installed manifests and role capabi
     profile: ["fundamentals.profile"],
     fundamentals: ["fundamentals.normalized"],
     earnings: ["fundamentals.earnings"],
+    research: ["fundamentals.research"],
     analyst: ["analyst.consensus"],
     news: ["news.company"],
   };
@@ -145,27 +153,35 @@ test("the public provider allow-list matches installed manifests and role capabi
   }
 });
 
+test("retired FMP credentials and provider IDs are absent from every public allow-list", () => {
+  assert.equal(PROVIDER_ENVIRONMENT_KEYS.some((name) => name.startsWith("FMP_")), false);
+  for (const ids of Object.values(PROVIDER_IDS_BY_ROLE)) {
+    assert.equal((ids as readonly string[]).includes("fmp"), false);
+  }
+});
+
 test("runtime and config tooling share environment precedence and role fallbacks", () => {
   const selection = resolveProviderSelections({
     TRADER_INSTRUMENT_PROVIDER: "yahoo",
     TRADER_MARKET_PROVIDER: "yahoo",
-    TRADER_FUNDAMENTALS_PROVIDER: "fmp",
+    TRADER_FUNDAMENTALS_PROVIDER: "tradingview",
+    TRADER_RESEARCH_PROVIDER: "yahoo",
   });
   assert.deepEqual(selection.instrument, {
     id: "yahoo",
     origin: "environment TRADER_INSTRUMENT_PROVIDER",
   });
   assert.deepEqual(selection.bars, { id: "yahoo", origin: "fallback from market" });
-  assert.deepEqual(selection.profile, { id: "fmp", origin: "fallback from fundamentals" });
-  assert.deepEqual(selection.earnings, { id: "fmp", origin: "fallback from fundamentals" });
+  assert.deepEqual(selection.profile, { id: "tradingview", origin: "fallback from fundamentals" });
+  assert.deepEqual(selection.earnings, { id: null, origin: "fallback from fundamentals" });
+  assert.deepEqual(selection.research, { id: "yahoo", origin: "environment TRADER_RESEARCH_PROVIDER" });
   assert.equal(selection.analyst.id, null);
 });
 
 test("strategy summary formulas stay in a typed registry selected by the JSON", () => {
-  const selected = sampleStrategiesForLocale("en")[0];
+  const selected = strategyPackagesForLocale("en")[0];
   const result = buildStrategySummaryMetricRegistry({
     selected,
-    selectedCatalogIndex: 0,
     unrealizedGain: 1200,
     translate: createStrategyTranslator("en"),
   });
@@ -175,24 +191,28 @@ test("strategy summary formulas stay in a typed registry selected by the JSON", 
     "portfolio.totalGain",
     "portfolio.annualReturn",
     "risk.beta",
+    "risk.recoveryFactor",
     "risk.sharpe",
     "risk.sortino",
     "risk.maxDrawdown",
+    "trades.winRate",
   ]);
-  assert.equal(result.cards["risk.sharpe"].value, selected.sharpe?.toFixed(2));
-  assert.equal(result.cards["risk.maxDrawdown"].value, `${selected.maxDrawdown.toFixed(1)}%`);
+  assert.equal(result.cards["risk.recoveryFactor"].value, "9.85");
+  assert.equal(result.cards["trades.winRate"].value, "64.1%");
+  assert.equal(result.cards["risk.sharpe"].value, "1.00");
+  assert.equal(result.cards["risk.sharpe"].note, "Recorded Sharpe ratio");
+  assert.equal(result.cards["risk.maxDrawdown"].value, "-27.1%");
   assert.equal(Object.isFrozen(result.cards), true);
 
   const markedResult = buildStrategySummaryMetricRegistry({
     selected,
-    selectedCatalogIndex: 0,
     unrealizedGain: 500,
     holdingsMarketValue: 78_000,
     translate: createStrategyTranslator("en"),
   });
-  assert.equal(markedResult.portfolioValue, 100_000);
-  assert.equal(markedResult.cashValue, 22_000);
-  assert.equal(markedResult.cards["portfolio.value"].value, "$100,000");
+  assert.equal(markedResult.portfolioValue, 211_875);
+  assert.equal(markedResult.cashValue, 133_875);
+  assert.equal(markedResult.cards["portfolio.value"].value, "$211,875");
   assert.equal(
     markedResult.cards["portfolio.totalGain"].value,
     result.cards["portfolio.totalGain"].value,

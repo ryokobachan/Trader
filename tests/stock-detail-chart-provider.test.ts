@@ -7,12 +7,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   AnalystTargetReadout,
   actualStockPricePointAtOrBefore,
+  analystHistoryDataStartDate,
   analystRatingChangeTone,
   analystTargetPointAtOrBefore,
   analystTargetChangeTone,
   analystTargetRightOffsetPixels,
   buildAnalystTargetPoints,
   buildActualStockPricePoints,
+  buildCurrentAnalystTargets,
   extendAnalystTargetPointsToActualPrice,
 } from "../src/app/features/stock-detail/StockDetailCharts";
 import { I18nProvider, translate } from "../src/app/platform/i18n";
@@ -39,6 +41,16 @@ function analystEvent(overrides: Partial<AnalystRatingEvent> = {}): AnalystRatin
     ...overrides,
   };
 }
+
+test("starts the displayed analyst history range at the oldest returned data row", () => {
+  assert.equal(analystHistoryDataStartDate([
+    analystEvent({ sourceEventDate: "2026-08-12" }),
+    analystEvent({ sourceEventDate: "2025-01-13" }),
+    analystEvent({ sourceEventDate: "2026-02-18" }),
+    analystEvent({ sourceEventDate: "not-a-date" }),
+  ]), "2025-01-13");
+  assert.equal(analystHistoryDataStartDate([]), undefined);
+});
 
 test("normalizes daily and intraday bars without fabricating missing trading days", () => {
   const points = buildActualStockPricePoints([
@@ -89,7 +101,7 @@ test("resolves actual closes across non-trading dates without looking ahead", ()
   assert.equal(actualStockPricePointAtOrBefore(points, "not-a-date"), undefined);
 });
 
-test("completely excludes target observations outside the as-of trailing window", () => {
+test("rebuilds old rolling target observations while excluding future events", () => {
   const points = buildAnalystTargetPoints([
     analystEvent({
       eventId: "expired",
@@ -128,9 +140,62 @@ test("completely excludes target observations outside the as-of trailing window"
     }),
   ], 365, "2026-08-13");
 
-  assert.deepEqual(points.map((point) => point.date), ["2025-08-14", "2026-08-12"]);
-  assert.equal(points.some((point) => point.low <= 180 || point.high === 999), false);
+  assert.deepEqual(points.map((point) => point.date), [
+    "2025-08-12",
+    "2025-08-13",
+    "2025-08-14",
+    "2026-08-12",
+  ]);
+  assert.deepEqual(points.at(-1), {
+    date: "2026-08-12",
+    low: 180,
+    average: 203.33333333333334,
+    high: 240,
+    analystCount: 3,
+  });
+  assert.equal(points.some((point) => point.high === 999), false);
   assert.deepEqual(buildAnalystTargetPoints([], 365, "invalid-date"), []);
+});
+
+test("uses an exact three-calendar-month window for merged analyst coverage", () => {
+  const items = [
+    analystEvent({
+      eventId: "before-calendar-cutoff",
+      canonicalFirmId: "firm:before",
+      analystFirm: "Before Research",
+      sourceEventDate: "2026-05-15",
+      eventTime: "2026-05-15T12:00:00.000Z",
+      effectivePriceTarget: 100,
+    }),
+    analystEvent({
+      eventId: "calendar-cutoff",
+      canonicalFirmId: "firm:boundary",
+      analystFirm: "Boundary Research",
+      sourceEventDate: "2026-05-16",
+      eventTime: "2026-05-16T12:00:00.000Z",
+      effectivePriceTarget: 200,
+    }),
+    analystEvent({
+      eventId: "recent-calendar",
+      canonicalFirmId: "firm:recent",
+      analystFirm: "Recent Research",
+      sourceEventDate: "2026-08-15",
+      eventTime: "2026-08-15T12:00:00.000Z",
+      effectivePriceTarget: 300,
+    }),
+  ];
+
+  const current = buildCurrentAnalystTargets(items, "2026-08-16", 365, 3);
+  const points = buildAnalystTargetPoints(items, 365, "2026-08-16", 3);
+  assert.deepEqual(current.map((item) => item.priceTarget).sort(), [200, 300]);
+  assert.deepEqual(points.map((point) => point.date), [
+    "2026-05-15",
+    "2026-05-16",
+    "2026-08-15",
+  ]);
+  assert.equal(points[0]?.average, 100);
+  assert.equal(points.at(-1)?.average, 200);
+  assert.equal(points.at(-1)?.analystCount, 3);
 });
 
 test("anchors the one-year target cutoff to dateTo rather than the previous trading day", () => {
@@ -154,10 +219,129 @@ test("anchors the one-year target cutoff to dateTo rather than the previous trad
       effectivePriceTarget: 190,
     }),
   ], 365, dateTo);
+  const currentTargets = buildCurrentAnalystTargets([
+    analystEvent({
+      eventId: "date-to-boundary",
+      analystFirm: "Boundary Research",
+      sourceEventDate: "2025-08-13",
+      eventTime: "2025-08-13T12:00:00.000Z",
+      effectivePriceTarget: 180,
+    }),
+    analystEvent({
+      eventId: "inside-date-to-window",
+      analystFirm: "Inside Research",
+      sourceEventDate: "2025-08-14",
+      eventTime: "2025-08-14T12:00:00.000Z",
+      effectivePriceTarget: 190,
+    }),
+  ], dateTo);
 
   assert.equal(actualPrices.at(-1)?.date, "2026-08-12");
-  assert.deepEqual(targetPoints.map((point) => point.date), ["2025-08-14"]);
-  assert.equal(targetPoints[0]?.low, 190);
+  assert.deepEqual(currentTargets.map((item) => item.priceTarget), [190]);
+  assert.deepEqual(targetPoints.map((point) => point.date), ["2025-08-13", "2025-08-14"]);
+  assert.equal(targetPoints[1]?.average, 185);
+});
+
+test("builds the current target list from each identified analyst or firm's latest fresh event", () => {
+  const current = buildCurrentAnalystTargets([
+    analystEvent({
+      eventId: "alpha-old",
+      firmId: "firm-alpha",
+      analystId: "analyst-alpha",
+      analystFirm: "Alpha Research",
+      sourceEventDate: "2026-08-01",
+      eventTime: "2026-08-01T12:00:00.000Z",
+      effectivePriceTarget: 180,
+    }),
+    analystEvent({
+      eventId: "alpha-current",
+      firmId: "FIRM-ALPHA",
+      analystId: "ANALYST-ALPHA",
+      analystFirm: "Alpha Research",
+      sourceEventDate: "2026-08-10",
+      eventTime: "2026-08-10T12:00:00.000Z",
+      effectivePriceTarget: 200,
+    }),
+    analystEvent({
+      eventId: "firm-level-old",
+      analystFirm: "Firm Level Research",
+      sourceEventDate: "2026-08-05",
+      eventTime: "2026-08-05T12:00:00.000Z",
+      effectivePriceTarget: 190,
+    }),
+    analystEvent({
+      eventId: "firm-level-current",
+      analystFirm: "Firm Level Research",
+      sourceEventDate: "2026-08-11",
+      eventTime: "2026-08-11T12:00:00.000Z",
+      effectivePriceTarget: 210,
+    }),
+    analystEvent({
+      eventId: "withdrawn-old",
+      analystFirm: "Withdrawn Research",
+      sourceEventDate: "2026-08-09",
+      eventTime: "2026-08-09T12:00:00.000Z",
+      effectivePriceTarget: 220,
+    }),
+    analystEvent({
+      eventId: "withdrawn-current",
+      analystFirm: "Withdrawn Research",
+      sourceEventDate: "2026-08-12",
+      eventTime: "2026-08-12T12:00:00.000Z",
+    }),
+    analystEvent({
+      eventId: "non-usd-old",
+      analystFirm: "Currency Research",
+      sourceEventDate: "2026-08-08",
+      eventTime: "2026-08-08T12:00:00.000Z",
+      currency: "USD",
+      effectivePriceTarget: 230,
+    }),
+    analystEvent({
+      eventId: "non-usd-current",
+      analystFirm: "Currency Research",
+      sourceEventDate: "2026-08-12",
+      eventTime: "2026-08-12T13:00:00.000Z",
+      currency: "EUR",
+      effectivePriceTarget: 999,
+    }),
+    analystEvent({
+      eventId: "analyst-only",
+      analystId: "solo-analyst",
+      analystName: "Solo Analyst",
+      sourceEventDate: "2026-08-09",
+      eventTime: "2026-08-09T12:00:00.000Z",
+      adjustedPriceTarget: 205,
+    }),
+    analystEvent({
+      eventId: "expired",
+      analystFirm: "Expired Research",
+      sourceEventDate: "2025-08-13",
+      eventTime: "2025-08-13T12:00:00.000Z",
+      effectivePriceTarget: 150,
+    }),
+    analystEvent({
+      eventId: "future",
+      analystFirm: "Future Research",
+      sourceEventDate: "2026-08-14",
+      eventTime: "2026-08-14T12:00:00.000Z",
+      effectivePriceTarget: 300,
+    }),
+    analystEvent({
+      eventId: "anonymous",
+      sourceEventDate: "2026-08-13",
+      eventTime: "2026-08-13T12:00:00.000Z",
+      effectivePriceTarget: 250,
+    }),
+  ], "2026-08-13");
+
+  assert.deepEqual(current.map(({ event }) => event.eventId), [
+    "firm-level-current",
+    "alpha-current",
+    "analyst-only",
+  ]);
+  assert.deepEqual(current.map(({ priceTarget }) => priceTarget), [210, 200, 205]);
+  assert.deepEqual(buildCurrentAnalystTargets([], "invalid-date"), []);
 });
 
 test("carries target consensus forward for strictly less than 365 calendar days", () => {
@@ -229,7 +413,8 @@ test("renders actual closes as their own chart series and crosshair readout", as
 
   assert.match(source, /marketBars:\s*readonly MarketBar\[\]/);
   assert.match(source, /buildActualStockPricePoints\(marketBars, history\?\.dateTo\)/);
-  assert.match(source, /buildAnalystTargetPoints\(history\?\.items \?\? \[\], ANALYST_TARGET_VALIDITY_DAYS, history\?\.dateTo\)/);
+  assert.match(source, /history\?\.consensusItems \?\? history\?\.items/);
+  assert.match(source, /buildAnalystTargetPoints\([\s\S]*history\?\.consensusLookbackMonths/);
   assert.match(source, /title:\s*t\("detail\.chart\.target\.actualSeries"\)/);
   assert.match(source, /actualPrice\.setData\(actualPrices/);
   assert.match(source, /subscribeCrosshairMove/);
@@ -255,16 +440,29 @@ test("refreshes analyst history on tab activation, expiry, and visibility resume
 
   assert.match(pageSource, /activeStockDetailSection === "analyst"/);
   assert.match(pageSource, /setAnalystHistoryRefreshNonce/);
-  assert.match(pageSource, /fresh:\s*"1"/);
+  assert.match(pageSource, /params\.set\("fresh", "1"\)/);
   assert.match(pageSource, /cache:\s*"no-store"/);
   assert.match(pageSource, /ANALYST_HISTORY_REFRESH_MS/);
+  assert.match(pageSource, /history\.consensusItems \?\? history\.items/);
+  assert.match(pageSource, /analystHistoryDataStartDate\(analystHistory\?\.items \?\? \[\]\)/);
+  assert.doesNotMatch(pageSource, /analystHistory\?\.dateFrom/);
+  assert.match(pageSource, /event\.analystStarRating\.toFixed\(1\)\} ★/);
+  assert.match(pageSource, /Smart \$\{event\.smartScore\.toFixed\(1\)\}/);
   assert.match(pageSource, /addEventListener\("visibilitychange", handleVisibilityChange\)/);
   assert.match(routeSource, /fresh === "1" \? "private, no-store"/);
+  assert.match(routeSource, /fresh === "1" \? \{ fresh: true \} : \{\}/);
+  assert.match(routeSource, /signal:\s*request\.signal/);
+  assert.match(routeSource, /timeZone:\s*"America\/New_York"/);
+  assert.match(pageSource, /const dateTo = newYorkCalendarDate\(today\)/);
 });
 
 test("localizes analyst and earnings chart copy in English and Japanese", async () => {
   assert.equal(translate("en", "detail.chart.target.title"), "Price target consensus over time");
   assert.equal(translate("ja", "detail.chart.target.title"), "目標価格コンセンサスの推移");
+  assert.equal(
+    translate("ja", "detail.chart.target.methodologyMonths", { count: 3 }),
+    "各時点で直近3か月の利用可能な最新レーティングをanalyst／firm単位に集計",
+  );
   assert.equal(translate("en", "detail.chart.earnings.title"), "Actuals vs market estimates");
   assert.equal(translate("ja", "detail.chart.earnings.title"), "実績と市場予想");
   assert.equal(
@@ -279,6 +477,7 @@ test("localizes analyst and earnings chart copy in English and Japanese", async 
   assert.equal((source.match(/const \{ locale, t \} = useI18n\(\)/g) ?? []).length, 3);
   assert.match(source, /localization:\s*\{\s*locale:\s*chartLocaleTag\(locale\)\s*\}/);
   assert.match(source, /formatChartDate\(readout\.date, locale\)/);
+  assert.match(source, /formatChartDate\(chartStartDate, locale\)/);
   assert.match(source, /detail\.chart\.earnings\.metricAria/);
   assert.match(source, /detail\.chart\.earnings\.aria/);
   assert.match(source, /minimumFractionDigits:\s*2/);

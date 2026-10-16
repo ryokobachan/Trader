@@ -109,6 +109,7 @@ class BenzingaClient {
     dateFrom: string,
     dateTo: string,
     pageSize = this.#pageSize,
+    signal?: AbortSignal,
   ): Promise<unknown> {
     const url = new URL(this.#endpoint);
     // Preserve the Midas collector contract as the canonical request shape.
@@ -125,6 +126,9 @@ class BenzingaClient {
     if (this.#token) url.searchParams.set("token", this.#token);
 
     const controller = new AbortController();
+    const abortFromRequest = () => controller.abort();
+    signal?.addEventListener("abort", abortFromRequest, { once: true });
+    if (signal?.aborted) controller.abort();
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<never>((_resolve, reject) => {
       timeout = setTimeout(() => {
@@ -133,45 +137,69 @@ class BenzingaClient {
       }, this.#timeoutMs);
     });
 
-    let response: Response;
     try {
-      response = await Promise.race([
-        this.#fetch(url, {
-          method: "GET",
-          // Keep the acquisition request aligned with Midas' collector.
-          headers: {
-            Accept: "application/json",
-            "User-Agent": "midas/benzinga-analyst-ratings",
-          },
-          signal: controller.signal,
-        }),
-        timeoutPromise,
-      ]);
-    } catch (error) {
-      if (error instanceof BenzingaProviderError && error.code === "timeout") throw error;
-      if (controller.signal.aborted) {
-        throw new BenzingaProviderError("timeout", "Benzinga request timed out.");
+      let response: Response;
+      try {
+        response = await Promise.race([
+          this.#fetch(url, {
+            method: "GET",
+            // Cloudflare's fetch supports manual redirect handling rather
+            // than `redirect: "error"`; the status check below rejects 3xx.
+            redirect: "manual",
+            // Keep the acquisition request aligned with Midas' collector.
+            headers: {
+              Accept: "application/json",
+              "User-Agent": "midas/benzinga-analyst-ratings",
+            },
+            signal: controller.signal,
+          }),
+          timeoutPromise,
+        ]);
+      } catch (error) {
+        if (error instanceof BenzingaProviderError && error.code === "timeout") throw error;
+        if (signal?.aborted) {
+          throw new BenzingaProviderError("network", "Benzinga request was aborted.");
+        }
+        if (controller.signal.aborted) {
+          throw new BenzingaProviderError("timeout", "Benzinga request timed out.");
+        }
+        throw new BenzingaProviderError("network", "Benzinga request failed.");
       }
+      if (!response.ok) {
+        throw new BenzingaProviderError(
+          "upstream",
+          `Benzinga request failed with status ${response.status}.`,
+          response.status,
+        );
+      }
+      try {
+        const payload = await Promise.race([response.json(), timeoutPromise]);
+        if (!hasRatingsShape(payload)) {
+          throw new BenzingaProviderError(
+            "invalid_response",
+            "Benzinga returned an unexpected response shape.",
+          );
+        }
+        return payload;
+      } catch (error) {
+        if (error instanceof BenzingaProviderError) throw error;
+        if (signal?.aborted) {
+          throw new BenzingaProviderError("network", "Benzinga request was aborted.");
+        }
+        if (controller.signal.aborted) {
+          throw new BenzingaProviderError("timeout", "Benzinga request timed out.");
+        }
+        throw new BenzingaProviderError(
+          "invalid_response",
+          "Benzinga returned an invalid response.",
+        );
+      }
+    } catch (error) {
+      if (error instanceof BenzingaProviderError) throw error;
       throw new BenzingaProviderError("network", "Benzinga request failed.");
     } finally {
       if (timeout !== undefined) clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      throw new BenzingaProviderError(
-        "upstream",
-        `Benzinga request failed with status ${response.status}.`,
-        response.status,
-      );
-    }
-
-    try {
-      return await response.json();
-    } catch {
-      throw new BenzingaProviderError(
-        "invalid_response",
-        "Benzinga returned an invalid response.",
-      );
+      signal?.removeEventListener("abort", abortFromRequest);
     }
   }
 }
@@ -180,15 +208,60 @@ function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const RATING_ENVELOPE_KEYS = ["data", "ratings", "results"] as const;
+const RATING_ROW_IDENTITY_KEYS = [
+  "id",
+  "ticker",
+  "analyst",
+  "analyst_name",
+  "firm_id",
+  "analyst_id",
+  "rating_current",
+  "rating_prior",
+  "pt_current",
+  "pt_prior",
+] as const;
+
+function hasOwn(record: JsonRecord, key: string) {
+  return Object.prototype.hasOwnProperty.call(record, key);
+}
+
+function isRatingRecord(value: unknown): value is JsonRecord {
+  if (!isRecord(value) || !(hasOwn(value, "date") || hasOwn(value, "updated"))) return false;
+  return RATING_ROW_IDENTITY_KEYS.some((key) => hasOwn(value, key));
+}
+
+function isRatingsArray(value: unknown): value is JsonRecord[] {
+  return Array.isArray(value)
+    && (value.length === 0 || value.some((item) => isRatingRecord(item)));
+}
+
+/** Accept only the documented row array or reviewed one/two-level envelopes. */
+function hasRatingsShape(value: unknown): boolean {
+  if (isRatingsArray(value) || isRatingRecord(value)) return true;
+  if (!isRecord(value)) return false;
+
+  for (const key of RATING_ENVELOPE_KEYS) {
+    if (!hasOwn(value, key)) continue;
+    const nested = value[key];
+    if (isRatingsArray(nested)) return true;
+    if (!isRecord(nested)) continue;
+    for (const nestedKey of RATING_ENVELOPE_KEYS) {
+      if (hasOwn(nested, nestedKey) && isRatingsArray(nested[nestedKey])) return true;
+    }
+  }
+  return false;
+}
+
 function recordsFrom(value: unknown): JsonRecord[] {
   if (Array.isArray(value)) return value.filter(isRecord);
   if (!isRecord(value)) return [];
 
-  for (const key of ["data", "ratings", "results"]) {
+  for (const key of RATING_ENVELOPE_KEYS) {
     const nested = value[key];
     if (Array.isArray(nested)) return nested.filter(isRecord);
     if (isRecord(nested)) {
-      for (const nestedKey of ["data", "ratings", "results"]) {
+      for (const nestedKey of RATING_ENVELOPE_KEYS) {
         const rows = nested[nestedKey];
         if (Array.isArray(rows)) return rows.filter(isRecord);
       }
@@ -610,6 +683,8 @@ function analystRatingEvent(
   return {
     eventId: event.sourceId,
     instrumentId,
+    providerId: manifest.id,
+    sourceProviderIds: Object.freeze([manifest.id]),
     symbol: event.symbol,
     companyName: event.companyName,
     exchange: event.exchange,
@@ -779,8 +854,9 @@ export function createBenzingaProvider(
           symbol,
           new Date(oldestAllowed).toISOString().slice(0, 10),
           cutoffDate.toISOString().slice(0, 10),
+          undefined,
+          context.signal,
         ));
-
         const latestByAnalystFirm = new Map<string, NormalizedEvent>();
         for (const row of rows) {
           const event = normalizedEvent(row, symbol, oldestAllowed, cutoff);
@@ -793,7 +869,7 @@ export function createBenzingaProvider(
 
         const eligible = [...latestByAnalystFirm.values()].filter(
           (event): event is NormalizedEvent & { target: number } => (
-            event.currency === "USD" && event.target !== undefined
+            (!event.currency || event.currency === "USD") && event.target !== undefined
           ),
         );
         if (eligible.length === 0) return null;
@@ -836,6 +912,7 @@ export function createBenzingaProvider(
       getRatingHistory: async (
         instrument: Instrument,
         request: AnalystRatingHistoryRequest,
+        context: ProviderRequestContext,
       ): Promise<AnalystRatingHistory> => {
         const symbol = normalizedSymbol(instrument.symbol);
         if (!symbol || instrument.currency !== "USD" || instrument.listingCountry !== "US") {
@@ -858,6 +935,7 @@ export function createBenzingaProvider(
           bounds.dateFrom,
           bounds.dateTo,
           effectivePageSize,
+          context.signal,
         ));
         const byEventId = new Map<string, NormalizedEvent>();
         for (const row of rows) {
@@ -882,6 +960,24 @@ export function createBenzingaProvider(
         const items = normalized.map((event) => analystRatingEvent(event, instrument.instrumentId));
         const asOf = normalized[0]?.eventTime.toISOString()
           || new Date(bounds.cutoff).toISOString();
+        const latestByFirm = new Map<string, NormalizedEvent>();
+        for (const event of normalized) {
+          const firmKey = normalizedIdentity(event.analystFirm)
+            || normalizedIdentity(event.analystName);
+          if (!firmKey) continue;
+          const current = latestByFirm.get(firmKey);
+          if (!current || isNewer(event, current)) latestByFirm.set(firmKey, event);
+        }
+        const latestFirmEvents = [...latestByFirm.values()];
+        const truncated = rows.length >= effectivePageSize;
+        const sourceProvenance = historyProvenance(
+          client,
+          symbol,
+          bounds.dateFrom,
+          bounds.dateTo,
+          asOf,
+          ingestedAt,
+        );
         return {
           instrumentId: instrument.instrumentId,
           symbol,
@@ -889,14 +985,25 @@ export function createBenzingaProvider(
           dateTo: bounds.dateTo,
           pageSize: effectivePageSize,
           items,
-          provenance: historyProvenance(
-            client,
-            symbol,
-            bounds.dateFrom,
-            bounds.dateTo,
-            asOf,
-            ingestedAt,
-          ),
+          coverage: {
+            status: truncated ? "partial" : "complete",
+            sources: Object.freeze([{
+              providerId: manifest.id,
+              status: "available",
+              eventCount: normalized.length,
+              firmCount: latestFirmEvents.length,
+              ratingCount: latestFirmEvents.filter((event) => Boolean(event.rating)).length,
+              priceTargetCount: latestFirmEvents.filter((event) => (
+                (!event.currency || event.currency === "USD") && event.target !== undefined
+              )).length,
+              asOf,
+              dateFrom: bounds.dateFrom,
+              dateTo: bounds.dateTo,
+              ...(truncated ? { truncated: true } : {}),
+            }]),
+          },
+          sources: Object.freeze([sourceProvenance]),
+          provenance: sourceProvenance,
         };
       },
     },

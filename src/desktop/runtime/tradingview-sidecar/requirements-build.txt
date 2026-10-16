@@ -1,9 +1,8 @@
 # The application dependencies remain owned by the existing sidecar.
 -r ../../../../api/tradingview-websocket/requirements.txt
 
-# Keep the frozen ABI stable on arm64 Python 3.12. Newer NumPy and pandas
-# releases have already dropped older Python/macOS combinations.
-numpy==1.26.4
+# TA-Lib 0.6 uses the NumPy 2 ABI; retain an arm64 Python 3.12 compatible pin.
+numpy==2.2.6
 pandas==2.2.3
 # Its arm64 wheel embeds curl dylibs with a macOS 14 deployment target, which
 # establishes the effective minimum OS for the finished one-file helper.

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "trader.strategy-performance.v1",
+  "strategyId": "portfolio-golden-cross",
+  "strategyVersion": "1.0.0",
+  "runId": "run-c59cc8af1f99810048ba5980",
+  "generatedAt": "2026-08-14T12:21:06.451Z",
+  "provenance": "backtest_artifact",
+  "metrics": {
+    "netReturn": 267.0226289775906,
+    "maxDrawdown": -27.119069858349853,
+    "recoveryFactor": 9.846304846453847,
+    "sharpe": 0.9988356263937,
+    "forwardReturn": null,
+    "winRate": 64.14762741652021,
+    "trades": 1107,
+    "symbols": 10,
+    "cash": 63.18583483261302
+  }
+}

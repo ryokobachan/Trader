@@ -15,6 +15,8 @@ adapter normalizes its upstream response into the canonical types in
 type ProviderRequestContext = {
   requestId: string;
   asOf?: string;
+  signal?: AbortSignal;
+  fresh?: boolean;
 };
 
 interface InstrumentProvider {
@@ -60,6 +62,10 @@ interface FundamentalsProvider {
     instrument: Instrument,
     context: ProviderRequestContext,
   ): Promise<readonly EarningsEvent[]>;
+  getResearch?(
+    instrument: Instrument,
+    context: ProviderRequestContext,
+  ): Promise<CompanyResearch | null>;
 }
 
 interface AnalystProvider {
@@ -98,13 +104,14 @@ market.synthetic_latest_close
 fundamentals.profile
 fundamentals.normalized
 fundamentals.earnings
+fundamentals.research
 analyst.consensus
 analyst.ratings
 news.company
 ```
 
 [`api/config.json`](../../api/config.json) selects registered provider IDs for
-the `instrument`, `market`, `bars`, `profile`, `fundamentals`, `earnings`,
+the `instrument`, `market`, `bars`, `profile`, `fundamentals`, `earnings`, `research`,
 `analyst`, and `news` roles. Deployment environment variables override those
 non-secret defaults. `npm run config:check` reports the effective role, source
 file, and missing credential names without printing values.
@@ -114,13 +121,23 @@ Current adapters:
 | ID | Implemented data | Credential policy |
 |---|---|---|
 | `mock` | deterministic search, quote, and bars fixtures | none |
-| `yahoo` | search, quote, bars, profile, fundamentals, earnings, news | explicit personal-use compatibility opt-in |
-| `fmp` | search, quote, bars, company data, analyst data, news | `FMP_API_KEY` and applicable display rights |
+| `yahoo` | search, quote, bars, profile, fundamentals, earnings, ownership/short interest, quarterly statements, dividends/splits, news | explicit personal-use compatibility opt-in |
+| `tradingview` | financial scanner profile, FY financials and history, fiscal EPS/revenue consensus, float, Altman and Piotroski | no API key or financials sidecar; site-internal API availability and display terms apply |
+| `google-finance-earnings` | dated EPS/revenue actuals and estimates from the website earnings RPC | no credential; independently validated `wKsYyb` JSON response |
 | `benzinga` | Midas-compatible analyst consensus and rating history | optional token; applicable display rights remain required |
+| `google-finance` | analyst consensus and ratings extracted from the Analysis-page `AF_initDataCallback` data array | no credential; applicable Google Finance access/display rights remain required |
+| `google-finance-benzinga` | OR-union of Google Finance callback data and Benzinga analyst ratings, with firm-level current consensus | no Google credential; either surviving source returns partial coverage |
+| `tipranks` | TipRanks Enterprise analyst consensus and rating history | `TIPRANKS_API_KEY`, `TIPRANKS_API_TOKEN`, and applicable display rights |
 | `tradingview-websocket` | direct USD quotes, local chart bars, and fresh `{symbol}USDT.P` reference closes | authenticated sidecar for bars/local SSE; the hosted Worker uses the same guest quote websocket inside completed HTTPS long polls and a server-side scanner for snapshots; continuous ticks expire after 5m |
 
 No adapter silently falls back to mock data. Missing optional roles produce an
 explicit partial/missing state.
+
+FMP is retired and cannot be selected in any role. Its credentials no longer
+cross the provider environment boundary. The Midas development profile selects
+Yahoo profiles/research, TradingView normalized financials, and Google Finance
+dated earnings. The checked-in JSON retains deterministic mock market defaults
+and leaves optional company-data roles disabled.
 
 ## Canonical rules
 
@@ -134,12 +151,40 @@ explicit partial/missing state.
 - Rates use decimal ratios in canonical DTOs; presentation converts them to
   percentages exactly once.
 - Every returned dataset carries provider provenance and observation time.
-- Optional upstream failures may yield a partial workspace, but configuration,
-  credential, validation, and contract errors fail closed.
-- API keys, cookies, sidecar tokens, raw upstream URLs, and response bodies do
+- TradingView statement totals and profitability/liquidity ratios use explicit
+  annual source fields; valuation multiples preserve their trailing or forward
+  definition. Altman Z is labeled TTM and Piotroski is labeled FY. Source ratios
+  can use different income adjustments, so they are not recalculated from a
+  differently defined statement field.
+- `annualFinancials` uses source fiscal-year labels and only aligned arrays.
+  `fiscalForecasts` uses source fiscal periods and reported flags. Future periods
+  have estimates only; no fiscal period is manufactured into an earnings date.
+- `EarningsEvent.reportDate` comes from the earnings provider's release timestamp.
+  Adjusted earnings EPS and diluted statement EPS remain separate values.
+- Canonical statement money is USD; listing currency alone does not prove an
+  ADR's reporting currency. Unsupported reporting currency remains unavailable.
+- `CompanyResearch` preserves independent ownership, quarterly-statement and
+  corporate-action coverage. Quarterly statement dates and short-interest dates
+  remain source dates, distinct from ingestion time. Missing fields remain absent.
+- The Google Finance adapter parses literal callback data without evaluating
+  inline JavaScript, validates listing identity, and fails closed when the
+  undocumented callback shape changes.
+- The Google Finance+Benzinga composite preserves a surviving source as partial
+  coverage for any one-source failure; it fails only when both sources fail.
+  Standalone provider configuration and contract errors continue to fail closed.
+- API keys, cookies, sidecar tokens, credential-bearing URLs, and raw response bodies do
   not appear in browser bundles, logs, provenance, or public errors.
+- Website-internal APIs can change without a supported public API contract.
+  Bounded caches, deadlines, listing/schema checks, and per-source coverage protect
+  the application; successful retrieval does not establish redistribution rights.
 
 ## HTTP boundary
+
+Standalone research also exposes `GET /api/v1/research/sources` and
+`GET /api/v1/research/sources/:sourceId`. These independent adapters normalize
+SEC filings/facts/Form 4, FINRA volume, USAspending awards, FRED and CNN data
+into `DirectSourceDataset`, without changing stock-provider roles or requiring
+Midas. See [direct research scope](../midas-data-source-comparison.md).
 
 UI code calls Trader's internal routes, not vendors:
 
@@ -148,6 +193,7 @@ GET  /api/v1/instruments/search
 GET  /api/v1/symbols/:symbol/workspace
 GET  /api/v1/symbols/:symbol/bars
 GET  /api/v1/symbols/:symbol/analyst-ratings
+GET  /api/v1/symbols/:symbol/logo
 GET  /api/v1/watchlists/quotes/stream?symbols=AAPL,NVDA
 POST /api/v1/watchlists/quotes
 GET  /api/v1/watchlists/after-hours/stream?symbols=AAPL,NVDA
@@ -157,6 +203,10 @@ POST /api/v1/watchlists/after-hours
 The root [`api/`](../../api) directory contains outbound vendor adapters.
 `src/app/api/` contains these inbound Trader HTTP routes; the two directories
 serve different purposes.
+
+The logo route resolves the public TradingView `logoid` server-side and permits
+only the reviewed `s3-symbol-logo.tradingview.com` image origin. The UI never
+constructs an arbitrary vendor URL from a symbol or untrusted profile field.
 
 ## Adding a provider
 

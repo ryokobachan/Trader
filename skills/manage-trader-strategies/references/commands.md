@@ -42,9 +42,10 @@ Required fields:
 
 Optional fields include `family`, `status`, `category`, `sourceLabels`, `audit`, and `performance`. Use only fields accepted by the current API; unknown fields fail closed.
 
-Within `performance`, `cash` means a percentage allocation. For built-in
-`illustrative_catalog` records, `trades` and `symbols` describe the sample and
-do not equal the number of persisted transaction rows.
+Within `performance`, `cash` means a percentage allocation. For
+`backtest_artifact`, metrics and transactions belong to one validated package
+run. Current package transactions are read-only; custom strategy transactions
+use the owner-scoped D1 ledger.
 
 ## Strategy edit payload
 

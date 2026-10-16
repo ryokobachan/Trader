@@ -1,4 +1,5 @@
 import { ensureTransactionDatabase, getD1 } from "../../db";
+import { isStrategyPackageId, strategyPackageById } from "../features/strategy/catalog";
 import { DEFAULT_LOCAL_OWNER_ID } from "./watchlist-contracts";
 import {
   type CreateStrategyPortfolioTransactionInput,
@@ -44,6 +45,42 @@ async function assertStrategy(strategyId: string, ownerId: string): Promise<void
       throw new StrategyPortfolioTransactionStoreError(error.status, error.code, error.message);
     }
     throw error;
+  }
+}
+
+function strategyPackageTransactions(
+  strategyId: string,
+): StrategyPortfolioTransaction[] | null {
+  const definition = strategyPackageById(strategyId) as null | Readonly<{
+    run: Readonly<{ generatedAt: string }> | null;
+    transactions: readonly CreateStrategyPortfolioTransactionInput[];
+  }>;
+  if (!definition) return null;
+  return definition.transactions.map((entry) => {
+    const artifactTimestamp = definition.run?.generatedAt
+      ?? `${entry.date}T00:00:00.000Z`;
+    return {
+      strategyId,
+      transactionId: entry.transactionId as string,
+      date: entry.date,
+      symbol: entry.symbol,
+      side: entry.side,
+      shares: entry.shares,
+      price: entry.price,
+      fee: entry.fee,
+      createdAt: artifactTimestamp,
+      updatedAt: artifactTimestamp,
+    };
+  });
+}
+
+function assertMutableTransactionLedger(strategyId: string): void {
+  if (isStrategyPackageId(strategyId)) {
+    throw new StrategyPortfolioTransactionStoreError(
+      409,
+      "strategy_package_transactions_read_only",
+      "Backtest transactions bundled with a strategy package are read-only.",
+    );
   }
 }
 
@@ -123,6 +160,8 @@ export async function listStrategyPortfolioTransactions(
   ownerId = currentStrategyPortfolioOwnerId(),
 ): Promise<StrategyPortfolioTransaction[]> {
   await assertStrategy(strategyId, ownerId);
+  const packaged = strategyPackageTransactions(strategyId);
+  if (packaged) return packaged;
   const db = await prepareStore();
   const result = await db
     .prepare(
@@ -153,6 +192,7 @@ export async function createStrategyPortfolioTransaction(
   ownerId = currentStrategyPortfolioOwnerId(),
 ): Promise<{ transaction: StrategyPortfolioTransaction; created: boolean }> {
   await assertStrategy(strategyId, ownerId);
+  assertMutableTransactionLedger(strategyId);
   const db = await prepareStore();
   const transactionId = input.transactionId ?? crypto.randomUUID();
   const existing = await transactionById(db, ownerId, strategyId, transactionId);
@@ -235,6 +275,16 @@ export async function getStrategyPortfolioTransaction(
   ownerId = currentStrategyPortfolioOwnerId(),
 ): Promise<StrategyPortfolioTransaction> {
   await assertStrategy(strategyId, ownerId);
+  const packaged = strategyPackageTransactions(strategyId);
+  if (packaged) {
+    const transaction = packaged.find((entry) => entry.transactionId === transactionId);
+    if (transaction) return transaction;
+    throw new StrategyPortfolioTransactionStoreError(
+      404,
+      "transaction_not_found",
+      "The transaction was not found.",
+    );
+  }
   const row = await transactionById(await prepareStore(), ownerId, strategyId, transactionId);
   if (!row) {
     throw new StrategyPortfolioTransactionStoreError(
@@ -253,6 +303,7 @@ export async function updateStrategyPortfolioTransaction(
   ownerId = currentStrategyPortfolioOwnerId(),
 ): Promise<StrategyPortfolioTransaction> {
   await assertStrategy(strategyId, ownerId);
+  assertMutableTransactionLedger(strategyId);
   const db = await prepareStore();
   const existing = await transactionById(db, ownerId, strategyId, transactionId);
   if (!existing) {
@@ -345,6 +396,7 @@ export async function deleteStrategyPortfolioTransaction(
   ownerId = currentStrategyPortfolioOwnerId(),
 ): Promise<{ deleted: boolean }> {
   await assertStrategy(strategyId, ownerId);
+  assertMutableTransactionLedger(strategyId);
   const db = await prepareStore();
   const existing = await transactionById(db, ownerId, strategyId, transactionId);
   if (!existing) {

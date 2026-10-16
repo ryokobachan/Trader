@@ -219,6 +219,30 @@ test("strategy CLI validates discovery options before calling the API", async ()
   assert.match(capture.stderr(), /--order requires --sort/);
 });
 
+test("strategy CLI accepts package backtest provenance", async () => {
+  const capture = harness({
+    response: Response.json({
+      schemaVersion: "trader.strategies.v1",
+      ownerId: "test-owner",
+      strategies: [strategyFixture({
+        id: "portfolio.backtest",
+        performance: { provenance: "backtest_artifact", sharpe: 1.25 },
+      })],
+    }),
+  });
+  const exitCode = await runStrategyCli([
+    "list",
+    "--provenance",
+    "backtest_artifact",
+  ], capture.dependencies);
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(
+    JSON.parse(capture.stdout()).strategies.map((strategy: { id: string }) => strategy.id),
+    ["portfolio.backtest"],
+  );
+});
+
 test("strategy CLI creates a custom strategy from explicit fields", async () => {
   const capture = harness();
   const exitCode = await runStrategyCli([

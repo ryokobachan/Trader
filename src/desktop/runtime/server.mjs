@@ -152,7 +152,7 @@ function secureResponse(response) {
   const headers = new Headers(response.headers);
   headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://financialmodelingprep.com; connect-src 'self'; worker-src 'self' blob:",
+    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https://s3-symbol-logo.tradingview.com; connect-src 'self'; worker-src 'self' blob:",
   );
   headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
   headers.set("Referrer-Policy", "no-referrer");

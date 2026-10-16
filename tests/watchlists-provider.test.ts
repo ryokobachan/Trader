@@ -25,14 +25,14 @@ test("normalizes durable watchlist commands without accepting unsafe symbols or 
       symbol: " aapl ",
       displayName: "Apple Inc.",
       exchange: "NASDAQ",
-      logoUrl: "https://financialmodelingprep.com/image-stock/AAPL.png",
+      logoUrl: "/api/v1/symbols/AAPL/logo",
     }),
     {
       instrumentId: "us_xnas_aapl",
       symbol: "AAPL",
       displayName: "Apple Inc.",
       exchange: "NASDAQ",
-      logoUrl: "https://financialmodelingprep.com/image-stock/AAPL.png",
+      logoUrl: "/api/v1/symbols/AAPL/logo",
     },
   );
 

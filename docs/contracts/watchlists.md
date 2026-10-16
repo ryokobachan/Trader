@@ -36,7 +36,7 @@ The add-item body is:
   "symbol": "AAPL",
   "displayName": "Apple Inc.",
   "exchange": "NASDAQ",
-  "logoUrl": "https://financialmodelingprep.com/image-stock/AAPL.png"
+  "logoUrl": "/api/v1/symbols/AAPL/logo"
 }
 ```
 

@@ -1,7 +1,7 @@
 # Unified strategy API contract
 
 - Schema: `trader.strategies.v1`
-- Storage: immutable built-ins plus owner-scoped D1 custom strategies and built-in preferences
+- Storage: validated deployment-owned packages plus owner-scoped D1 custom strategies and package preferences
 - Owner adapter: stable Sites `oai-authenticated-user-id`; loopback-only `local-workspace` fallback
 
 ## Endpoints
@@ -17,7 +17,8 @@
 Custom edits require the current positive `expectedVersion`; custom deletes
 carry it in the query. A stale value returns `409 version_conflict`. Built-in
 edits support only `name` and `headline` and are stored as preferences rather
-than rewriting the source catalog.
+than rewriting the source package. Package definitions are discovered from
+`strategies/<strategy-id>/` and embedded in the server bundle during the build.
 
 Create requires `name` and `headline`. Optional fields are `strategyId`,
 `family`, `status`, `candidateAt`, `category`, `sourceLabels`, `audit`, and
@@ -30,14 +31,24 @@ Every record contains a performance object whose numeric values may be null.
 
 | Provenance | Meaning |
 |---|---|
+| `backtest_artifact` | Metrics recorded by the package's validated backtest result snapshot |
 | `illustrative_catalog` | Deployment-owned sample values; not a verified backtest |
 | `user_supplied` | Values entered by a user or agent; not independently verified |
 | `transaction_snapshot` | Exact facts derived from the stored ledger; currently trade and distinct-symbol counts only |
 | `unavailable` | No supported value is available |
 
 The API never infers returns, Sharpe, or drawdown from transactions alone.
-`cash` is a percentage allocation. For an illustrative record, `trades` and
-`symbols` are sample metadata rather than D1 row counts.
+`cash` is a percentage allocation. A package with no recorded run uses
+`unavailable` and null metrics; values are never copied from another strategy.
+An executed package must also contain a matching `run.json` with the data,
+source, runtime, configuration, code, and runner hashes used to produce the
+performance and transaction snapshots. A missing or mismatched run record
+fails package validation during development and build.
+An executed package may additionally include `equity.json` with the matching
+run identity, initial portfolio value, and aligned daily strategy/benchmark
+values. When present, its final values and total returns must reconcile with
+`run.json` and `performance.json`; when absent, clients show no measured chart
+rather than generating an illustrative replacement.
 
 ## Safety
 
@@ -45,4 +56,4 @@ The API never infers returns, Sharpe, or drawdown from transactions alone.
 - Hosted anonymous requests fail before D1 access.
 - Custom deletes are soft, versioned, and audited.
 - Responses are `private, no-store` and carry `X-Request-Id`.
-- Runtime strategy and transaction data never modifies files under `strategies/`.
+- API reads and owner mutations never modify files under `strategies/`.

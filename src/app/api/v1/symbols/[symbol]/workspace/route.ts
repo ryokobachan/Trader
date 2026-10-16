@@ -12,7 +12,7 @@ import { createProviderRuntime } from "@api/index.server";
 
 type RouteContext = { params: Promise<{ symbol: string }> };
 const SYMBOL_PATTERN = /^[A-Z][A-Z0-9.-]{0,9}$/;
-const WORKSPACE_SECTIONS = ["financials", "profile", "fundamentals", "earnings", "analyst", "news"] as const;
+const WORKSPACE_SECTIONS = ["financials", "profile", "fundamentals", "earnings", "analyst", "news", "research"] as const;
 type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number];
 
 function errorResponse(status: number, code: string, message: string, requestId: string) {
@@ -72,19 +72,27 @@ export async function GET(request: Request, context: RouteContext) {
     const wants = (candidate: Exclude<WorkspaceSection, "financials">) => requestedSection === null
       || requestedSection === candidate
       || (requestedSection === "financials"
-        && (candidate === "profile" || candidate === "fundamentals" || candidate === "earnings"));
-    const [profile, fundamentals, earnings, analyst, news] = await Promise.all([
+        && (candidate === "profile" || candidate === "fundamentals" || candidate === "earnings" || candidate === "research"))
+      || (requestedSection === "research" && candidate === "news");
+    const [profile, fundamentals, earnings, analyst, news, research] = await Promise.all([
       optionalSection("profile", wants("profile") && runtime.fundamentals && runtime.selectedProviderIds.profile ? () => runtime.fundamentals!.getProfile(instrument, providerContext) : undefined, null, warnings),
       optionalSection("fundamentals", wants("fundamentals") && runtime.fundamentals && runtime.selectedProviderIds.fundamentals ? () => runtime.fundamentals!.getFundamentals(instrument, providerContext) : undefined, null, warnings),
       optionalSection("earnings", wants("earnings") && runtime.fundamentals && runtime.selectedProviderIds.earnings ? () => runtime.fundamentals!.getEarnings(instrument, providerContext) : undefined, [], warnings),
       optionalSection("analyst", wants("analyst") && runtime.analyst ? () => runtime.analyst!.getConsensus(instrument, providerContext) : undefined, null, warnings),
       optionalSection("news", wants("news") && runtime.news ? () => runtime.news!.getCompanyNews(instrument, providerContext) : undefined, [], warnings),
+      optionalSection("research", wants("research") && runtime.fundamentals?.getResearch ? () => runtime.fundamentals!.getResearch!(instrument, providerContext) : undefined, null, warnings),
     ]);
+    if (analyst?.coverage?.status === "partial") {
+      warnings.push("analyst: partial_source_coverage");
+    }
+    if (research && Object.values(research.coverage).some(status => status === "unavailable")) {
+      warnings.push("research: partial_source_coverage");
+    }
 
     if (requestedSection !== null) {
       const warningSections = requestedSection === "financials"
-        ? new Set(["profile", "fundamentals", "earnings"])
-        : new Set([requestedSection]);
+        ? new Set(["profile", "fundamentals", "earnings", "research"])
+        : new Set(requestedSection === "research" ? ["research", "news"] : [requestedSection]);
       for (let index = warnings.length - 1; index >= 0; index -= 1) {
         const warningSection = warnings[index]?.split(":", 1)[0];
         if (!warningSection || !warningSections.has(warningSection)) warnings.splice(index, 1);
@@ -100,6 +108,7 @@ export async function GET(request: Request, context: RouteContext) {
       earnings,
       analyst,
       news,
+      research,
       selectedProviders: runtime.selectedProviderIds,
       dataMode: providerDataMode(...Object.values(runtime.selectedProviderIds)),
       status: warnings.length === 0 ? "complete" : "partial",

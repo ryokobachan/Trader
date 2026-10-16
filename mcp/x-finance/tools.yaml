@@ -1,0 +1,438 @@
+# 公開ツールの編集元。変更後はMCPを再接続してください。
+# outputSchemaは成功時のstructuredContentの形式です。共通の形式はアンカーで共有します。
+tools:
+
+  list_x_accounts:
+    dataset: x-accounts
+    description: 保存済みのXアカウント一覧を読み取ります。新規収集は行いません。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+          description: Xアカウント名。先頭の@は省略可能。
+          pattern: ^@?[A-Za-z0-9_]{1,15}$
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: &shared
+      type: object
+      required: [schemaVersion, dataset, status, rows, columns, source, provenance, coverage, pagination, warnings]
+      additionalProperties: true
+      properties:
+        schemaVersion:
+          type: string
+        dataset:
+          type: string
+        status:
+          type: string
+        rows:
+          type: array
+          items:
+            type: object
+            description: 列の構成はdatasetとcolumnsで確認してください。欠損値はそのまま保持します。
+            required: []
+            additionalProperties: true
+            properties: {}
+        columns:
+          type: array
+          items:
+            type: object
+            required: [key, label, nullable]
+            additionalProperties: true
+            properties:
+              key:
+                type: string
+              label:
+                type: string
+              nullable:
+                type: boolean
+              unit:
+                type: string
+        source:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        provenance:
+          type: object
+          required: [revision]
+          additionalProperties: true
+          properties:
+            revision:
+              type: string
+            publishedAt:
+              type: [string, 'null']
+            readAt:
+              type: string
+            databaseMutable:
+              type: boolean
+            consistencyModel:
+              type: string
+            validation:
+              type: string
+        coverage:
+          type: object
+          required: [status]
+          additionalProperties: true
+          properties:
+            status:
+              type: string
+            returned:
+              type: number
+        pagination:
+          type: object
+          required: [limit, nextCursor]
+          additionalProperties: true
+          properties:
+            limit:
+              type: number
+            nextCursor:
+              type: [string, 'null']
+            hasMore:
+              type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+
+  get_x_posts:
+    dataset: x-posts
+    description: 保存済みのX投稿を読み取ります。新規収集は行いません。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+          description: Xアカウント名。先頭の@は省略可能。
+          pattern: ^@?[A-Za-z0-9_]{1,15}$
+          maxLength: 2048
+        symbol:
+          type: string
+          description: 銘柄コード（例：NVDA）
+          pattern: ^[A-Z0-9.^:/_-]{1,32}$
+          maxLength: 2048
+        from:
+          type: string
+          description: 公表日時（published_at）の開始日。当日を含みます。
+          format: date
+          maxLength: 2048
+        to:
+          type: string
+          description: 公表日時（published_at）の終了日。当日を含みます。
+          format: date
+          maxLength: 2048
+        asOf:
+          type: string
+          description: 既知情報の締切日時。タイムゾーン付きISO形式。現在保存されている版を絞り込み、上書き済みの過去版は復元しません。
+          format: date-time
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: *shared
+
+  get_x_mentions:
+    dataset: x-mentions
+    description: 保存済みの投稿と銘柄言及を読み取ります。現在の分類は当時の売買シグナルではありません。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+          description: Xアカウント名。先頭の@は省略可能。
+          pattern: ^@?[A-Za-z0-9_]{1,15}$
+          maxLength: 2048
+        symbol:
+          type: string
+          description: 銘柄コード（例：NVDA）
+          pattern: ^[A-Z0-9.^:/_-]{1,32}$
+          maxLength: 2048
+        from:
+          type: string
+          description: 公表日時（published_at）の開始日。当日を含みます。
+          format: date
+          maxLength: 2048
+        to:
+          type: string
+          description: 公表日時（published_at）の終了日。当日を含みます。
+          format: date
+          maxLength: 2048
+        asOf:
+          type: string
+          description: 既知情報の締切日時。タイムゾーン付きISO形式。現在保存されている版を絞り込み、上書き済みの過去版は復元しません。
+          format: date-time
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: *shared
+
+  get_x_mention_outcomes:
+    dataset: x-mention-outcomes
+    description: 保存済みの銘柄言及の検証結果を読み取ります。後日判明した結果を過去の判断に使わないでください。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+          description: Xアカウント名。先頭の@は省略可能。
+          pattern: ^@?[A-Za-z0-9_]{1,15}$
+          maxLength: 2048
+        symbol:
+          type: string
+          description: 銘柄コード（例：NVDA）
+          pattern: ^[A-Z0-9.^:/_-]{1,32}$
+          maxLength: 2048
+        horizonDays:
+          type: integer
+          description: 保存済み結果の評価期間（日数）を完全一致で指定。
+          minimum: 1
+          maximum: 366
+        strategy:
+          type: string
+          description: 保存済み戦略のIDを完全一致で指定。
+          pattern: ^[A-Za-z0-9_.:-]{1,120}$
+          maxLength: 2048
+        from:
+          type: string
+          description: 評価開始日時（entry_at）の開始日。当日を含みます。
+          format: date
+          maxLength: 2048
+        to:
+          type: string
+          description: 評価開始日時（entry_at）の終了日。当日を含みます。
+          format: date
+          maxLength: 2048
+        asOf:
+          type: string
+          description: 既知情報の締切日時。タイムゾーン付きISO形式。現在保存されている版を絞り込み、上書き済みの過去版は復元しません。
+          format: date-time
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: *shared
+
+  get_x_author_scores:
+    dataset: x-author-scores
+    description: 保存済みの投稿者スコアを読み取ります。現在の結果であり、過去の版を再現しません。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+          description: Xアカウント名。先頭の@は省略可能。
+          pattern: ^@?[A-Za-z0-9_]{1,15}$
+          maxLength: 2048
+        symbol:
+          type: string
+          description: 銘柄コード（例：NVDA）
+          pattern: ^[A-Z0-9.^:/_-]{1,32}$
+          maxLength: 2048
+        horizonDays:
+          type: integer
+          description: 保存済み結果の評価期間（日数）を完全一致で指定。
+          minimum: 1
+          maximum: 366
+        from:
+          type: string
+          description: 現在の結果版の更新日（updated_at）の開始日。当日を含みます。
+          format: date
+          maxLength: 2048
+        to:
+          type: string
+          description: 現在の結果版の更新日（updated_at）の終了日。当日を含みます。
+          format: date
+          maxLength: 2048
+        asOf:
+          type: string
+          description: 既知情報の締切日時。タイムゾーン付きISO形式。現在保存されている版を絞り込み、上書き済みの過去版は復元しません。
+          format: date-time
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: *shared
+
+  get_x_author_strategies:
+    dataset: x-author-strategies
+    description: 保存済みの投稿者別戦略分析を読み取ります。戦略の実行は行いません。
+    inputSchema:
+      type: object
+      required: []
+      additionalProperties: false
+      properties:
+        account:
+          type: string
+          description: Xアカウント名。先頭の@は省略可能。
+          pattern: ^@?[A-Za-z0-9_]{1,15}$
+          maxLength: 2048
+        horizonDays:
+          type: integer
+          description: 保存済み結果の評価期間（日数）を完全一致で指定。
+          minimum: 1
+          maximum: 366
+        strategy:
+          type: string
+          description: 保存済み戦略のIDを完全一致で指定。
+          pattern: ^[A-Za-z0-9_.:-]{1,120}$
+          maxLength: 2048
+        from:
+          type: string
+          description: 現在の結果版の更新日（updated_at）の開始日。当日を含みます。
+          format: date
+          maxLength: 2048
+        to:
+          type: string
+          description: 現在の結果版の更新日（updated_at）の終了日。当日を含みます。
+          format: date
+          maxLength: 2048
+        asOf:
+          type: string
+          description: 既知情報の締切日時。タイムゾーン付きISO形式。現在保存されている版を絞り込み、上書き済みの過去版は復元しません。
+          format: date-time
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: *shared
+
+  get_x_prices:
+    dataset: x-prices
+    description: X分析用に保存された銘柄価格を読み取ります。ライブ価格ではありません。
+    inputSchema:
+      type: object
+      required: [symbol]
+      additionalProperties: false
+      properties:
+        symbol:
+          type: string
+          description: 銘柄コード（例：NVDA）
+          pattern: ^[A-Z0-9.^:/_-]{1,32}$
+          maxLength: 2048
+        from:
+          type: string
+          description: 取引日（trade_date）の開始日。当日を含みます。
+          format: date
+          maxLength: 2048
+        to:
+          type: string
+          description: 取引日（trade_date）の終了日。当日を含みます。
+          format: date
+          maxLength: 2048
+        asOf:
+          type: string
+          description: 既知情報の締切日時。タイムゾーン付きISO形式。現在保存されている版を絞り込み、上書き済みの過去版は復元しません。
+          format: date-time
+          maxLength: 2048
+        limit:
+          type: integer
+          description: 1ページの件数。既定100、最大1000。
+          minimum: 1
+          maximum: 1000
+        cursor:
+          type: string
+          description: 同じデータ・絞り込み条件で返されたnextCursor。
+          pattern: ^[A-Za-z0-9_-]+$
+          maxLength: 2048
+    outputSchema: *shared
+
+  get_status:
+    dataset: status
+    description: 保存データを読み取れるか確認します。鮮度・完全性や収集プロセスの稼働は保証しません。
+    inputSchema:
+      type: object
+      additionalProperties: false
+      properties: {}
+    outputSchema: &status
+      type: object
+      required: [server, checkedAt, reachable, checkedDataset, status, notes, source, provenance, coverage, warnings]
+      additionalProperties: true
+      properties:
+        server:
+          type: string
+        checkedAt:
+          type: string
+        reachable:
+          type: boolean
+        checkedDataset:
+          type: string
+        status:
+          type: string
+        notes:
+          type: array
+          items:
+            type: string
+        source:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        provenance:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        coverage:
+          type: object
+          required: []
+          additionalProperties: true
+          properties: {}
+        warnings:
+          type: array
+          items:
+            type: string
