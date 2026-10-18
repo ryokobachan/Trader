@@ -607,7 +607,7 @@ function buildOscillatorSignals(bars: readonly MarketBar[]) {
     secondaryValue: plusDi,
     available: dmiAvailable,
     buy: dmiAvailable && plusDi! > minusDi! && adx! > 20 && adx! > previousAdx!,
-    // TradingView's published rule is intentionally asymmetric: a bearish DI
+    // Market data provider's published rule is intentionally asymmetric: a bearish DI
     // lead is a sell only when ADX is above 20 and falling from the prior bar.
     sell: dmiAvailable && plusDi! < minusDi! && adx! > 20 && adx! < previousAdx!,
   }));
@@ -748,7 +748,7 @@ function buildOscillatorSignals(bars: readonly MarketBar[]) {
   return signals;
 }
 
-/** Build a TradingView-style 26-component rating from real canonical OHLCV. */
+/** Build a Standard 26-component rating from real canonical OHLCV. */
 export function buildStockDetailTechnicalRatings(
   inputBars: readonly MarketBar[],
 ): TechnicalRatingSummary {

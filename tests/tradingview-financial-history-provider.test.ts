@@ -24,7 +24,7 @@ function payload(extra: Record<string, unknown> = {}) {
   } };
 }
 
-test("TradingView history keeps complete statement categories with source quarter labels, dates, signs and null gaps", () => {
+test("Market data provider history keeps complete statement categories with source quarter labels, dates, signs and null gaps", () => {
   const result = parseTradingViewFinancialHistory(payload(), "NASDAQ:AAPL", NOW);
   assert.equal(result.annual.length, 2);
   assert.equal(result.quarterly.length, 3);

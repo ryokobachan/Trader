@@ -71,10 +71,10 @@ When a configured local sidecar is available, the primary browser path is
 `GET /api/v1/watchlists/quotes/stream` with one
 comma-separated `symbols` query value. It accepts 1–50 unique canonical
 U.S.-equity tickers and emits `trader.watchlist-quote-stream.v1` quote events.
-The TradingView adapter maps each resolved instrument MIC to its direct USD
+The market data provider adapter maps each resolved instrument MIC to its direct USD
 listing (for example `NASDAQ:AAPL`). A process-wide sidecar broker shares one
 reconnecting upstream websocket session and replays subscriptions instead of
-opening one TradingView connection per browser or watchlist row. Trader's
+opening one market data provider connection per browser or watchlist row. Trader's
 same-origin server route forwards normalized quotes as SSE; the browser never
 receives the sidecar URL or bearer token.
 
@@ -88,7 +88,7 @@ and closes the stream while the tab is hidden.
 On Sites, where the authenticated frontend does not preserve downstream
 WebSocket/SSE frames, the browser instead keeps exactly one ordinary HTTPS
 `POST /api/v1/watchlists/quotes/poll` request open. The Worker opens the same
-TradingView guest quote session for the direct USD listing IDs, waits up to 20
+market data provider guest quote session for the direct USD listing IDs, waits up to 20
 seconds for a price or observation-time change, returns one completed JSON
 response, and the browser immediately issues the next request. Snapshot polling
 continues every 15 seconds only as a safety fallback. Each held request is
@@ -115,7 +115,7 @@ and in-flight coalescing prevent adjacent tabs from duplicating vendor work.
 
 Only finite positive, non-older USD quotes replace the last known value. Neither
 websocket transport nor SSE is an exchange real-time guarantee: market closure,
-TradingView entitlements, and provider delay can leave a valid price unchanged.
+market data provider entitlements, and provider delay can leave a valid price unchanged.
 Current quotes are not written into the transactional watchlist database. A
 hosted Sites runtime must use an externally reachable HTTPS sidecar with a
 server-side bearer token; it cannot connect to `127.0.0.1` on a developer Mac.
@@ -125,10 +125,10 @@ server-side bearer token; it cannot connect to `127.0.0.1` on a developer Mac.
 `GET /api/v1/watchlists/after-hours/stream` accepts the same comma-separated,
 1–50-symbol boundary as the current-quote stream. It emits
 `trader.watchlist-after-hours-stream.v1` quote messages. The local sidecar
-opens the TradingView guest quote websocket,
+opens the market data provider guest quote websocket,
 derive every `{TICKER}USDT.P` candidate from the server-owned exchange order,
 and use the same auth/session/field/subscription/heartbeat protocol. Browser
-input therefore cannot select a raw TradingView source. The local sidecar can
+input therefore cannot select a raw market data provider source. The local sidecar can
 share that upstream session with direct USD listings.
 
 On Sites, the browser uses one ordinary HTTPS
@@ -155,15 +155,15 @@ POST endpoint below as its reconnect fallback. A transient network failure
 therefore cannot leave an old USDT.P value displayed indefinitely.
 
 The non-persistent reference-price request is `{ "symbols": ["AAPL", "NVDA"] }`
-and accepts 1–50 unique canonical U.S.-equity tickers. When the TradingView
+and accepts 1–50 unique canonical U.S.-equity tickers. When the market data provider
 sidecar URL is configured, the API makes one authenticated sidecar call. In a
 Worker runtime without a sidecar URL, the snapshot endpoint uses one
-server-side TradingView crypto-scanner request for the same ordered candidates,
-while the HTTPS long-poll endpoint opens the same TradingView quote websocket
+server-side market data provider crypto-scanner request for the same ordered candidates,
+while the HTTPS long-poll endpoint opens the same market data provider quote websocket
 used locally. The hosted snapshot advertises long-poll support instead of SSE.
 Neither path is selected by
 the ordinary equity `market` provider, and neither may silently substitute a
-direct USD equity quote. The browser never chooses a raw TradingView source or
+direct USD equity quote. The browser never chooses a raw market data provider source or
 performs one upstream request per watchlist row.
 Response schema
 `trader.watchlist-after-hours.v1` includes `source`, the exact `sourceSymbol`,

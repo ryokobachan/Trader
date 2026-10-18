@@ -255,7 +255,7 @@ function providerName(providerId: string) {
   if (normalized.includes("benzinga")) return "Benzinga";
   if (normalized === "yahoo-japan") return "Yahoo!ファイナンス（日本）";
   if (normalized.includes("yahoo")) return "Yahoo Finance";
-  if (normalized.includes("tradingview")) return "TradingView";
+  if (normalized.includes("tradingview")) return "Market data provider";
   if (normalized === "stockanalysis") return "Stock Analysis";
   if (normalized === "fmp" || normalized.includes("financial-modeling-prep")) return "FMP";
   if (normalized === "mock") return "Mock Provider";

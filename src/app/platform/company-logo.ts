@@ -4,7 +4,7 @@
  * The market/fundamentals providers return canonical data and never decide
  * which arbitrary remote images the browser may load. Developers can replace
  * this resolver (and its allow-list) without changing CompanyLogo or page code.
- * The default resolver uses a local endpoint backed by TradingView; failed or
+ * The default resolver uses a local endpoint backed by Market data provider; failed or
  * missing images remain a UI concern and fall back to the stock monogram.
  */
 export const COMPANY_LOGO_POLICY = Object.freeze({

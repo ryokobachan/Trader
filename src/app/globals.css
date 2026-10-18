@@ -2819,7 +2819,7 @@ textarea:focus-visible {
 .analyst-target-previous { color: #a9afba; }
 .dialog-data-source { margin-right: auto; color: #8e949f; font-size: 14px; }
 
-/* TradingView-like summary density: 12px is the normal reading size; 10px is
+/* Compact summary density: 12px is the normal reading size; 10px is
  * reserved for metadata rather than primary labels. */
 .stock-summary-toolbar > strong,
 .stock-summary-section-title strong { font-size: 14px; }
@@ -3223,7 +3223,7 @@ textarea:focus-visible {
   color: var(--red);
 }
 
-/* TradingView Portfolio-inspired strategy index and detail */
+/* Portfolio strategy index and detail */
 .portfolio-index-shell {
   grid-template-rows: 88px minmax(0, 1fr) 24px;
 }
@@ -4991,7 +4991,7 @@ textarea:focus-visible {
   font-size: 14px;
 }
 
-/* TradingView-style indicator browser */
+/* Standard indicator browser */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -8254,7 +8254,7 @@ textarea:focus-visible {
   }
 }
 
-/* TradingView-style symbol summary and unified detail page */
+/* Standard symbol summary and unified detail page */
 .stock-summary-scroll {
   min-height: 0;
   overflow-y: auto;
@@ -10400,7 +10400,7 @@ textarea:focus-visible {
   }
 }
 
-/* TradingView-density readable type scale.
+/* Compact readable type scale.
  * Keep these role tokens as the customization boundary instead of shrinking
  * individual labels below 10px to make a dense layout fit. */
 .brand-lockup strong,

@@ -23,10 +23,10 @@ const REQUIRED_CAPABILITIES: Readonly<Record<ProviderRole, readonly ProviderCapa
 const UPSTREAM: Readonly<Record<string, string>> = {
   mock: "deterministic local fixtures",
   yahoo: "Yahoo Finance-compatible endpoints",
-  tradingview: "TradingView public financial scanner",
+  tradingview: "Market data provider public financial scanner",
   "google-finance-earnings": "Google Finance earnings RPC",
   benzinga: "Benzinga calendar ratings API",
-  "tradingview-websocket": "local Python sidecar → TradingView websocket",
+  "tradingview-websocket": "local Python sidecar → Market data provider websocket",
 };
 
 const effective = resolveProviderSelections(process.env);

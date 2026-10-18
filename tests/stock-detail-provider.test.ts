@@ -398,7 +398,7 @@ test("company profile uses quote market cap and localizes prose without changing
   assert.equal(japanese.profile.descriptionLanguage, "ja");
   assert.equal(japanese.profile.descriptionSource?.sourceId, source.sourceId);
   assert.equal(japanese.profile.descriptionSource?.label, "Yahoo!ファイナンス（日本）");
-  assert.equal(japanese.profile.source.label, "Yahoo Finance / TradingView");
+  assert.equal(japanese.profile.source.label, "Yahoo Finance / Market data provider");
   assert.equal(english.profile.description, workspace.profile!.description);
   assert.deepEqual(japanese.fundamentals.metrics, english.fundamentals.metrics);
   assert.ok(japanese.profile.metrics.some(metric => metric.id === "profile.marketCap"));

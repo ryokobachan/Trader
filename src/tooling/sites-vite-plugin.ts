@@ -24,7 +24,7 @@ export function sites(): Plugin {
     },
     async closeBundle() {
       const outputDirectory = resolve(root, "dist", ".openai");
-      const hostingConfig = resolve(root, ".openai", "hosting.json");
+      const hostingConfig = resolve(root, "src", "worker", "cloudflare.config.json");
       const drizzleSource = resolve(root, "src", "db", "migrations");
 
       await rm(outputDirectory, { recursive: true, force: true });

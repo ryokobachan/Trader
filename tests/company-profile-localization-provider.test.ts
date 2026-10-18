@@ -36,7 +36,7 @@ function htmlResponse(html: string, status = 200) {
   return new Response(html, { status, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 
-test("TradingView reads only the verified Japanese company payload and preserves source identity", () => {
+test("Market data provider reads only the verified Japanese company payload and preserves source identity", () => {
   const japanese = extractTradingViewJapaneseProfile(tvHtml({ ast_business_description: { type: "root", children: [
     "テスト企業は", { type: "link", children: ["ソフトウェアを開発しています。"] },
   ] } }), LISTING, NOW.toISOString());
@@ -46,7 +46,7 @@ test("TradingView reads only the verified Japanese company payload and preserves
   assert.equal(japanese?.descriptionProvenance?.providerId, "tradingview");
 });
 
-test("TradingView never mistakes generic SEO descriptions, English text or community ideas for company information", () => {
+test("Market data provider never mistakes generic SEO descriptions, English text or community ideas for company information", () => {
   const html = tvHtml({ ast_business_description: { children: ["This is English business information."] } })
     + '<script type="application/ld+json">{"description":"ライブチャートで株価を追跡しましょう。"}</script>'
     + '<div>ユーザーの投稿：これは企業情報ではありません。</div>';
@@ -76,7 +76,7 @@ test("Yahoo Japan reads the matching US listing's feature text without evaluatin
   assert.equal(extractYahooJapanCompanyDescription("<script>window.__PRELOADED_STATE__ = getSecret()</script>", INSTRUMENT, NOW.toISOString()), null);
 });
 
-test("augmentation prefers TradingView Japanese and preserves the configured provider's English text and numbers", async () => {
+test("augmentation prefers Market data provider Japanese and preserves the configured provider's English text and numbers", async () => {
   const urls: string[] = [];
   const enrich = createJapaneseCompanyProfileEnricher({ fetch: async input => {
     urls.push(String(input));
@@ -90,7 +90,7 @@ test("augmentation prefers TradingView Japanese and preserves the configured pro
   assert.equal(result?.localized?.ja?.description, "日本語の企業説明です。");
 });
 
-test("missing TradingView descriptions use Yahoo Japan with separate description provenance", async () => {
+test("missing Market data provider descriptions use Yahoo Japan with separate description provenance", async () => {
   const urls: string[] = [];
   const enrich = createJapaneseCompanyProfileEnricher({ fetch: async input => {
     urls.push(String(input));
@@ -151,7 +151,7 @@ test("a combined deadline bounds fetches and body reads, even if an upstream ign
   }
 });
 
-test("a slow TradingView page cannot starve an available Yahoo Japan description", async () => {
+test("a slow Market data provider page cannot starve an available Yahoo Japan description", async () => {
   const enrich = createJapaneseCompanyProfileEnricher({ fetch: async input => String(input).includes("tradingview")
     ? new Promise<Response>(() => {}) : htmlResponse(yahooHtml()), timeoutMs: 5 });
   const result = await enrich(PROFILE, INSTRUMENT, CONTEXT);

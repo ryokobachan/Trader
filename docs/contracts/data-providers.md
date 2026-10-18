@@ -135,7 +135,7 @@ explicit partial/missing state.
 
 FMP is retired and cannot be selected in any role. Its credentials no longer
 cross the provider environment boundary. The Midas development profile selects
-Yahoo profiles/research, TradingView normalized financials, and Google Finance
+Yahoo profiles/research, market data provider normalized financials, and Google Finance
 dated earnings. The checked-in JSON retains deterministic mock market defaults
 and leaves optional company-data roles disabled.
 
@@ -151,7 +151,7 @@ and leaves optional company-data roles disabled.
 - Rates use decimal ratios in canonical DTOs; presentation converts them to
   percentages exactly once.
 - Every returned dataset carries provider provenance and observation time.
-- TradingView statement totals and profitability/liquidity ratios use explicit
+- market data provider statement totals and profitability/liquidity ratios use explicit
   annual source fields; valuation multiples preserve their trailing or forward
   definition. Altman Z is labeled TTM and Piotroski is labeled FY. Source ratios
   can use different income adjustments, so they are not recalculated from a
@@ -204,7 +204,7 @@ The root [`api/`](../../api) directory contains outbound vendor adapters.
 `src/app/api/` contains these inbound Trader HTTP routes; the two directories
 serve different purposes.
 
-The logo route resolves the public TradingView `logoid` server-side and permits
+The logo route resolves the public market data provider `logoid` server-side and permits
 only the reviewed `s3-symbol-logo.tradingview.com` image origin. The UI never
 constructs an arbitrary vendor URL from a symbol or untrusted profile field.
 

@@ -11,7 +11,7 @@ import {
   tradingViewDevelopmentProfile,
 } from "../src/tooling/scripts/dev-with-tradingview.mjs";
 
-test("forces current prices and chart bars through the authenticated local TradingView sidecar", () => {
+test("forces current prices and chart bars through the authenticated local Market data provider sidecar", () => {
   const environment = tradingViewDevelopmentProfile({
     PATH: "/usr/bin",
     TRADER_BARS_PROVIDER: "yahoo",

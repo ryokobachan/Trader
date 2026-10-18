@@ -1,6 +1,6 @@
 import vinext from "vinext";
 import { defineConfig, loadEnv } from "vite";
-import hostingConfig from "./.openai/hosting.json" with { type: "json" };
+import hostingConfig from "./src/worker/cloudflare.config.json" with { type: "json" };
 import { PROVIDER_ENVIRONMENT_KEYS } from "./api/environment.ts";
 import { sites } from "./src/tooling/sites-vite-plugin.ts";
 

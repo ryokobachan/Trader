@@ -10,7 +10,7 @@ Python.
 
 `Trader.app` uses Tauri and the macOS system WebView. At startup the Rust shell:
 
-1. starts the frozen TradingView/yfinance market helper on an ephemeral
+1. starts the frozen market data provider/yfinance market helper on an ephemeral
    `127.0.0.1` port;
 2. starts the compiled Bun runtime on a separate ephemeral loopback port;
 3. passes the market helper address and a random bearer token only to the Bun
@@ -30,7 +30,7 @@ binding is replaced.
 ## Market data behavior
 
 The packaged market helper contains its own Python 3.12 runtime and pinned
-TradingView/yfinance dependencies. TradingView supplies quotes and chart bars
+market data provider/yfinance dependencies. market data provider supplies quotes and chart bars
 when the helper is healthy. The application falls back to Yahoo quote/bar
 polling if that helper cannot start. Yahoo-compatible adapters also provide
 search, profile, fundamentals, earnings, and news data, while the configured
@@ -44,7 +44,7 @@ Desktop and standalone development share the role defaults in
 `api/local-provider-profile.json`. Rust embeds this profile into the native
 executable, so the installed app does not read the source checkout or a dotenv
 file. The profile enables Yahoo company research (ownership, corporate actions,
-and supplemental cash-flow data), TradingView financials and earnings, and the
+and supplemental cash-flow data), market data provider financials and earnings, and the
 Google Finance/Benzinga analyst adapter. If the market helper cannot start,
 quotes, bars, financials, and earnings use Yahoo instead.
 

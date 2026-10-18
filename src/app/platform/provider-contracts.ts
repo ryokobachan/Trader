@@ -732,7 +732,7 @@ export type WatchlistAfterHoursResponse = Readonly<{
   streamSupported?: boolean;
   /** Present only when a configured sidecar exposes a realtime stream. */
   streamTransport?: "websocket" | "sse";
-  /** A normal HTTPS request can wait server-side for the next TradingView tick. */
+  /** A normal HTTPS request can wait server-side for the next Market data provider tick. */
   longPollSupported?: boolean;
   asOf: string;
 }>;
@@ -776,7 +776,7 @@ export type WatchlistQuotesResponse = Readonly<{
   dataMode: "fixture" | "provider";
   /** False when the selected market provider supports snapshots but not SSE. */
   streamSupported?: boolean;
-  /** A normal HTTPS request can wait server-side for the next TradingView quote. */
+  /** A normal HTTPS request can wait server-side for the next Market data provider quote. */
   longPollSupported?: boolean;
   asOf: string;
 }>;

@@ -83,7 +83,8 @@ test("financial history renders a negative bar and a table gap, without fabricat
   const html = render(createElement(FinancialHistoryPanel, { annual: [
     period("2025", { revenue: 500 }), period("2024"), period("2023", { revenue: -100 }),
   ] }));
-  assert.match(html, /TradingView/);
+  assert.match(html, /Market data provider/);
+  assert.doesNotMatch(html, /tradingview/i);
   assert.match(html, /<title id="[^"]+">Revenue 2023 – 2025<\/title>/);
   assert.equal((html.match(/<rect /g) ?? []).length, 2);
   assert.match(html, /data-negative="true"/);
@@ -142,7 +143,7 @@ test("annual cash-flow bars compare operating, investing and financing with one 
     period("2024", { operatingCashFlow: 100, investingCashFlow: -80, financingCashFlow: -20 }),
   ] }), "ja");
   const chart = financialChart(html);
-  assert.match(html, /TradingView · 2026-09-05/);
+  assert.match(html, /Market data provider · 2026-09-05/);
   assert.match(html, /年次 · USD · 2024 – 2025/);
   assert.match(chart, /営業・投資・財務キャッシュフロー 2024 – 2025/);
   assert.equal((chart.match(/<rect /g) ?? []).length, 6);

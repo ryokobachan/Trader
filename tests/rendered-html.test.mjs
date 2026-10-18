@@ -109,7 +109,7 @@ test("uses the supplied Trader logo for the favicon and shell metadata", async (
   assert.match(layout, /twitter/);
 });
 
-test("keeps unsolicited TradingView UI out of the chart and settings", async () => {
+test("keeps unsolicited Market data provider UI out of the chart and settings", async () => {
   const source = await readFile(new URL("../src/app/page.tsx", import.meta.url), "utf8");
   assert.equal(source.match(/attributionLogo:\s*false/g)?.length, 3);
   assert.doesNotMatch(source, /attributionLogo:\s*true/);

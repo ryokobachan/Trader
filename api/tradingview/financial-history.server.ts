@@ -31,7 +31,7 @@ export function parseTradingViewFinancialHistory(payload: unknown, sourceSymbol:
   if (!record(payload) || payload.schemaVersion !== "trader.tradingview-financials.v1" || payload.sourceSymbol !== sourceSymbol
     || typeof payload.observedAt !== "string" || !Number.isFinite(Date.parse(payload.observedAt))
     || Date.parse(payload.observedAt) > now.getTime() + 60_000 || now.getTime() - Date.parse(payload.observedAt) > 300_000
-    || !record(payload.values) || payload.values.currency_code !== "USD" || payload.values.fundamental_currency_code !== "USD") throw new Error("Invalid TradingView financial history.");
+    || !record(payload.values) || payload.values.currency_code !== "USD" || payload.values.fundamental_currency_code !== "USD") throw new Error("Invalid Market data provider financial history.");
   const row = payload.values;
   const observedAt = payload.observedAt;
   const array = (key: string) => Array.isArray(row[key]) && row[key].length <= 40 ? row[key] as unknown[] : undefined;
@@ -93,7 +93,7 @@ export function createTradingViewFinancialHistoryClient(env: ProviderEnvironment
   const ttl = Math.max(0, Math.min(3_600_000, options.cacheTtlMs ?? 15 * 60_000));
   const timeout = Math.max(1, Math.min(20_000, options.timeoutMs ?? 15_000));
   return { get: async (instrument: Instrument, context: ProviderRequestContext): Promise<TradingViewFinancialHistory | undefined> => {
-    if (context.signal?.aborted) throw new Error("TradingView financial request cancelled.");
+    if (context.signal?.aborted) throw new Error("Market data provider financial request cancelled.");
     const base = env.TRADER_TRADINGVIEW_SIDECAR_URL?.trim();
     const token = env.TRADER_TRADINGVIEW_SIDECAR_TOKEN?.trim();
     if (!base || !token) return undefined;
@@ -101,7 +101,7 @@ export function createTradingViewFinancialHistoryClient(env: ProviderEnvironment
     if (!exchanges[instrument.exchangeMic] || instrument.listingCountry !== "US" || instrument.currency !== "USD" || !instrument.active
       || !["common_stock", "adr"].includes(instrument.assetType) || !/^[A-Z][A-Z0-9]*(?:[.-][A-Z0-9]+)?$/.test(instrument.symbol) || instrument.symbol.length > 10) return undefined;
     const url = new URL("/v1/tradingview/financials", base);
-    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("Invalid TradingView sidecar configuration.");
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("Invalid Market data provider sidecar configuration.");
     url.search = new URLSearchParams({ symbol: instrument.symbol, mic: instrument.exchangeMic }).toString();
     const key = url.href;
     const cached = storage.cache.get(key);
@@ -109,18 +109,18 @@ export function createTradingViewFinancialHistoryClient(env: ProviderEnvironment
     const requestKey = `${key}:${context.fresh ? "fresh" : "normal"}`;
     let work = storage.inFlight.get(`${key}:fresh`) ?? storage.inFlight.get(requestKey);
     if (!work) {
-      if (storage.inFlight.size >= 32) throw new Error("TradingView financial capacity reached.");
+      if (storage.inFlight.size >= 32) throw new Error("Market data provider financial capacity reached.");
       const generation = ++storage.generation;
       work = (async () => {
         const controller = new AbortController();
         let timer: ReturnType<typeof setTimeout> | undefined;
         const deadline = new Promise<never>((_resolve, reject) => { timer = setTimeout(() => {
-          controller.abort(); reject(new Error("TradingView financial history timed out."));
+          controller.abort(); reject(new Error("Market data provider financial history timed out."));
         }, timeout); });
         try {
           return await Promise.race([(async () => {
           const response = await fetcher(url, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` }, signal: controller.signal, redirect: "manual" });
-          if (!response.ok || !response.body) throw new Error("TradingView financial history unavailable.");
+          if (!response.ok || !response.body) throw new Error("Market data provider financial history unavailable.");
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let body = "", bytes = 0;
@@ -129,14 +129,14 @@ export function createTradingViewFinancialHistoryClient(env: ProviderEnvironment
               const chunk = await reader.read();
               if (chunk.done) break;
               bytes += chunk.value.byteLength;
-              if (bytes > 2_000_000) throw new Error("TradingView financial history exceeds limit.");
+              if (bytes > 2_000_000) throw new Error("Market data provider financial history exceeds limit.");
               body += decoder.decode(chunk.value, { stream: true });
             }
           } catch (error) { void reader.cancel().catch(() => undefined); throw error; }
           finally { reader.releaseLock(); }
           const sourceSymbol = `${exchanges[instrument.exchangeMic]}:${instrument.symbol.replaceAll("-", ".")}`;
           const data = parseTradingViewFinancialHistory(JSON.parse(body + decoder.decode()), sourceSymbol, now());
-          if (controller.signal.aborted) throw new Error("TradingView financial history timed out.");
+          if (controller.signal.aborted) throw new Error("Market data provider financial history timed out.");
           if (generation >= (storage.cache.get(key)?.generation ?? 0)) {
             storage.cache.delete(key);
             while (storage.cache.size >= 200) storage.cache.delete(storage.cache.keys().next().value!);
@@ -151,7 +151,7 @@ export function createTradingViewFinancialHistoryClient(env: ProviderEnvironment
     if (!context.signal) return work;
     const signal = context.signal;
     return new Promise((resolve, reject) => {
-      const onAbort = () => reject(new Error("TradingView financial request cancelled."));
+      const onAbort = () => reject(new Error("Market data provider financial request cancelled."));
       signal.addEventListener("abort", onAbort, { once: true });
       work!.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
     });

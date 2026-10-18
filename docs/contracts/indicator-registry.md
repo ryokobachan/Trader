@@ -113,11 +113,11 @@ The current contract suite verifies:
 - native TA-Lib equality and prefix invariance for all 129 functions;
 - authenticated HTTP behavior, bounds, timestamp validation and missing warm-up values.
 
-Compatibility means matching the documented Trader policy. It does not claim undocumented bit-for-bit equivalence with TradingView, TA-Lib, or any provider implementation.
+Compatibility means matching the documented Trader policy. It does not claim undocumented bit-for-bit equivalence with market data provider, TA-Lib, or any provider implementation.
 
 ## 8. References
 
-- [TradingView Pine Script reference](https://www.tradingview.com/pine-script-reference/v6/)
-- [TradingView chart information](https://www.tradingview.com/pine-script-docs/concepts/chart-information/)
-- [TradingView time semantics](https://www.tradingview.com/pine-script-docs/concepts/time/)
+- [Pine Script reference](https://www.tradingview.com/pine-script-reference/v6/)
+- [Chart information](https://www.tradingview.com/pine-script-docs/concepts/chart-information/)
+- [Time semantics](https://www.tradingview.com/pine-script-docs/concepts/time/)
 - [TA-Lib Python and native parameter/lookback contract](https://github.com/TA-Lib/ta-lib-python)

@@ -116,7 +116,7 @@ export function createJapaneseCompanyProfileEnricher(options: JapaneseCompanyPro
       if (response.url && response.url !== url) throw new Error("Unexpected profile listing");
       return limitedHtml(response);
     }
-    // Start both independent sources so a slow TradingView page cannot prevent
+    // Start both independent sources so a slow Market data provider page cannot prevent
     // Japanese descriptions available from Yahoo Japan from being displayed.
     const task = Promise.allSettled([
       page(listing.url).then(html => { tradingView = extractTradingViewJapaneseProfile(html, listing, now().toISOString()); }),

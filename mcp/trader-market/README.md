@@ -34,7 +34,7 @@ CodexのMCP環境変数に指定します。
 - `BENZINGA_API_TOKEN` または `BENZINGA_API_KEY`：Benzinga用。未設定時は取得範囲が限定されます。
 - `MARKET_PYTHON`：必要ライブラリを導入済みのPythonを使う場合、その絶対パス。
 
-株価・財務はTradingView、企業情報・ニュースはYahoo、決算はGoogle Finance、アナリストはGoogle Finance・Benzingaを使用します。
+株価・財務は外部マーケットデータ、企業情報・ニュースはYahoo、決算はGoogle Finance、アナリストはGoogle Finance・Benzingaを使用します。
 個人のローカル利用向けです。各取得元の利用条件・認証・取得制限が適用されます。
 
 - `TRADER_MCP_TIMEOUT_MS`：取得タイムアウト。既定60000、最大120000ミリ秒。

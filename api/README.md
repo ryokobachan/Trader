@@ -133,7 +133,7 @@ same-origin `/api/v1/watchlists/quotes/stream` SSE endpoint. Provider files
 normalize vendor responses into the canonical DTOs in
 [`src/app/platform/provider-contracts.ts`](../src/app/platform/provider-contracts.ts).
 
-### TradingView financials and complementary company research
+### market data provider financials and complementary company research
 
 The `tradingview` provider sends a fixed column list to
 `https://scanner.tradingview.com/america/scan`. It resolves the instrument's
@@ -141,8 +141,8 @@ known U.S. exchange/MIC and validates the exact returned listing and column
 count. Financial statements must have both USD listing currency and USD
 reporting currency. It never relabels an ADR's foreign reporting currency as USD.
 Scanner snapshots need no API key. Full financial histories and dated earnings
-use Trader's authenticated Python helper and a bounded TradingView quote
-WebSocket session. The local profile selects TradingView for both fundamentals
+use Trader's authenticated Python helper and a bounded market data provider quote
+WebSocket session. The local profile selects market data provider for both fundamentals
 and earnings.
 
 Top-level revenue, income, cash flow, profitability and liquidity metrics use
@@ -175,11 +175,11 @@ Each dataset has its own provenance and coverage state so one failed source
 does not erase the others. These are aggregate ownership/short-interest fields,
 not raw SEC filings or a FINRA dataset.
 
-When fundamentals uses TradingView, the runtime requests Yahoo ownership and
+When fundamentals uses market data provider, the runtime requests Yahoo ownership and
 corporate actions without its financial timeseries. The financial arrays are
-supplied by TradingView, with independent coverage/provenance and no silent
+supplied by market data provider, with independent coverage/provenance and no silent
 Yahoo statement fallback. Google Finance earnings remains explicitly selectable.
-PER, forward PER and PEG prefer TradingView's own positive reported values.
+PER, forward PER and PEG prefer market data provider's own positive reported values.
 Missing multiples can be derived from the same scanner response: close / diluted
 EPS TTM, close / estimated EPS NTM, and a separately labeled historical PEG using
 TTM diluted-EPS YoY percentage growth. Formula, inputs and period are returned;
@@ -260,7 +260,7 @@ that SSE contract. On Sites it instead advertises the ordinary HTTPS long-poll
 route, which waits inside the Worker for the same guest websocket quote and
 returns a completed JSON response without relying on downstream SSE framing.
 
-For current prices, the TradingView adapter derives a direct USD listing from
+For current prices, the market data provider adapter derives a direct USD listing from
 the resolved instrument MIC (for example `NASDAQ:AAPL`) and talks to the
 process-wide Python websocket broker. It does not use `{symbol}USDT.P` for the
 equity quote. The latter remains a separate perpetual reference price served by
@@ -278,15 +278,15 @@ a reconnect failure cannot keep an old price on screen.
 Reference-price routing is deliberately independent from the ordinary equity
 `market` provider. With a configured sidecar URL, snapshots and SSE use the
 sidecar. Without one, the snapshot route resolves the same server-derived,
-ordered `{EXCHANGE}:{symbol}USDT.P` candidates through TradingView's crypto
-scanner and the HTTPS long-poll route opens the same guest TradingView quote
+ordered `{EXCHANGE}:{symbol}USDT.P` candidates through market data provider's crypto
+scanner and the HTTPS long-poll route opens the same guest market data provider quote
 websocket used by the local sidecar. It must never substitute a direct USD
 aftermarket price.
 
 Keep `TRADER_TRADINGVIEW_SIDECAR_TOKEN` server-side. Local development may use
 loopback HTTP. An external sidecar must use HTTPS plus a bearer token. Hosted
 Sites can use the server-side scanner snapshot fallback and Worker-native
-TradingView websocket long polling without a sidecar. The browser must never connect to
+market data provider websocket long polling without a sidecar. The browser must never connect to
 either upstream directly.
 
 ## Add a provider
@@ -308,8 +308,8 @@ that would weaken path, bundling, and server-only security boundaries.
 
 Formulas, units, provenance rules, network allow-lists, licensing policy, and
 vendor-response parsing remain reviewed code. The optional synthetic reference
-close uses the TradingView sidecar, while company-logo policy lives in
+close uses the market data provider sidecar, while company-logo policy lives in
 [`src/app/platform/company-logo.ts`](../src/app/platform/company-logo.ts).
-The local `/api/v1/symbols/:symbol/logo` route resolves TradingView's `logoid`
-server-side and redirects only to the reviewed TradingView symbol-logo origin.
+The local `/api/v1/symbols/:symbol/logo` route resolves market data provider's `logoid`
+server-side and redirects only to the reviewed market data provider symbol-logo origin.
 Unknown or malformed logos remain unavailable.

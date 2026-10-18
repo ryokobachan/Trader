@@ -1,4 +1,4 @@
-"""Frozen entry point for the existing TradingView/yfinance sidecar.
+"""Frozen entry point for the existing Market data provider/yfinance sidecar.
 
 The spec stages ``api/tradingview-websocket/sidecar.py`` under the importable
 module name below. Importing it before ``freeze_support`` makes its worker

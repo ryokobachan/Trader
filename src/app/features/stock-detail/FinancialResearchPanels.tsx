@@ -67,7 +67,7 @@ function amount(value: number | undefined, ja: boolean, eps = false, compact = t
 function ResearchSource({ provenance }: { provenance?: DataProvenance }) {
   const { locale } = useI18n();
   if (!provenance) return null;
-  const label = provenance.providerId === "tradingview" ? "TradingView"
+  const label = provenance.providerId === "tradingview" ? "Market data provider"
     : provenance.providerId === "yahoo" ? "Yahoo Finance"
     : provenance.providerId === "stockanalysis" ? "Stock Analysis"
     : provenance.providerId === "google-finance-earnings" ? "Google Finance" : provenance.providerId;

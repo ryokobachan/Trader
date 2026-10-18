@@ -73,7 +73,7 @@ assert rows[0]["volume"] == 0.0
 try:
     module.normalize_rows(invalid)
 except ValueError as error:
-    assert str(error) == "TradingView returned no usable bars"
+    assert str(error) == "Market data provider returned no usable bars"
 else:
     raise AssertionError("malformed OHLCV rows were accepted")
 

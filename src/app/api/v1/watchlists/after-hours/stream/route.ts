@@ -46,7 +46,7 @@ export async function GET(request: Request) {
     if (!sidecarConfigured && !tradingViewWorkerLatestCloseStreamSupported()) {
       throw new TradingViewSidecarError(
         "configuration",
-        "TradingView realtime websocket is unavailable in this runtime.",
+        "Market data provider realtime websocket is unavailable in this runtime.",
       );
     }
     const context = { requestId, signal: request.signal };

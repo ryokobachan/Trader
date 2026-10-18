@@ -59,7 +59,7 @@ function client(options: Partial<Parameters<typeof createYahooResearchClient>[0]
   });
 }
 
-test("TradingView financial composition can request ownership/actions without downloading Yahoo statements", async () => {
+test("Market data provider financial composition can request ownership/actions without downloading Yahoo statements", async () => {
   const requested: string[] = [];
   const researchClient = client({ fetchJson: async url => { requested.push(url.pathname); return url.pathname.includes("timeseries") ? series() : chart(); } });
   const result = await researchClient.getResearch(AAPL, CONTEXT, { financialStatements: false });

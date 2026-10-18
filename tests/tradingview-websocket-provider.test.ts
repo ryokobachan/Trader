@@ -86,7 +86,7 @@ function realtimePayload() {
   };
 }
 
-test("publishes a market-data-only TradingView websocket provider manifest", () => {
+test("publishes a market-data-only Market data provider websocket provider manifest", () => {
   assert.equal(tradingViewWebsocketProviderRegistration.manifest.id, "tradingview-websocket");
   assert.deepEqual(tradingViewWebsocketProviderRegistration.manifest.capabilities, [
     "market.quote",
@@ -98,7 +98,7 @@ test("publishes a market-data-only TradingView websocket provider manifest", () 
   ]);
 });
 
-test("strictly maps TradingView current_session values with a clock fallback for unknowns", () => {
+test("strictly maps Market data provider current_session values with a clock fallback for unknowns", () => {
   for (const value of ["market", "regular"] as const) {
     assert.equal(tradingViewMarketSessionState(value), "regular");
   }

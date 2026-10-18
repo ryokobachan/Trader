@@ -131,7 +131,7 @@ const manifest = {
   schemaVersion: PROVIDER_SCHEMA_VERSION,
   id: "tradingview",
   version: "1.0.0",
-  displayName: "TradingView",
+  displayName: "Market data provider",
   capabilities: ["fundamentals.profile", "fundamentals.normalized", "fundamentals.earnings", "fundamentals.research"],
   markets: ["US"],
   assetTypes: ["common_stock", "adr"],
@@ -208,7 +208,7 @@ function provenance(symbol: string, observedAt: string, dataset: string): DataPr
 }
 
 async function readJson(response: Response): Promise<unknown> {
-  if (!response.body) throw new TradingViewFundamentalsError("invalid_response", "TradingView returned an empty response.");
+  if (!response.body) throw new TradingViewFundamentalsError("invalid_response", "Market data provider returned an empty response.");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let length = 0;
@@ -219,20 +219,20 @@ async function readJson(response: Response): Promise<unknown> {
     length += chunk.value.byteLength;
     if (length > MAX_RESPONSE_BYTES) {
       void reader.cancel().catch(() => undefined);
-      throw new TradingViewFundamentalsError("invalid_response", "TradingView response exceeds the size limit.");
+      throw new TradingViewFundamentalsError("invalid_response", "Market data provider response exceeds the size limit.");
     }
     body += decoder.decode(chunk.value, { stream: true });
   }
   body += decoder.decode();
   try { return JSON.parse(body); }
-  catch { throw new TradingViewFundamentalsError("invalid_response", "TradingView returned invalid JSON."); }
+  catch { throw new TradingViewFundamentalsError("invalid_response", "Market data provider returned invalid JSON."); }
 }
 
 function withCallerSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(new TradingViewFundamentalsError("aborted", "TradingView request was cancelled."));
+  if (signal.aborted) return Promise.reject(new TradingViewFundamentalsError("aborted", "Market data provider request was cancelled."));
   return new Promise((resolve, reject) => {
-    const onAbort = () => reject(new TradingViewFundamentalsError("aborted", "TradingView request was cancelled."));
+    const onAbort = () => reject(new TradingViewFundamentalsError("aborted", "Market data provider request was cancelled."));
     signal.addEventListener("abort", onAbort, { once: true });
     promise.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
   });
@@ -420,7 +420,7 @@ export function createTradingViewProvider(
     const deadline = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
         controller.abort();
-        reject(new TradingViewFundamentalsError("timeout", "TradingView request timed out."));
+        reject(new TradingViewFundamentalsError("timeout", "Market data provider request timed out."));
       }, timeoutMs);
     });
     try {
@@ -431,33 +431,33 @@ export function createTradingViewProvider(
           body: JSON.stringify({ symbols: { tickers: [symbol] }, columns: TRADINGVIEW_FUNDAMENTAL_COLUMNS, ignore_unknown_fields: false }),
           signal: controller.signal,
         });
-        if (!response.ok) throw new TradingViewFundamentalsError("upstream", `TradingView request failed with status ${response.status}.`, response.status);
+        if (!response.ok) throw new TradingViewFundamentalsError("upstream", `Market data provider request failed with status ${response.status}.`, response.status);
         const payload = await readJson(response);
         if (!record(payload) || !Array.isArray(payload.data) || !Number.isSafeInteger(payload.totalCount)) {
-          throw new TradingViewFundamentalsError("invalid_response", "TradingView returned an invalid scanner response.");
+          throw new TradingViewFundamentalsError("invalid_response", "Market data provider returned an invalid scanner response.");
         }
         if (payload.totalCount === 0 && payload.data.length === 0) return null;
         if (payload.totalCount !== 1 || payload.data.length !== 1) {
-          throw new TradingViewFundamentalsError("invalid_response", "TradingView returned an unexpected number of listings.");
+          throw new TradingViewFundamentalsError("invalid_response", "Market data provider returned an unexpected number of listings.");
         }
         const item = payload.data[0];
         if (!record(item) || item.s !== symbol || !Array.isArray(item.d) || item.d.length !== TRADINGVIEW_FUNDAMENTAL_COLUMNS.length) {
-          throw new TradingViewFundamentalsError("invalid_response", "TradingView returned a different listing or column schema.");
+          throw new TradingViewFundamentalsError("invalid_response", "Market data provider returned a different listing or column schema.");
         }
         const data = item.d;
         return { row: Object.fromEntries(TRADINGVIEW_FUNDAMENTAL_COLUMNS.map((column, index) => [column, data[index]])), observedAt: now().toISOString() };
       })(), deadline]);
     } catch (error) {
       if (error instanceof TradingViewFundamentalsError) throw error;
-      if (controller.signal.aborted) throw new TradingViewFundamentalsError("timeout", "TradingView request timed out.");
-      throw new TradingViewFundamentalsError("network", "TradingView request failed.");
+      if (controller.signal.aborted) throw new TradingViewFundamentalsError("timeout", "Market data provider request timed out.");
+      throw new TradingViewFundamentalsError("network", "Market data provider request failed.");
     } finally {
       if (timer !== undefined) clearTimeout(timer);
     }
   }
 
   async function scan(instrument: Instrument, context: ProviderRequestContext): Promise<ScanResult | null> {
-    if (context.signal?.aborted) throw new TradingViewFundamentalsError("aborted", "TradingView request was cancelled.");
+    if (context.signal?.aborted) throw new TradingViewFundamentalsError("aborted", "Market data provider request was cancelled.");
     const symbol = sourceSymbol(instrument);
     if (!symbol) return null;
     const cached = cache.get(symbol);
@@ -465,7 +465,7 @@ export function createTradingViewProvider(
     const requestKey = `${symbol}:${context.fresh ? "fresh" : "normal"}`;
     let pending = inFlight.get(`${symbol}:fresh`) ?? inFlight.get(requestKey);
     if (!pending) {
-      if (inFlight.size >= MAX_IN_FLIGHT) throw new TradingViewFundamentalsError("capacity", "TradingView request capacity was reached.");
+      if (inFlight.size >= MAX_IN_FLIGHT) throw new TradingViewFundamentalsError("capacity", "Market data provider request capacity was reached.");
       const generation = ++state.generation;
       pending = request(symbol).then((value) => {
         if (generation >= (cache.get(symbol)?.generation ?? 0)) {

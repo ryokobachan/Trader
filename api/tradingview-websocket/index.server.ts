@@ -64,7 +64,7 @@ const manifest = {
   schemaVersion: PROVIDER_SCHEMA_VERSION,
   id: "tradingview-websocket",
   version: "1.3.0",
-  displayName: "TradingView websocket local sidecar",
+  displayName: "Market data provider websocket local sidecar",
   capabilities: ["market.quote", "market.bars", "market.synthetic_latest_close"],
   markets: ["US"],
   assetTypes: ["common_stock", "adr"],
@@ -199,7 +199,7 @@ function boundedCandleCount(value: number, configuredLimit: number): number {
  * Ordered exchanges used for ticker-derived perpetual reference closes.
  *
  * This setting is deliberately server-only. It lets a developer extend or
- * reorder TradingView sources without allowing an untrusted browser request to
+ * reorder Market data provider sources without allowing an untrusted browser request to
  * choose arbitrary upstream identifiers.
  */
 export function tradingViewSyntheticExchanges(
@@ -216,7 +216,7 @@ export function tradingViewSyntheticExchanges(
   ) {
     throw new TradingViewSidecarError(
       "configuration",
-      "TradingView synthetic exchanges are invalid.",
+      "Market data provider synthetic exchanges are invalid.",
     );
   }
   return Object.freeze(exchanges);
@@ -232,13 +232,13 @@ function loopbackHostname(hostname: string): boolean {
 function sidecarBaseUrl(env: ProviderEnvironment): URL {
   const configured = env.TRADER_TRADINGVIEW_SIDECAR_URL?.trim();
   if (!configured) {
-    throw new TradingViewSidecarError("configuration", "TradingView sidecar URL is required.");
+    throw new TradingViewSidecarError("configuration", "Market data provider sidecar URL is required.");
   }
   let url: URL;
   try {
     url = new URL(configured);
   } catch {
-    throw new TradingViewSidecarError("configuration", "TradingView sidecar URL is invalid.");
+    throw new TradingViewSidecarError("configuration", "Market data provider sidecar URL is invalid.");
   }
   if (
     !["http:", "https:"].includes(url.protocol)
@@ -248,7 +248,7 @@ function sidecarBaseUrl(env: ProviderEnvironment): URL {
     || url.hash
     || (url.protocol === "http:" && !loopbackHostname(url.hostname))
   ) {
-    throw new TradingViewSidecarError("configuration", "TradingView sidecar URL is not permitted.");
+    throw new TradingViewSidecarError("configuration", "Market data provider sidecar URL is not permitted.");
   }
   url.pathname = `${url.pathname.replace(/\/+$/, "")}/`;
   return url;
@@ -329,7 +329,7 @@ function marketState(now: Date): MarketSessionState {
   return "closed";
 }
 
-/** Strict allowlist for TradingView's `current_session` quote field. */
+/** Strict allowlist for Market data provider's `current_session` quote field. */
 export function tradingViewMarketSessionState(value: unknown): MarketSessionState | null {
   if (typeof value !== "string") return null;
   switch (value) {
@@ -376,7 +376,7 @@ function normalizeBars(payload: unknown, expected: Readonly<{
     || (root.returnedCount !== undefined && root.returnedCount !== root.items.length)
     || root.items.length > expected.requestedCount
   ) {
-    throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid response.");
+    throw new TradingViewSidecarError("invalid_response", "Market data provider sidecar returned an invalid response.");
   }
   const bars: MarketBar[] = [];
   let previousTime = -Infinity;
@@ -406,13 +406,13 @@ function normalizeBars(payload: unknown, expected: Readonly<{
       || high < Math.max(open, close, low)
       || low > Math.min(open, close, high)
     ) {
-      throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned invalid bars.");
+      throw new TradingViewSidecarError("invalid_response", "Market data provider sidecar returned invalid bars.");
     }
     previousTime = milliseconds;
     bars.push(Object.freeze({ time, open, high, low, close, volume }));
   }
   if (bars.length === 0) {
-    throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned no bars.");
+    throw new TradingViewSidecarError("invalid_response", "Market data provider sidecar returned no bars.");
   }
   const asOf = isoTimestamp(root.asOf) ?? bars.at(-1)!.time;
   const ingestedAt = isoTimestamp(root.ingestedAt) ?? new Date().toISOString();
@@ -477,7 +477,7 @@ function normalizeLatestCloses(
   ) {
     throw new TradingViewSidecarError(
       "invalid_response",
-      "TradingView sidecar returned an invalid latest-close response.",
+      "Market data provider sidecar returned an invalid latest-close response.",
     );
   }
 
@@ -506,7 +506,7 @@ function normalizeLatestCloses(
     ) {
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView sidecar returned invalid latest-close data.",
+        "Market data provider sidecar returned invalid latest-close data.",
       );
     }
     items.push(Object.freeze({
@@ -536,8 +536,8 @@ function normalizeSyntheticSymbols(symbols: readonly string[]): readonly string[
 
 /**
  * Worker-compatible snapshot fallback for the exact ticker-derived perpetuals
- * used by the local TradingView websocket sidecar. The browser supplies only
- * canonical U.S. tickers; raw TradingView identifiers remain server-derived.
+ * used by the local Market data provider websocket sidecar. The browser supplies only
+ * canonical U.S. tickers; raw Market data provider identifiers remain server-derived.
  */
 export async function loadTradingViewScannerLatestCloses(
   env: ProviderEnvironment,
@@ -560,7 +560,7 @@ export async function loadTradingViewScannerLatestCloses(
   if (!Number.isFinite(observedNow.getTime())) {
     throw new TradingViewSidecarError(
       "configuration",
-      "TradingView scanner clock is invalid.",
+      "Market data provider scanner clock is invalid.",
     );
   }
 
@@ -598,12 +598,12 @@ export async function loadTradingViewScannerLatestCloses(
     if (didTimeOut) {
       throw new TradingViewSidecarError(
         "request_timeout",
-        "TradingView scanner request timed out.",
+        "Market data provider scanner request timed out.",
       );
     }
     throw new TradingViewSidecarError(
       "upstream_error",
-      "TradingView scanner request failed.",
+      "Market data provider scanner request failed.",
     );
   }
   try {
@@ -611,7 +611,7 @@ export async function loadTradingViewScannerLatestCloses(
       await response.body?.cancel().catch(() => undefined);
       throw new TradingViewSidecarError(
         "upstream_error",
-        "TradingView scanner returned an unsuccessful response.",
+        "Market data provider scanner returned an unsuccessful response.",
         response.status,
       );
     }
@@ -626,7 +626,7 @@ export async function loadTradingViewScannerLatestCloses(
       await response.body?.cancel().catch(() => undefined);
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView scanner returned an invalid response.",
+        "Market data provider scanner returned an invalid response.",
       );
     }
 
@@ -641,7 +641,7 @@ export async function loadTradingViewScannerLatestCloses(
         if (totalBytes > MAX_TRADINGVIEW_SCANNER_RESPONSE_BYTES) {
           throw new TradingViewSidecarError(
             "invalid_response",
-            "TradingView scanner response exceeded the permitted size.",
+            "Market data provider scanner response exceeded the permitted size.",
           );
         }
         chunks.push(value);
@@ -651,13 +651,13 @@ export async function loadTradingViewScannerLatestCloses(
       if (didTimeOut) {
         throw new TradingViewSidecarError(
           "request_timeout",
-          "TradingView scanner request timed out.",
+          "Market data provider scanner request timed out.",
         );
       }
       if (error instanceof TradingViewSidecarError) throw error;
       throw new TradingViewSidecarError(
         "upstream_error",
-        "TradingView scanner response stream failed.",
+        "Market data provider scanner response stream failed.",
       );
     } finally {
       reader.releaseLock();
@@ -675,7 +675,7 @@ export async function loadTradingViewScannerLatestCloses(
     } catch {
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView scanner returned invalid JSON.",
+        "Market data provider scanner returned invalid JSON.",
       );
     }
     const root = asRecord(payload);
@@ -688,7 +688,7 @@ export async function loadTradingViewScannerLatestCloses(
     ) {
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView scanner returned an invalid result set.",
+        "Market data provider scanner returned an invalid result set.",
       );
     }
 
@@ -710,7 +710,7 @@ export async function loadTradingViewScannerLatestCloses(
       ) {
         throw new TradingViewSidecarError(
           "invalid_response",
-          "TradingView scanner returned an unexpected symbol.",
+          "Market data provider scanner returned an unexpected symbol.",
         );
       }
       seenSources.add(sourceSymbol);
@@ -733,7 +733,7 @@ export async function loadTradingViewScannerLatestCloses(
       ) {
         throw new TradingViewSidecarError(
           "invalid_response",
-          "TradingView scanner returned mislabeled quote data.",
+          "Market data provider scanner returned mislabeled quote data.",
         );
       }
       if (rawClose === null && rawUpdatedAt === null) continue;
@@ -753,7 +753,7 @@ export async function loadTradingViewScannerLatestCloses(
       ) {
         throw new TradingViewSidecarError(
           "invalid_response",
-          "TradingView scanner returned malformed quote data.",
+          "Market data provider scanner returned malformed quote data.",
         );
       }
       // These contracts trade continuously. An old last bar is not a current
@@ -913,7 +913,7 @@ async function connectTradingViewWorkerWebSocket(
     await response.body?.cancel().catch(() => undefined);
     throw new TradingViewSidecarError(
       "upstream_error",
-      "TradingView websocket upgrade was not accepted.",
+      "Market data provider websocket upgrade was not accepted.",
       response.status,
     );
   }
@@ -922,7 +922,7 @@ async function connectTradingViewWorkerWebSocket(
 }
 
 /**
- * Open the same guest TradingView quote session used by the local Python
+ * Open the same guest Market data provider quote session used by the local Python
  * sidecar, directly from a Sites Worker. Raw upstream symbols remain wholly
  * server-derived as `{EXCHANGE}:{symbol}USDT.P` and every emitted item is
  * normalized back to the existing `tradingview-websocket` contract.
@@ -948,7 +948,7 @@ export async function createTradingViewWorkerLatestCloseStream(
   if (!/^qs_[a-z]{12}$/.test(sessionId)) {
     throw new TradingViewSidecarError(
       "configuration",
-      "TradingView worker quote-session identifier is invalid.",
+      "Market data provider worker quote-session identifier is invalid.",
     );
   }
   const timeoutMs = positiveInteger(
@@ -1023,13 +1023,13 @@ export async function createTradingViewWorkerLatestCloseStream(
     if (didTimeOut) {
       throw new TradingViewSidecarError(
         "request_timeout",
-        "TradingView websocket connection timed out.",
+        "Market data provider websocket connection timed out.",
       );
     }
     if (error instanceof TradingViewSidecarError) throw error;
     throw new TradingViewSidecarError(
       "upstream_error",
-      "TradingView websocket connection failed.",
+      "Market data provider websocket connection failed.",
     );
   }
   clearTimeout(handshakeTimer);
@@ -1065,7 +1065,7 @@ export async function createTradingViewWorkerLatestCloseStream(
         if (!Number.isFinite(value)) {
           throw new TradingViewSidecarError(
             "configuration",
-            "TradingView worker clock is invalid.",
+            "Market data provider worker clock is invalid.",
           );
         }
         return value;
@@ -1119,7 +1119,7 @@ export async function createTradingViewWorkerLatestCloseStream(
         ) {
           throw new TradingViewSidecarError(
             "upstream_error",
-            "TradingView worker stream consumer is too slow.",
+            "Market data provider worker stream consumer is too slow.",
           );
         }
         controller.enqueue(item);
@@ -1176,7 +1176,7 @@ export async function createTradingViewWorkerLatestCloseStream(
         if (livenessTimer) clearTimeout(livenessTimer);
         livenessTimer = setTimeout(() => finish(new TradingViewSidecarError(
           "upstream_error",
-          "TradingView websocket became unresponsive.",
+          "Market data provider websocket became unresponsive.",
         )), livenessTimeoutMs);
       };
 
@@ -1281,7 +1281,7 @@ export async function createTradingViewWorkerLatestCloseStream(
         ) {
           throw new TradingViewSidecarError(
             "upstream_error",
-            "TradingView quote session failed.",
+            "Market data provider quote session failed.",
           );
         }
       };
@@ -1291,7 +1291,7 @@ export async function createTradingViewWorkerLatestCloseStream(
         if (frameBuffer.byteLength > MAX_TRADINGVIEW_WORKER_BUFFER_BYTES) {
           throw new TradingViewSidecarError(
             "invalid_response",
-            "TradingView websocket frame buffer exceeded the permitted size.",
+            "Market data provider websocket frame buffer exceeded the permitted size.",
           );
         }
         while (frameBuffer.byteLength > 0) {
@@ -1303,7 +1303,7 @@ export async function createTradingViewWorkerLatestCloseStream(
           ) {
             throw new TradingViewSidecarError(
               "invalid_response",
-              "TradingView websocket returned invalid framing.",
+              "Market data provider websocket returned invalid framing.",
             );
           }
           let delimiter = -1;
@@ -1322,14 +1322,14 @@ export async function createTradingViewWorkerLatestCloseStream(
           if (!/^[1-9][0-9]{0,5}$/.test(lengthText)) {
             throw new TradingViewSidecarError(
               "invalid_response",
-              "TradingView websocket returned an invalid frame length.",
+              "Market data provider websocket returned an invalid frame length.",
             );
           }
           const payloadLength = Number(lengthText);
           if (payloadLength > MAX_TRADINGVIEW_WORKER_FRAME_BYTES) {
             throw new TradingViewSidecarError(
               "invalid_response",
-              "TradingView websocket frame exceeded the permitted size.",
+              "Market data provider websocket frame exceeded the permitted size.",
             );
           }
           const payloadStart = delimiter + 3;
@@ -1341,7 +1341,7 @@ export async function createTradingViewWorkerLatestCloseStream(
           } catch {
             throw new TradingViewSidecarError(
               "invalid_response",
-              "TradingView websocket returned invalid UTF-8.",
+              "Market data provider websocket returned invalid UTF-8.",
             );
           }
           frameBuffer = frameBuffer.slice(payloadEnd);
@@ -1361,17 +1361,17 @@ export async function createTradingViewWorkerLatestCloseStream(
             ? error
             : new TradingViewSidecarError(
               "invalid_response",
-              "TradingView websocket returned invalid data.",
+              "Market data provider websocket returned invalid data.",
             ));
         }
       };
       const onClose: EventListener = () => finish(new TradingViewSidecarError(
         "upstream_error",
-        "TradingView websocket closed unexpectedly.",
+        "Market data provider websocket closed unexpectedly.",
       ));
       const onError: EventListener = () => finish(new TradingViewSidecarError(
         "upstream_error",
-        "TradingView websocket failed.",
+        "Market data provider websocket failed.",
       ));
       const onAbort = () => finish();
       cancelConnectedStream = onAbort;
@@ -1418,7 +1418,7 @@ export async function createTradingViewWorkerLatestCloseStream(
               ? error
               : new TradingViewSidecarError(
                 "configuration",
-                "TradingView worker clock is invalid.",
+                "Market data provider worker clock is invalid.",
               ));
           }
         }, freshnessCheckMs);
@@ -1428,7 +1428,7 @@ export async function createTradingViewWorkerLatestCloseStream(
           ? error
           : new TradingViewSidecarError(
             "upstream_error",
-            "TradingView websocket subscription failed.",
+            "Market data provider websocket subscription failed.",
           ));
       }
     },
@@ -1454,7 +1454,7 @@ function normalizeTradingViewWorkerRegularQuote(
     values.currency_code !== "USD"
     || values.update_mode !== "streaming"
     || values.type !== expectedType
-    // TradingView guest USD quotes currently identify their real-time tape as
+    // Market data provider guest USD quotes currently identify their real-time tape as
     // Cboe One even though `pro_name` retains the requested primary listing.
     || (returnedExchange !== sourceExchange && returnedExchange !== "CBOE ONE")
     || values.pro_name !== expected.sourceSymbol
@@ -1527,7 +1527,7 @@ function normalizeTradingViewWorkerRegularQuote(
 /**
  * One bounded Worker-native long poll for direct-listing U.S. equity quotes.
  *
- * Sites keeps this ordinary HTTP request alive while the outbound TradingView
+ * Sites keeps this ordinary HTTP request alive while the outbound Market data provider
  * guest websocket is open, so no downstream WebSocket/SSE survives the Worker
  * response boundary. A cursor-less request returns the first complete batch
  * (or the five-second initial deadline). With cursors, an unchanged initial
@@ -1571,7 +1571,7 @@ export async function loadTradingViewWorkerQuoteLongPoll(
   if (!/^qs_[a-z]{12}$/.test(sessionId)) {
     throw new TradingViewSidecarError(
       "configuration",
-      "TradingView worker quote-session identifier is invalid.",
+      "Market data provider worker quote-session identifier is invalid.",
     );
   }
   const waitMs = cursors.size === 0
@@ -1625,13 +1625,13 @@ export async function loadTradingViewWorkerQuoteLongPoll(
     if (handshakeTimedOut) {
       throw new TradingViewSidecarError(
         "request_timeout",
-        "TradingView websocket connection timed out.",
+        "Market data provider websocket connection timed out.",
       );
     }
     if (error instanceof TradingViewSidecarError) throw error;
     throw new TradingViewSidecarError(
       "upstream_error",
-      "TradingView websocket connection failed.",
+      "Market data provider websocket connection failed.",
     );
   } finally {
     clearTimeout(handshakeTimer);
@@ -1735,7 +1735,7 @@ export async function loadTradingViewWorkerQuoteLongPoll(
       ) {
         fail(new TradingViewSidecarError(
           "upstream_error",
-          "TradingView quote session failed.",
+          "Market data provider quote session failed.",
         ));
       }
     };
@@ -1744,7 +1744,7 @@ export async function loadTradingViewWorkerQuoteLongPoll(
       if (frameBuffer.byteLength > MAX_TRADINGVIEW_WORKER_BUFFER_BYTES) {
         throw new TradingViewSidecarError(
           "invalid_response",
-          "TradingView websocket frame buffer exceeded the permitted size.",
+          "Market data provider websocket frame buffer exceeded the permitted size.",
         );
       }
       while (frameBuffer.byteLength > 0) {
@@ -1756,7 +1756,7 @@ export async function loadTradingViewWorkerQuoteLongPoll(
         ) {
           throw new TradingViewSidecarError(
             "invalid_response",
-            "TradingView websocket returned invalid framing.",
+            "Market data provider websocket returned invalid framing.",
           );
         }
         let delimiter = -1;
@@ -1775,14 +1775,14 @@ export async function loadTradingViewWorkerQuoteLongPoll(
         if (!/^[1-9][0-9]{0,5}$/.test(lengthText)) {
           throw new TradingViewSidecarError(
             "invalid_response",
-            "TradingView websocket returned an invalid frame length.",
+            "Market data provider websocket returned an invalid frame length.",
           );
         }
         const payloadLength = Number(lengthText);
         if (payloadLength > MAX_TRADINGVIEW_WORKER_FRAME_BYTES) {
           throw new TradingViewSidecarError(
             "invalid_response",
-            "TradingView websocket frame exceeded the permitted size.",
+            "Market data provider websocket frame exceeded the permitted size.",
           );
         }
         const payloadStart = delimiter + 3;
@@ -1805,17 +1805,17 @@ export async function loadTradingViewWorkerQuoteLongPoll(
           ? error
           : new TradingViewSidecarError(
             "invalid_response",
-            "TradingView websocket returned invalid data.",
+            "Market data provider websocket returned invalid data.",
           ));
       }
     };
     const onClose: EventListener = () => fail(new TradingViewSidecarError(
       "upstream_error",
-      "TradingView websocket closed unexpectedly.",
+      "Market data provider websocket closed unexpectedly.",
     ));
     const onError: EventListener = () => fail(new TradingViewSidecarError(
       "upstream_error",
-      "TradingView websocket failed.",
+      "Market data provider websocket failed.",
     ));
     const onAbort = () => fail(new TradingViewSidecarError(
       "upstream_error",
@@ -1850,7 +1850,7 @@ export async function loadTradingViewWorkerQuoteLongPoll(
     } catch {
       fail(new TradingViewSidecarError(
         "upstream_error",
-        "TradingView websocket subscription failed.",
+        "Market data provider websocket subscription failed.",
       ));
       return;
     }
@@ -1902,7 +1902,7 @@ function normalizeRealtimeQuote(
   ) {
     throw new TradingViewSidecarError(
       "invalid_response",
-      "TradingView sidecar returned invalid realtime quote data.",
+      "Market data provider sidecar returned invalid realtime quote data.",
     );
   }
   if (item.price === null) {
@@ -1920,7 +1920,7 @@ function normalizeRealtimeQuote(
     if (!item.stale || nullableFields.some((field) => item[field] !== null)) {
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView sidecar returned malformed missing quote data.",
+        "Market data provider sidecar returned malformed missing quote data.",
       );
     }
     return null;
@@ -1958,7 +1958,7 @@ function normalizeRealtimeQuote(
   ) {
     throw new TradingViewSidecarError(
       "invalid_response",
-      "TradingView sidecar returned malformed realtime quote values.",
+      "Market data provider sidecar returned malformed realtime quote values.",
     );
   }
   const ingestedAtMs = Date.parse(ingestedAt);
@@ -1971,7 +1971,7 @@ function normalizeRealtimeQuote(
   ) {
     throw new TradingViewSidecarError(
       "invalid_response",
-      "TradingView sidecar returned an invalid realtime quote timestamp.",
+      "Market data provider sidecar returned an invalid realtime quote timestamp.",
     );
   }
   const expectedChange = price - previousClose;
@@ -1982,7 +1982,7 @@ function normalizeRealtimeQuote(
   ) {
     throw new TradingViewSidecarError(
       "invalid_response",
-      "TradingView sidecar returned inconsistent realtime quote changes.",
+      "Market data provider sidecar returned inconsistent realtime quote changes.",
     );
   }
   const observedDelay = Math.max(
@@ -2029,7 +2029,7 @@ function normalizeRealtimeSnapshot(
   ) {
     throw new TradingViewSidecarError(
       "invalid_response",
-      "TradingView sidecar returned an invalid realtime snapshot.",
+      "Market data provider sidecar returned an invalid realtime snapshot.",
     );
   }
   const expectedBySymbol = new Map(requests.map((request) => [request.symbol, request]));
@@ -2042,7 +2042,7 @@ function normalizeRealtimeSnapshot(
     if (item?.symbol !== expected.symbol || seen.has(expected.symbol)) {
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView sidecar returned a mismatched realtime snapshot.",
+        "Market data provider sidecar returned a mismatched realtime snapshot.",
       );
     }
     seen.add(expected.symbol);
@@ -2067,7 +2067,7 @@ export function createTradingViewSidecarProvider(
   if (!loopbackHostname(baseUrl.hostname) && !token) {
     throw new TradingViewSidecarError(
       "configuration",
-      "A TradingView sidecar token is required for remote HTTPS endpoints.",
+      "A Market data provider sidecar token is required for remote HTTPS endpoints.",
     );
   }
   const timeoutMs = positiveInteger(env.TRADER_TRADINGVIEW_SIDECAR_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
@@ -2119,13 +2119,13 @@ export function createTradingViewSidecarProvider(
       await response.body?.cancel().catch(() => undefined);
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView sidecar response exceeded the permitted size.",
+        "Market data provider sidecar response exceeded the permitted size.",
       );
     }
     if (!response.body) {
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView sidecar returned an empty response.",
+        "Market data provider sidecar returned an empty response.",
       );
     }
     const reader = response.body.getReader();
@@ -2139,7 +2139,7 @@ export function createTradingViewSidecarProvider(
         if (total > maximumBytes) {
           throw new TradingViewSidecarError(
             "invalid_response",
-            "TradingView sidecar response exceeded the permitted size.",
+            "Market data provider sidecar response exceeded the permitted size.",
           );
         }
         chunks.push(value);
@@ -2149,7 +2149,7 @@ export function createTradingViewSidecarProvider(
       if (error instanceof TradingViewSidecarError) throw error;
       throw new TradingViewSidecarError(
         "upstream_error",
-        "TradingView sidecar response stream failed.",
+        "Market data provider sidecar response stream failed.",
       );
     } finally {
       reader.releaseLock();
@@ -2165,7 +2165,7 @@ export function createTradingViewSidecarProvider(
     } catch {
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView sidecar returned invalid UTF-8.",
+        "Market data provider sidecar returned invalid UTF-8.",
       );
     }
   }
@@ -2203,16 +2203,16 @@ export function createTradingViewSidecarProvider(
     } catch {
       linked.cleanup();
       if (linked.timedOut()) {
-        throw new TradingViewSidecarError("request_timeout", "TradingView sidecar request timed out.");
+        throw new TradingViewSidecarError("request_timeout", "Market data provider sidecar request timed out.");
       }
-      throw new TradingViewSidecarError("upstream_error", "TradingView sidecar request failed.");
+      throw new TradingViewSidecarError("upstream_error", "Market data provider sidecar request failed.");
     }
     if (!response.ok) {
       linked.cleanup();
       await response.body?.cancel().catch(() => undefined);
       throw new TradingViewSidecarError(
         "upstream_error",
-        "TradingView sidecar returned an unsuccessful response.",
+        "Market data provider sidecar returned an unsuccessful response.",
         response.status,
       );
     }
@@ -2229,7 +2229,7 @@ export function createTradingViewSidecarProvider(
       if (!contentType.toLowerCase().startsWith("application/json")) {
         throw new TradingViewSidecarError(
           "invalid_response",
-          "TradingView sidecar returned an invalid content type.",
+          "Market data provider sidecar returned an invalid content type.",
         );
       }
       const text = await boundedResponseText(response, MAX_REALTIME_SNAPSHOT_BYTES);
@@ -2239,7 +2239,7 @@ export function createTradingViewSidecarProvider(
       } catch {
         throw new TradingViewSidecarError(
           "invalid_response",
-          "TradingView sidecar returned invalid JSON.",
+          "Market data provider sidecar returned invalid JSON.",
         );
       }
       return normalizeRealtimeSnapshot(payload, requests, now());
@@ -2263,7 +2263,7 @@ export function createTradingViewSidecarProvider(
       await response.body?.cancel().catch(() => undefined);
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView sidecar returned an invalid event stream.",
+        "Market data provider sidecar returned an invalid event stream.",
       );
     }
 
@@ -2293,26 +2293,26 @@ export function createTradingViewSidecarProvider(
             } catch {
               throw new TradingViewSidecarError(
                 "invalid_response",
-                "TradingView sidecar returned an invalid realtime event.",
+                "Market data provider sidecar returned an invalid realtime event.",
               );
             }
             const root = asRecord(payload);
             if (eventName === "ready") {
               if (root?.type !== "ready") {
-                throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid ready event.");
+                throw new TradingViewSidecarError("invalid_response", "Market data provider sidecar returned an invalid ready event.");
               }
               if (root.state !== "connected") {
-                throw new TradingViewSidecarError("upstream_error", "TradingView realtime source is reconnecting.");
+                throw new TradingViewSidecarError("upstream_error", "Market data provider realtime source is reconnecting.");
               }
               sourceConnected = true;
               const quotes = normalizeRealtimeSnapshot(root, requests, now());
               for (const quote of quotes) controller.enqueue(quote);
             } else if (eventName === "quote") {
               if (root?.schemaVersion !== REALTIME_QUOTES_SCHEMA_VERSION || root.type !== "quote") {
-                throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid quote event.");
+                throw new TradingViewSidecarError("invalid_response", "Market data provider sidecar returned an invalid quote event.");
               }
               if (!sourceConnected) {
-                throw new TradingViewSidecarError("upstream_error", "TradingView realtime source is not connected.");
+                throw new TradingViewSidecarError("upstream_error", "Market data provider realtime source is not connected.");
               }
               const quote = normalizeRealtimeQuote(
                 root.item,
@@ -2329,11 +2329,11 @@ export function createTradingViewSidecarProvider(
                 || !["connected", "reconnecting", "disconnected"].includes(String(root.state))
                 || !isoTimestamp(root.ingestedAt)
               ) {
-                throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned an invalid status event.");
+                throw new TradingViewSidecarError("invalid_response", "Market data provider sidecar returned an invalid status event.");
               }
               if (root.state !== "connected") {
                 sourceConnected = false;
-                throw new TradingViewSidecarError("upstream_error", "TradingView realtime source disconnected.");
+                throw new TradingViewSidecarError("upstream_error", "Market data provider realtime source disconnected.");
               }
               sourceConnected = true;
             }
@@ -2348,7 +2348,7 @@ export function createTradingViewSidecarProvider(
               if (done) break;
               buffer += decoder.decode(value, { stream: true });
               if (buffer.length > MAX_REALTIME_EVENT_BYTES * 2) {
-                throw new TradingViewSidecarError("invalid_response", "TradingView realtime event exceeded the permitted size.");
+                throw new TradingViewSidecarError("invalid_response", "Market data provider realtime event exceeded the permitted size.");
               }
               while (true) {
                 const newline = buffer.indexOf("\n");
@@ -2362,7 +2362,7 @@ export function createTradingViewSidecarProvider(
                 if (line.startsWith(":")) continue;
                 eventBytes += line.length;
                 if (eventBytes > MAX_REALTIME_EVENT_BYTES) {
-                  throw new TradingViewSidecarError("invalid_response", "TradingView realtime event exceeded the permitted size.");
+                  throw new TradingViewSidecarError("invalid_response", "Market data provider realtime event exceeded the permitted size.");
                 }
                 if (line.startsWith("event:")) eventName = line.slice(6).trim();
                 else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
@@ -2422,20 +2422,20 @@ export function createTradingViewSidecarProvider(
       });
     } catch {
       if (controller.signal.aborted) {
-        throw new TradingViewSidecarError("request_timeout", "TradingView sidecar request timed out.");
+        throw new TradingViewSidecarError("request_timeout", "Market data provider sidecar request timed out.");
       }
-      throw new TradingViewSidecarError("upstream_error", "TradingView sidecar request failed.");
+      throw new TradingViewSidecarError("upstream_error", "Market data provider sidecar request failed.");
     } finally {
       clearTimeout(timer);
     }
     if (!response.ok) {
-      throw new TradingViewSidecarError("upstream_error", "TradingView sidecar returned an unsuccessful response.", response.status);
+      throw new TradingViewSidecarError("upstream_error", "Market data provider sidecar returned an unsuccessful response.", response.status);
     }
     let payload: unknown;
     try {
       payload = await response.json();
     } catch {
-      throw new TradingViewSidecarError("invalid_response", "TradingView sidecar returned invalid JSON.");
+      throw new TradingViewSidecarError("invalid_response", "Market data provider sidecar returned invalid JSON.");
     }
     return normalizeBars(payload, {
       symbol: instrument.symbol,
@@ -2469,16 +2469,16 @@ export function createTradingViewSidecarProvider(
     } catch {
       linked.cleanup();
       if (linked.timedOut()) {
-        throw new TradingViewSidecarError("request_timeout", "TradingView sidecar request timed out.");
+        throw new TradingViewSidecarError("request_timeout", "Market data provider sidecar request timed out.");
       }
-      throw new TradingViewSidecarError("upstream_error", "TradingView sidecar request failed.");
+      throw new TradingViewSidecarError("upstream_error", "Market data provider sidecar request failed.");
     }
     try {
       if (!response.ok) {
         await response.body?.cancel().catch(() => undefined);
         throw new TradingViewSidecarError(
           "upstream_error",
-          "TradingView sidecar returned an unsuccessful response.",
+          "Market data provider sidecar returned an unsuccessful response.",
           response.status,
         );
       }
@@ -2487,7 +2487,7 @@ export function createTradingViewSidecarProvider(
         await response.body?.cancel().catch(() => undefined);
         throw new TradingViewSidecarError(
           "invalid_response",
-          "TradingView sidecar returned an invalid content type.",
+          "Market data provider sidecar returned an invalid content type.",
         );
       }
       const text = await boundedResponseText(response, MAX_LATEST_CLOSE_SNAPSHOT_BYTES);
@@ -2497,7 +2497,7 @@ export function createTradingViewSidecarProvider(
       } catch {
         throw new TradingViewSidecarError(
           "invalid_response",
-          "TradingView sidecar returned invalid JSON.",
+          "Market data provider sidecar returned invalid JSON.",
         );
       }
       return normalizeLatestCloses(payload, normalizedSymbols, syntheticExchanges);
@@ -2505,7 +2505,7 @@ export function createTradingViewSidecarProvider(
       if (linked.timedOut()) {
         throw new TradingViewSidecarError(
           "request_timeout",
-          "TradingView sidecar request timed out.",
+          "Market data provider sidecar request timed out.",
         );
       }
       throw error;
@@ -2537,16 +2537,16 @@ export function createTradingViewSidecarProvider(
     } catch {
       linked.cleanup();
       if (linked.timedOut()) {
-        throw new TradingViewSidecarError("request_timeout", "TradingView sidecar request timed out.");
+        throw new TradingViewSidecarError("request_timeout", "Market data provider sidecar request timed out.");
       }
-      throw new TradingViewSidecarError("upstream_error", "TradingView sidecar request failed.");
+      throw new TradingViewSidecarError("upstream_error", "Market data provider sidecar request failed.");
     }
     if (!response.ok) {
       linked.cleanup();
       await response.body?.cancel().catch(() => undefined);
       throw new TradingViewSidecarError(
         "upstream_error",
-        "TradingView sidecar returned an unsuccessful response.",
+        "Market data provider sidecar returned an unsuccessful response.",
         response.status,
       );
     }
@@ -2556,7 +2556,7 @@ export function createTradingViewSidecarProvider(
       await response.body?.cancel().catch(() => undefined);
       throw new TradingViewSidecarError(
         "invalid_response",
-        "TradingView sidecar returned an invalid latest-close event stream.",
+        "Market data provider sidecar returned an invalid latest-close event stream.",
       );
     }
 
@@ -2585,7 +2585,7 @@ export function createTradingViewSidecarProvider(
             } catch {
               throw new TradingViewSidecarError(
                 "invalid_response",
-                "TradingView sidecar returned an invalid latest-close event.",
+                "Market data provider sidecar returned an invalid latest-close event.",
               );
             }
             const root = asRecord(payload);
@@ -2598,7 +2598,7 @@ export function createTradingViewSidecarProvider(
               ) {
                 throw new TradingViewSidecarError(
                   "invalid_response",
-                  "TradingView sidecar returned an invalid latest-close ready event.",
+                  "Market data provider sidecar returned an invalid latest-close ready event.",
                 );
               }
               for (const item of normalizeLatestCloses(
@@ -2618,7 +2618,7 @@ export function createTradingViewSidecarProvider(
               ) {
                 throw new TradingViewSidecarError(
                   "invalid_response",
-                  "TradingView sidecar returned an invalid latest-close quote event.",
+                  "Market data provider sidecar returned an invalid latest-close quote event.",
                 );
               }
               const [normalized] = normalizeLatestCloses(
@@ -2637,13 +2637,13 @@ export function createTradingViewSidecarProvider(
               ) {
                 throw new TradingViewSidecarError(
                   "invalid_response",
-                  "TradingView sidecar returned an invalid latest-close status event.",
+                  "Market data provider sidecar returned an invalid latest-close status event.",
                 );
               }
             } else {
               throw new TradingViewSidecarError(
                 "invalid_response",
-                "TradingView sidecar returned an unknown latest-close event.",
+                "Market data provider sidecar returned an unknown latest-close event.",
               );
             }
             eventName = "";
@@ -2659,7 +2659,7 @@ export function createTradingViewSidecarProvider(
               if (buffer.length > MAX_REALTIME_EVENT_BYTES * 2) {
                 throw new TradingViewSidecarError(
                   "invalid_response",
-                  "TradingView latest-close event exceeded the permitted size.",
+                  "Market data provider latest-close event exceeded the permitted size.",
                 );
               }
               while (true) {
@@ -2676,7 +2676,7 @@ export function createTradingViewSidecarProvider(
                 if (eventBytes > MAX_REALTIME_EVENT_BYTES) {
                   throw new TradingViewSidecarError(
                     "invalid_response",
-                    "TradingView latest-close event exceeded the permitted size.",
+                    "Market data provider latest-close event exceeded the permitted size.",
                   );
                 }
                 if (line.startsWith("event:")) eventName = line.slice(6).trim();

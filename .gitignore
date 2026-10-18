@@ -69,3 +69,9 @@ venv/
 *.pfx
 *.crt
 *.cer
+
+# local hosting metadata and browser/review outputs
+/.openai/
+/.playwright-cli/
+/output/
+/artifacts/

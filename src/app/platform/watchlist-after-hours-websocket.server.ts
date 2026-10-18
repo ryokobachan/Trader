@@ -83,7 +83,7 @@ function websocketOriginMatches(request: Request) {
 /**
  * Upgrade the same authenticated stream URL before it reaches Vinext. Sites'
  * HTTP response layer can buffer SSE chunks, while a Worker WebSocketPair
- * preserves each already-normalized TradingView tick as a distinct message.
+ * preserves each already-normalized Market data provider tick as a distinct message.
  */
 export async function handleWatchlistAfterHoursWebSocketUpgrade(
   request: Request,

@@ -4,7 +4,7 @@
 
 # Trader
 
-Trader is an open-source, TradingView-inspired workspace for U.S. stock charts, company research, watchlists, technical indicators, and portable strategy packages.
+Trader is an open-source workspace for U.S. stock charts, company research, watchlists, technical indicators, and portable strategy packages.
 
 > Trader is a research prototype. It does not execute brokerage orders or provide investment advice. Strategy metrics are shown only with their recorded provenance.
 
@@ -16,7 +16,7 @@ The screenshots below were captured from the Trader workspace on October 16, 202
 
 ![Trader chart workspace](public/screenshots/trader-chart.png)
 
-_Captured with direct USD-listing quotes and bars from the TradingView websocket sidecar. Prices and timestamps reflect the observations displayed in the UI._
+_Captured with direct USD-listing quotes and bars from the market data provider websocket sidecar. Prices and timestamps reflect the observations displayed in the UI._
 
 - candlestick, Heikin Ashi, line, and area charts with 1m–1M timeframes
 - configurable 2–10,000 candle history; default 1,000
@@ -51,7 +51,7 @@ _The catalog UI reads checked-in strategy packages. A package without a recorded
 1. Press `Command + F` or click the symbol selector to search U.S. stocks.
 2. Use the timeframe dropdown beside the chart symbol selector, then choose candles, Heikin Ashi, line, or area from the adjacent chart-type menu.
 3. Use **Add indicator** on the chart or the right-sidebar **Indicators** panel to add or configure studies.
-4. Use `+` in the watchlist to add a symbol. Direct-listing prices and the optional `{symbol}USDT.P` reference prices stream while the tab is visible; snapshot polling takes over if either stream is unavailable. A USDT.P tick older than five minutes is cleared instead of being shown as current. Actual availability depends on TradingView access and exchange entitlements. Right-click a row to remove it.
+4. Use `+` in the watchlist to add a symbol. Direct-listing prices and the optional `{symbol}USDT.P` reference prices stream while the tab is visible; snapshot polling takes over if either stream is unavailable. A USDT.P tick older than five minutes is cleared instead of being shown as current. Actual availability depends on market data provider access and exchange entitlements. Right-click a row to remove it.
 5. Open the watchlist selector and use each list's `…` menu to rename or delete it. The final list is protected from deletion.
 6. Drag the right-panel edge or the divider between the watchlist and symbol overview to resize the workspace. Both separators also support arrow keys.
 7. Select **Details** in the top navigation to open financials, analysts, company research, and technicals. Financials include annual history and fiscal-period forecasts; research includes dated quarterly statements, ownership and short-interest statistics, and dividend/split history when supplied by the selected provider.
@@ -110,7 +110,7 @@ not reset by replacing only the SQLite file.
 Requirements:
 
 - Node.js 22.13 or newer
-- Python 3 for the TradingView websocket quote/chart sidecar used by the real-data profiles
+- Python 3 for the market data provider websocket quote/chart sidecar used by the real-data profiles
 
 Deterministic mock profile:
 
@@ -128,11 +128,11 @@ npm run dev:yahoo
 
 Open <http://localhost:3001>.
 
-`dev:yahoo` uses the local TradingView websocket sidecar for direct USD-listing current quotes and chart bars. Yahoo-compatible endpoints provide U.S. stock search, company data, fundamentals, earnings, research, and news; the same authenticated sidecar can use pinned `yfinance` as a profile/earnings fallback when Yahoo's anonymous cookie/crumb path is unavailable. Its analyst role selects `google-finance-benzinga`, which calls both the direct Benzinga adapter and the Google Finance Analysis-page `AF_initDataCallback` parser, then OR-merges their event sets. Separately licensed TipRanks Enterprise access remains optional. These are unofficial or provider-controlled data paths. Review the applicable access, display, and redistribution terms before enabling them outside personal development.
+`dev:yahoo` uses the local market data provider websocket sidecar for direct USD-listing current quotes and chart bars. Yahoo-compatible endpoints provide U.S. stock search, company data, fundamentals, earnings, research, and news; the same authenticated sidecar can use pinned `yfinance` as a profile/earnings fallback when Yahoo's anonymous cookie/crumb path is unavailable. Its analyst role selects `google-finance-benzinga`, which calls both the direct Benzinga adapter and the Google Finance Analysis-page `AF_initDataCallback` parser, then OR-merges their event sets. Separately licensed TipRanks Enterprise access remains optional. These are unofficial or provider-controlled data paths. Review the applicable access, display, and redistribution terms before enabling them outside personal development.
 
-The browser connects only to Trader's same-origin routes; it never receives the sidecar bearer token or chooses raw TradingView symbols. A hosted Sites deployment cannot reach a developer machine's loopback sidecar. Without an external sidecar it therefore keeps ordinary HTTPS requests open while the Worker waits on the same TradingView guest websocket used locally, returning each direct-USD quote or ordered `{EXCHANGE}:{symbol}USDT.P` change as completed JSON. The scanner snapshot remains a 15-second safety fallback. An optional external sidecar must use **HTTPS** and a server-side token. Transport-level streaming or polling does not itself guarantee exchange real-time entitlements.
+The browser connects only to Trader's same-origin routes; it never receives the sidecar bearer token or chooses raw market data provider symbols. A hosted Sites deployment cannot reach a developer machine's loopback sidecar. Without an external sidecar it therefore keeps ordinary HTTPS requests open while the Worker waits on the same market data provider guest websocket used locally, returning each direct-USD quote or ordered `{EXCHANGE}:{symbol}USDT.P` change as completed JSON. The scanner snapshot remains a 15-second safety fallback. An optional external sidecar must use **HTTPS** and a server-side token. Transport-level streaming or polling does not itself guarantee exchange real-time entitlements.
 
-To use TradingView financials and the independent shared data reader with Trader's own configuration:
+To use market data provider financials and the independent shared data reader with Trader's own configuration:
 
 ```bash
 npm run dev:tradingview
@@ -142,9 +142,9 @@ Secrets stay server-side. The repository contains no provider credentials or dow
 
 The **Data**, **Institutions** and **X analysis** screens use the same independent data catalog and API as `trader data get`. The Python helper reads `develop/.data/finance/13f` and `develop/.data/finance/x` directly without Midas or database copies. `dev:tradingview` reads Trader's own `.env.local`; the older `dev:midas` launcher name is a standalone compatibility alias. Only the excluded legacy Ideas screen retains its Midas integration. See [data access](docs/data-cli.md) for the complete catalog, HTTP/OpenAPI contract and dependency-free Python/JavaScript clients.
 
-The standalone profile selects TradingView for financial indicators, annual/quarterly statements and dated earnings; Yahoo supplies profiles, ownership, dividends and splits. PER/PEG can be calculated from TradingView values with explicit input/basis metadata. Financial history is the currently available revision, not a complete publication-time archive. SEC financial facts and FRED publication vintages are separate inputs when historical information availability matters.
+The standalone profile selects market data provider for financial indicators, annual/quarterly statements and dated earnings; Yahoo supplies profiles, ownership, dividends and splits. PER/PEG can be calculated from market data provider values with explicit input/basis metadata. Financial history is the currently available revision, not a complete publication-time archive. SEC financial facts and FRED publication vintages are separate inputs when historical information availability matters.
 
-FMP has been retired: its adapter is unregistered and its credentials are excluded from environment forwarding. Company logos now use Trader's local symbol-logo route, which resolves a validated TradingView logo. To configure the same role mix in a standalone environment, use the example in [`api/README.md`](api/README.md). The website-internal APIs are not stable public API contracts: no API key is needed for the implemented TradingView financial scanner and history transport, but fields, access, and availability can change. The adapters validate response shape, listing identity, currency, and units and keep bounded transient caches.
+FMP has been retired: its adapter is unregistered and its credentials are excluded from environment forwarding. Company logos now use Trader's local symbol-logo route, which resolves a validated market data provider logo. To configure the same role mix in a standalone environment, use the example in [`api/README.md`](api/README.md). The website-internal APIs are not stable public API contracts: no API key is needed for the implemented market data provider financial scanner and history transport, but fields, access, and availability can change. The adapters validate response shape, listing identity, currency, and units and keep bounded transient caches.
 
 Nasdaq current option chains and ChartExchange individual-contract history are implemented, with Yahoo as an explicit alternative for historical option OHLCV. Direct-source routes cover recent SEC filings, financial facts and Form 4 transactions, FINRA off-exchange short-sale volume, USAspending contracts, FRED and CNN Fear & Greed. Coverage is bounded by each source; a complete historical option chain and all exchange-level FINRA data are not provided. Yahoo ownership aggregates are not substitutes for filing-level data. TipRanks analyst ratings remain available only with separately licensed credentials.
 
@@ -227,7 +227,7 @@ The repository includes [`$manage-trader-strategies`](skills/manage-trader-strat
 | Search | Mock; Yahoo optional | Provider response only |
 | Direct-listing USD current quotes | Mock; local `tradingview-websocket` optional | Provider response only |
 | Company profiles and news | Disabled by default; Yahoo optional | Transient provider response only |
-| Financial metrics, annual history, fiscal consensus | Disabled by default; TradingView or Yahoo optional | Transient provider response only |
+| Financial metrics, annual history, fiscal consensus | Disabled by default; market data provider or Yahoo optional | Transient provider response only |
 | Dated EPS/revenue actuals and estimates | Disabled by default; Google Finance or Yahoo optional | Transient provider response only |
 | Quarterly statements, ownership/short interest, dividends and splits | Disabled by default; Yahoo research optional | Transient provider response only |
 | Chart OHLCV | Mock; local `tradingview-websocket` optional | Not stored in D1 |
@@ -335,11 +335,10 @@ public/              brand artwork and README screenshots
 tests/               contract, security-boundary, SSR, and UI-structure tests
 ```
 
-One small service-owned root folder stays in its conventional location:
-
-| Folder | Why it stays |
-|---|---|
-| `.openai/` | Sites hosting and the D1 `DB` binding |
+Cloudflare D1/R2 binding names are configured in `src/worker/cloudflare.config.json`.
+The build generates Sites deployment metadata under ignored `dist/.openai/`
+from this configuration and the checked-in database migrations. No root
+`.openai/` folder is required.
 
 `.vinext/`, `.wrangler/`, `var/`, `dist/`, `build/`,
 `src/desktop/frontend-dist/`, `src/desktop/tauri/target/`, `node_modules/`,
@@ -348,8 +347,9 @@ local outputs, not repository source.
 Local D1 state lives under ignored `var/cloudflare/`; deleting it resets local
 watchlists, strategy preferences, and transactions without deleting the schema.
 Mutable runtime data never belongs under `src/`, where it could be bundled or
-committed. `.openai/hosting.json` remains at the root because Sites discovers
-the hosted D1 binding there.
+committed. Browser automation records (`.playwright-cli/`, `output/`) and local
+review artifacts (`artifacts/`) are also ignored; research sources and data are
+not covered by these exclusions.
 
 ## Quality checks
 

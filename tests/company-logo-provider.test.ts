@@ -71,7 +71,7 @@ test("renders a valid company logo without also drawing its monogram fallback", 
   assert.doesNotMatch(html, />AA</);
 });
 
-test("resolves only the matching TradingView symbol and a reviewed logo identifier", async () => {
+test("resolves only the matching Market data provider symbol and a reviewed logo identifier", async () => {
   const source = await resolveTradingViewLogo("NBIS", async (input, init) => {
     assert.equal(String(input), "https://scanner.tradingview.com/america/scan");
     assert.equal(init?.redirect, "manual");

@@ -34,7 +34,7 @@ function code(expected: TradingViewFundamentalsError["code"]) {
   return (error: unknown) => error instanceof TradingViewFundamentalsError && error.code === expected;
 }
 
-test("missing PER and PEG are calculated from same-response TradingView inputs with explicit TTM/NTM definitions", async () => {
+test("missing PER and PEG are calculated from same-response Market data provider inputs with explicit TTM/NTM definitions", async () => {
   const result = await provider({ close: 120, earnings_per_share_diluted_ttm: 4,
     eps_estimate_ntm: 6, earnings_per_share_diluted_yoy_growth_ttm: 25,
     earnings_per_share_diluted_fy: 99, earnings_per_share_diluted_yoy_growth_fy: 999,
@@ -49,7 +49,7 @@ test("missing PER and PEG are calculated from same-response TradingView inputs w
   assert.equal(result?.eps, 99, "annual statement EPS remains annual, not overwritten by TTM EPS");
 });
 
-test("TradingView's published multiples win over reconstructed values and are not silently redefined", async () => {
+test("Market data provider's published multiples win over reconstructed values and are not silently redefined", async () => {
   const result = await provider({ close: 120, earnings_per_share_diluted_ttm: 4, eps_estimate_ntm: 6,
     earnings_per_share_diluted_yoy_growth_ttm: 25, price_earnings_ttm: 31, price_earnings_fwd: 21,
     price_earnings_growth_ttm: 1.3,
@@ -77,7 +77,7 @@ test("valuation derivations reject absent, nonpositive or nonfinite earnings/gro
   assert.equal(result?.pegRatio, undefined);
 });
 
-test("TradingView advertises financial statements and dated earnings without upstream credentials", async () => {
+test("Market data provider advertises financial statements and dated earnings without upstream credentials", async () => {
   assert.equal(tradingViewProviderRegistration.manifest.id, "tradingview");
   assert.deepEqual(tradingViewProviderRegistration.manifest.requiredEnv, []);
   assert.deepEqual(tradingViewProviderRegistration.manifest.capabilities, ["fundamentals.profile", "fundamentals.normalized", "fundamentals.earnings", "fundamentals.research"]);
@@ -85,7 +85,7 @@ test("TradingView advertises financial statements and dated earnings without ups
   assert.deepEqual(await provider().getEarnings(INSTRUMENT, CONTEXT), []);
 });
 
-test("partial WebSocket history cannot erase usable TradingView scanner annual statements", async () => {
+test("partial WebSocket history cannot erase usable Market data provider scanner annual statements", async () => {
   const adapter = createTradingViewProvider({ TRADER_TRADINGVIEW_SIDECAR_URL: "http://localhost:9876", TRADER_TRADINGVIEW_SIDECAR_TOKEN: "test-token" }, {
     now: () => NOW,
     fetch: async input => new URL(String(input)).pathname === "/v1/tradingview/financials" ? response({

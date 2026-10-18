@@ -65,7 +65,7 @@ test("registers and resolves a valid provider", () => {
   assert.deepEqual(registry.listManifests().map((manifest) => manifest.id), ["mock"]);
 });
 
-test("composes TradingView financials, Google Finance earnings and Yahoo profile/research independently", () => {
+test("composes Market data provider financials, Google Finance earnings and Yahoo profile/research independently", () => {
   const runtime = createProviderRuntime({
     TRADER_INSTRUMENT_PROVIDER: "mock",
     TRADER_MARKET_PROVIDER: "mock",
@@ -93,7 +93,7 @@ test("retired FMP is not registered and cannot be re-enabled with a credential",
   }), "unknown_provider", ["retired-secret"]);
 });
 
-test("TradingView financials do not imply an unsupported dated-earnings role", async () => {
+test("Market data provider financials do not imply an unsupported dated-earnings role", async () => {
   const runtime = createProviderRuntime({
     TRADER_INSTRUMENT_PROVIDER: "mock", TRADER_MARKET_PROVIDER: "mock",
     TRADER_FUNDAMENTALS_PROVIDER: "tradingview",
@@ -105,7 +105,7 @@ test("TradingView financials do not imply an unsupported dated-earnings role", a
   assert.deepEqual(await runtime.fundamentals!.getEarnings(instrument, { requestId: "test" }), []);
 });
 
-test("TradingView research and dated earnings can be selected independently", () => {
+test("Market data provider research and dated earnings can be selected independently", () => {
   const runtime = createProviderRuntime({
     TRADER_INSTRUMENT_PROVIDER: "mock", TRADER_MARKET_PROVIDER: "mock",
     TRADER_RESEARCH_PROVIDER: "tradingview", TRADER_EARNINGS_PROVIDER: "tradingview",

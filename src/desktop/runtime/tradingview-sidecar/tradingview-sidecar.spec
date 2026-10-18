@@ -28,7 +28,7 @@ hiddenimports = ["talib_indicators", "financial_history", "shared_data"]
 
 # yfinance and curl_cffi both use runtime-selected modules/resources. Collect
 # their complete installed packages so profile and earnings endpoints retain
-# the same behavior as the Python script. The TradingView package is tiny, and
+# the same behavior as the Python script. The Market data provider package is tiny, and
 # collecting it completely protects its websocket import boundary as well.
 for package in ("tradingview_websocket", "yfinance", "curl_cffi", "lxml", "talib"):
     package_datas, package_binaries, package_hiddenimports = collect_all(package)

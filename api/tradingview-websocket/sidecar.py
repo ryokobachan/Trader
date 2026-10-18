@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Authenticated local bridge for TradingView bars and yfinance company data.
+"""Authenticated local bridge for Market data provider bars and yfinance company data.
 
 This process is deliberately separate from the Vinext/Cloudflare runtime:
 Cloudflare Workers cannot import CPython packages.  Trader talks to this
@@ -160,7 +160,7 @@ class RealtimeSubscriber:
 
 
 def parse_realtime_items(payload: dict[str, Any] | None) -> tuple[dict[str, str], ...]:
-    """Validate symbols and derive TradingView identifiers from allowlisted MICs."""
+    """Validate symbols and derive Market data provider identifiers from allowlisted MICs."""
     if payload is None or set(payload) != {"items"}:
         raise ValueError("invalid realtime payload")
     raw_items = payload.get("items")
@@ -191,7 +191,7 @@ def parse_realtime_items(payload: dict[str, Any] | None) -> tuple[dict[str, str]
         ):
             raise ValueError("invalid realtime item")
         seen_symbols.add(symbol)
-        # Yahoo-style US class-share tickers use a hyphen while TradingView's
+        # Yahoo-style US class-share tickers use a hyphen while Market data provider's
         # listing identifiers use a dot (for example BRK-B -> NYSE:BRK.B).
         # This deterministic server-owned alias keeps raw upstream IDs out of
         # the request boundary.
@@ -305,9 +305,9 @@ def synthetic_latest_close_item(
 
 
 class RealtimeQuoteBroker:
-    """Fan one persistent TradingView quote session out to bounded local clients.
+    """Fan one persistent Market data provider quote session out to bounded local clients.
 
-    The browser never chooses a raw TradingView identifier. Direct sources are
+    The browser never chooses a raw Market data provider identifier. Direct sources are
     derived from a validated US listing symbol and allowlisted MIC; synthetic
     sources come only from the server-owned exchange order. The broker owns the
     sole upstream websocket, reconnects it in one worker, and replays the active
@@ -758,7 +758,7 @@ class RealtimeQuoteBroker:
                 finally:
                     websocket_client.setdefaulttimeout(previous_default_timeout)
                 if websocket.ws is None:
-                    raise RuntimeError("TradingView websocket did not connect")
+                    raise RuntimeError("Market data provider websocket did not connect")
                 websocket.ws.settimeout(1.0)
                 with self._condition:
                     if self._stopping:
@@ -801,7 +801,7 @@ class RealtimeQuoteBroker:
                         # does indicate a half-open socket.
                         now = time.monotonic()
                         if now - last_received_at > REALTIME_UPSTREAM_LIVENESS_SECONDS:
-                            raise RuntimeError("TradingView websocket became unresponsive")
+                            raise RuntimeError("Market data provider websocket became unresponsive")
                         if now - connected_at >= 30.0:
                             reconnect_delay = 0.5
                         continue
@@ -850,7 +850,7 @@ class RealtimeQuoteBroker:
                             and parameters
                             and parameters[0] == quote_session
                         ):
-                            raise RuntimeError("TradingView quote session failed")
+                            raise RuntimeError("Market data provider quote session failed")
             except Exception:
                 with self._condition:
                     should_reconnect = bool(self._source_refcounts) and not self._stopping
@@ -943,7 +943,7 @@ def finite_number(value: Any) -> float | None:
 
 def normalize_rows(result_data: Any) -> list[dict[str, float | str]]:
     if not isinstance(result_data, list):
-        raise ValueError("TradingView returned an invalid series payload")
+        raise ValueError("Market data provider returned an invalid series payload")
     rows: list[dict[str, float | str]] = []
     for entry in result_data:
         if not isinstance(entry, dict) or not isinstance(entry.get("v"), list):
@@ -983,7 +983,7 @@ def normalize_rows(result_data: Any) -> list[dict[str, float | str]]:
     deduplicated = {str(row["time"]): row for row in rows}
     normalized = list(deduplicated.values())
     if not normalized:
-        raise ValueError("TradingView returned no usable bars")
+        raise ValueError("Market data provider returned no usable bars")
     return normalized
 
 
@@ -1035,8 +1035,8 @@ def fetch_bars(
         if process.is_alive():
             process.terminate()
             process.join(2)
-            raise TimeoutError("TradingView websocket timed out") from error
-        raise RuntimeError("TradingView websocket exited without data") from error
+            raise TimeoutError("Market data provider websocket timed out") from error
+        raise RuntimeError("Market data provider websocket exited without data") from error
     finally:
         process.join(2)
         if process.is_alive():
@@ -1045,7 +1045,7 @@ def fetch_bars(
         result_queue.close()
         result_queue.join_thread()
     if not result.get("ok"):
-        raise RuntimeError("TradingView websocket fetch failed")
+        raise RuntimeError("Market data provider websocket fetch failed")
     return result["items"]
 
 
@@ -1072,12 +1072,12 @@ def fetch_latest_closes_in_child(
         )
         websocket.connect()
         if websocket.ws is None:
-            raise RuntimeError("TradingView websocket did not connect")
+            raise RuntimeError("Market data provider websocket did not connect")
         resolution_window = min(8.0, max(2.0, timeout_seconds - 1.0))
         candidate_timeout = max(0.5, resolution_window / len(exchanges))
         # A short receive timeout gives silent/unsupported candidates a bounded
         # opportunity before the resolver advances to the next configured
-        # exchange. TradingView normally emits symbol_error, but that signal is
+        # exchange. Market data provider normally emits symbol_error, but that signal is
         # not guaranteed for every exchange adapter.
         websocket.ws.settimeout(min(0.5, candidate_timeout))
         websocket.send_message("set_auth_token", ["unauthorized_user_token"])
@@ -1224,8 +1224,8 @@ def fetch_latest_closes(
         if process.is_alive():
             process.terminate()
             process.join(2)
-            raise TimeoutError("TradingView latest-close batch timed out") from error
-        raise RuntimeError("TradingView latest-close batch exited without data") from error
+            raise TimeoutError("Market data provider latest-close batch timed out") from error
+        raise RuntimeError("Market data provider latest-close batch exited without data") from error
     finally:
         process.join(2)
         if process.is_alive():
@@ -1234,7 +1234,7 @@ def fetch_latest_closes(
         result_queue.close()
         result_queue.join_thread()
     if not result.get("ok"):
-        raise RuntimeError("TradingView latest-close batch failed")
+        raise RuntimeError("Market data provider latest-close batch failed")
     return result["values"]
 
 
@@ -2336,7 +2336,7 @@ class TradingViewSidecarHandler(BaseHTTPRequestHandler):
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Trader TradingView websocket sidecar")
+    parser = argparse.ArgumentParser(description="Trader Market data provider websocket sidecar")
     parser.add_argument("--host", default=os.environ.get("TRADER_TRADINGVIEW_SIDECAR_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("TRADER_TRADINGVIEW_SIDECAR_PORT", "8791")))
     parser.add_argument(

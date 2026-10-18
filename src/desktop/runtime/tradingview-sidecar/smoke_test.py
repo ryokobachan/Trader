@@ -99,7 +99,7 @@ def validate_live_tradingview(
     path = "/v1/bars?symbol=AAPL&exchange=NASDAQ&interval=1d&range=5d&count=2"
     status, payload = request_json(base_url, path, token, timeout_seconds)
     if status != 200:
-        raise RuntimeError(f"TradingView smoke returned HTTP {status}: {payload!r}")
+        raise RuntimeError(f"Market data provider smoke returned HTTP {status}: {payload!r}")
     items = payload.get("items")
     if (
         payload.get("schemaVersion") != SCHEMA_VERSION
@@ -108,7 +108,7 @@ def validate_live_tradingview(
         or not isinstance(items, list)
         or not items
     ):
-        raise RuntimeError(f"unexpected TradingView payload: {payload!r}")
+        raise RuntimeError(f"unexpected Market data provider payload: {payload!r}")
     return {
         "sourceSymbol": payload["sourceSymbol"],
         "returnedCount": len(items),

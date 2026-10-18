@@ -180,7 +180,7 @@ test("Worker quote poll subscribes to exact USD listing IDs and returns a canoni
   assert.equal(socket.closeCalls.length, 1);
 });
 
-test("an unchanged cursor holds the HTTP request and a later TradingView tick returns immediately", async () => {
+test("an unchanged cursor holds the HTTP request and a later Market data provider tick returns immediately", async () => {
   const socket = new FakeTradingViewSocket();
   const pending = loadTradingViewWorkerQuoteLongPoll(
     [INSTRUMENT],
@@ -255,7 +255,7 @@ test("Worker quote poll rejects mislabeled and malformed values until a complete
   assert.equal(result.quotes[0]?.price, 315);
 });
 
-test("quote poll route keeps the existing response schema and reports the native TradingView provider", async () => {
+test("quote poll route keeps the existing response schema and reports the native Market data provider provider", async () => {
   const previousInstrument = process.env.TRADER_INSTRUMENT_PROVIDER;
   process.env.TRADER_INSTRUMENT_PROVIDER = "mock";
   const previousFetch = globalThis.fetch;
@@ -295,9 +295,9 @@ test("quote poll route keeps the existing response schema and reports the native
   }
 });
 
-test("quote poll route rejects an invalid cursor before opening TradingView", async (t) => {
+test("quote poll route rejects an invalid cursor before opening Market data provider", async (t) => {
   const fetchMock = t.mock.method(globalThis, "fetch", () => {
-    throw new Error("invalid input must not reach TradingView");
+    throw new Error("invalid input must not reach Market data provider");
   });
   const response = await POST(new Request("http://localhost/api/v1/watchlists/quotes/poll", {
     method: "POST",

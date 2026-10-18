@@ -157,7 +157,7 @@ function validCursorSources(
 /**
  * Compare one canonical Worker tick with the browser's last accepted value.
  *
- * A newly opened TradingView session can report a lower-priority venue before
+ * A newly opened Market data provider session can report a lower-priority venue before
  * its preferred venue. Retaining a still-fresh preferred cursor prevents every
  * long poll from oscillating between exchanges during that warm-up sequence.
  */
@@ -210,7 +210,7 @@ function pollResponse(
 }
 
 /**
- * Hold one ordinary HTTP request until the Worker-side TradingView websocket
+ * Hold one ordinary HTTP request until the Worker-side Market data provider websocket
  * yields a changed canonical price. Unlike SSE/WebSocket browser relays, the
  * Sites frontend only has to deliver one completed JSON response.
  */
@@ -325,7 +325,7 @@ export async function handleWatchlistAfterHoursLongPoll(
       if (result.done) {
         throw new TradingViewSidecarError(
           "upstream_error",
-          "TradingView realtime stream ended before a changed value arrived.",
+          "Market data provider realtime stream ended before a changed value arrived.",
         );
       }
       const item = result.value;

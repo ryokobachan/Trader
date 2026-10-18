@@ -1,4 +1,4 @@
-"""Bounded, read-only TradingView financial quote session; no local archive."""
+"""Bounded, read-only Market data provider financial quote session; no local archive."""
 from __future__ import annotations
 
 from datetime import datetime, timezone

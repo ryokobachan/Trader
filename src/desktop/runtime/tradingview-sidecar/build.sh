@@ -4,7 +4,7 @@ set -eu
 usage() {
   printf '%s\n' "usage: $0 [--live-smoke] [--tauri-output]"
   printf '%s\n' ""
-  printf '%s\n' "Builds the standalone Apple Silicon TradingView/yfinance helper."
+  printf '%s\n' "Builds the standalone Apple Silicon Market data provider/yfinance helper."
   printf '%s\n' "Set TRADER_MARKET_SIDECAR_BUILD_PYTHON to override python3.12."
   printf '%s\n' "Set TRADER_MARKET_SIDECAR_BUILD_VENV or TRADER_MARKET_SIDECAR_DIST_DIR to override build paths."
   printf '%s\n' "Use --tauri-output to write the exact externalBin into src/desktop/tauri/binaries."

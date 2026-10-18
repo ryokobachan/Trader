@@ -123,7 +123,7 @@ test("launcher reports an unreadable source without exposing its path", () => {
   assert.match(result.stderr, /could not be read/i);
 });
 
-test("documents the TradingView, Google Finance and Yahoo real-data roles", async () => {
+test("documents the Market data provider, Google Finance and Yahoo real-data roles", async () => {
   const example = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 
   assert.match(example, /^# TRADER_INSTRUMENT_PROVIDER=yahoo$/m);

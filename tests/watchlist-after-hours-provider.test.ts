@@ -253,7 +253,7 @@ function json(data: unknown, status = 200) {
   });
 }
 
-test("batches derived TradingView symbols without putting the token or tickers in the URL", async () => {
+test("batches derived Market data provider symbols without putting the token or tickers in the URL", async () => {
   const token = "sidecar-bearer-secret";
   let requestUrl: URL | undefined;
   let requestBody: unknown;

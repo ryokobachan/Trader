@@ -89,7 +89,7 @@ collector, complete historical archive or point-in-time backtest store.
 
 ## Already present and remaining differences
 
-Yahoo, TradingView, Benzinga, Google Finance, TipRanks analyst ratings, Stock
+Yahoo, market data provider, Benzinga, Google Finance, TipRanks analyst ratings, Stock
 Analysis ownership, Nasdaq options and ChartExchange history already existed
 in Trader. FMP was explicitly retired and remains disabled.
 

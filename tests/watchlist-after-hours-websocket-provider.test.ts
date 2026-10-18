@@ -135,7 +135,7 @@ test("raw Worker websocket relays canonical requested-order nulls and tick arriv
   assert.equal(server.closes[0]?.code, 1000);
 });
 
-test("browser websocket close cancels the existing TradingView stream exactly once", async () => {
+test("browser websocket close cancels the existing Market data provider stream exactly once", async () => {
   const client = new FakeRelayWebSocket();
   const server = new FakeRelayWebSocket();
   let cancelCount = 0;

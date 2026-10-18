@@ -142,14 +142,14 @@ async function run() {
     stdio: "inherit",
   });
   sidecar.once("error", () => {
-    process.stderr.write("TradingView sidecar could not be started.\n");
+    process.stderr.write("Market data provider sidecar could not be started.\n");
   });
 
   try {
     await waitUntilHealthy(environment.TRADER_TRADINGVIEW_SIDECAR_URL, token, sidecar);
   } catch {
     if (!sidecar.killed && sidecar.exitCode === null) sidecar.kill("SIGTERM");
-    throw new Error("TradingView sidecar did not become ready.");
+    throw new Error("Market data provider sidecar did not become ready.");
   }
 
   const command = childCommand(profile);
@@ -175,7 +175,7 @@ async function run() {
     app.once("exit", (code) => finish(code));
     sidecar.once("exit", (code) => {
       if (app.exitCode === null && !app.killed) {
-        process.stderr.write("TradingView sidecar stopped unexpectedly.\n");
+        process.stderr.write("Market data provider sidecar stopped unexpectedly.\n");
         app.kill("SIGTERM");
         finish(code || 1);
       }

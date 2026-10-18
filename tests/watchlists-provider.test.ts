@@ -53,7 +53,7 @@ test("requires a complete, duplicate-free order payload", () => {
 });
 
 test("generated D1 migration keeps transaction data relational and separate from market data", () => {
-  const hosting = JSON.parse(readFileSync(".openai/hosting.json", "utf8")) as { d1: string | null };
+  const hosting = JSON.parse(readFileSync("src/worker/cloudflare.config.json", "utf8")) as { d1: string | null };
   assert.equal(hosting.d1, "DB");
 
   const migration = readdirSync("src/db/migrations")

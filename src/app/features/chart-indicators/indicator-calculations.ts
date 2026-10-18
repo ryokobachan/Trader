@@ -339,7 +339,7 @@ function vwapAnchorKey(time: string, anchor: IndicatorVwapAnchor, timeZone: stri
 }
 
 /**
- * TradingView-style RSI: SMA seeds the first average gain/loss, then Wilder's
+ * Standard RSI: SMA seeds the first average gain/loss, then Wilder's
  * recursive moving average (RMA) updates every subsequent point.
  */
 export function computeWilderRsiSeries(

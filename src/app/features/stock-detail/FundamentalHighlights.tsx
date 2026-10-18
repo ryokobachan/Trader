@@ -54,13 +54,13 @@ export function FundamentalHighlights({ metrics, source, period, valuationSource
       const observation = valuationSources?.[id as "trailingPe" | "forwardPe" | "pegRatio"];
       const provider = observation?.provenance;
       const providerLabel = provider?.providerId === "yahoo" ? "Yahoo Finance"
-        : provider?.providerId === "tradingview" ? "TradingView" : provider?.providerId;
+        : provider?.providerId === "tradingview" ? "Market data provider" : provider?.providerId;
       const basis = observation?.basis === "ttm" ? "TTM" : observation?.basis === "forward" ? (ja ? "予想" : "Forward") : (ja ? "成長率調整" : "Growth-adjusted");
       const calculation = observation?.calculation;
       const calculationHelp = calculation?.growthBasis === "diluted-eps-ttm-yoy"
-        ? (ja ? "TradingViewの株価 ÷ 希薄化後EPS（TTM）÷ 同EPSの前年比成長率（%）。将来5年の成長予想は使用しません。" : "TradingView price / diluted EPS TTM / its year-over-year growth in percent. Does not use five-year forecast growth.")
-        : calculation?.earningsPeriod === "NTM" ? (ja ? "TradingViewの株価 ÷ 今後12か月の予想EPS。" : "TradingView price / next-twelve-month estimated EPS.")
-        : calculation ? (ja ? "TradingViewの株価 ÷ 直近12か月の希薄化後EPS。" : "TradingView price / trailing-twelve-month diluted EPS.") : undefined;
+        ? (ja ? "株価 ÷ 希薄化後EPS（TTM）÷ 同EPSの前年比成長率（%）。将来5年の成長予想は使用しません。" : "Market data provider price / diluted EPS TTM / its year-over-year growth in percent. Does not use five-year forecast growth.")
+        : calculation?.earningsPeriod === "NTM" ? (ja ? "株価 ÷ 今後12か月の予想EPS。" : "Market data provider price / next-twelve-month estimated EPS.")
+        : calculation ? (ja ? "株価 ÷ 直近12か月の希薄化後EPS。" : "Market data provider price / trailing-twelve-month diluted EPS.") : undefined;
       const calculationLabel = calculation?.growthBasis === "diluted-eps-ttm-yoy" ? (ja ? "TTM・前年比から計算" : "Calculated: TTM YoY")
         : calculation?.earningsPeriod === "NTM" ? (ja ? "NTMから計算" : "Calculated: NTM") : (ja ? "TTMから計算" : "Calculated: TTM");
       return <div key={id}><dt><abbr tabIndex={0} title={calculationHelp ?? (ja ? jpHelp : enHelp)}>{ja ? jp : en}</abbr>{provider && <small className="valuation-source" title={calculationHelp ?? provider.asOf}>{provider.sourceUrl ? <a href={provider.sourceUrl} target="_blank" rel="noreferrer">{providerLabel}</a> : providerLabel} · {calculation ? calculationLabel : basis}{observation?.status === "not_reported" ? (ja ? " · 公開値なし" : " · Not reported") : ""}</small>}</dt><dd className={metric?.tone === "negative" ? "negative-text" : undefined}>{metric?.value ?? "—"}</dd></div>;
